@@ -155,7 +155,7 @@ textarea {
 }
 
 .app__side {
-  width: 180px;
+  width: 220px;
   flex-shrink: 0;
   min-height: 0;
   display: flex;
@@ -217,9 +217,9 @@ textarea {
 
 /* Dim Inactive Matrix: empty steps get a faint fill so the matrix's active/inactive shape
    reads at a glance, without relying on text color alone (see gridView.js#patchCell). */
-.tracker-cell--empty {
+/* .tracker-cell--empty {
   background: var(--surface-empty);
-}
+} */
 
 .tracker-cell--empty:hover {
   background: var(--surface-3);
@@ -282,7 +282,9 @@ textarea {
   color: var(--text);
   border: 1px solid var(--border);
   cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
 }
 
 .transport-bar__play:hover {
@@ -323,6 +325,10 @@ textarea {
   border: 1px solid var(--border);
 }
 
+.transport-bar__bpm select {
+  width: 10ch;
+}
+
 .transport-bar__bpm input:hover,
 .transport-bar__bpm select:hover {
   border-color: var(--border-active);
@@ -339,7 +345,10 @@ textarea {
   color: var(--text-dim);
   border: 1px solid var(--border);
   cursor: pointer;
-  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast),
+    border-color var(--transition-fast);
 }
 
 .transport-bar__chip:hover {
@@ -398,6 +407,7 @@ textarea {
   display: flex;
   gap: var(--space-sm);
   padding: var(--space-sm);
+  padding-left: 4ch;
   background: var(--surface-2);
   border: 1px solid var(--border);
   overflow-x: auto; /* scroll rather than wrap/overflow on narrow viewports */
@@ -408,7 +418,7 @@ textarea {
   flex-direction: column;
   align-items: center;
   gap: var(--space-sm);
-  width: 44px;
+  width: 89px;
   flex-shrink: 0;
   padding: var(--space-sm) var(--space-xs);
   background: var(--surface-1);
@@ -451,7 +461,9 @@ textarea {
   cursor: pointer;
   font-size: var(--text-label);
   line-height: 1;
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
 }
 
 .channel-strip__mute:hover {
@@ -508,7 +520,7 @@ textarea {
 .instrument-slot {
   display: flex;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--space-md);
   padding: var(--space-xs) 0;
   border-bottom: 1px solid var(--border);
 }
@@ -550,7 +562,9 @@ textarea {
   border: 1px solid var(--border);
   padding: var(--space-xs) var(--space-sm);
   cursor: pointer;
-  transition: color var(--transition-fast), border-color var(--transition-fast);
+  transition:
+    color var(--transition-fast),
+    border-color var(--transition-fast);
 }
 
 .instrument-slot__load:hover {
@@ -567,7 +581,9 @@ textarea {
   border: 1px solid var(--border);
   cursor: pointer;
   font-size: var(--text-micro);
-  transition: background var(--transition-fast), color var(--transition-fast);
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
 }
 
 .instrument-panel__add:hover {
