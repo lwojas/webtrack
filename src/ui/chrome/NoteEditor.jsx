@@ -1,6 +1,6 @@
 import { useStore } from "../../state/useStore.js";
 import * as events from "../../state/events.js";
-import { getActivePattern } from "../../model/query.js";
+import { getSelectedPattern } from "../../model/query.js";
 import { EFFECT_COMMANDS } from "../../model/effects.js";
 import { formatBarBeat } from "../../model/timing.js";
 import { noteNumberToName, parseNoteName, toHex } from "../../model/notes.js";
@@ -23,14 +23,14 @@ export default function NoteEditor({ store }) {
   // useSyncExternalStore's Object.is check never sees a change and silently skips re-render.
   useStore(store, events.CELL_CHANGED, (s) => {
     const { trackIndex, rowIndex } = s.cursor;
-    const pattern = getActivePattern(s.song, s.activeBankIndex);
+    const pattern = getSelectedPattern(s.song);
     const selected = pattern?.tracks[trackIndex]?.events[rowIndex];
     if (!selected) return "";
     return [selected.note, selected.instrument, selected.velocity, selected.pan, selected.effectCommand, selected.effectParam, selected.length].join("|");
   });
 
   const state = store.getState();
-  const pattern = getActivePattern(state.song, state.activeBankIndex);
+  const pattern = getSelectedPattern(state.song);
   const event = pattern?.tracks[cursor.trackIndex]?.events[cursor.rowIndex];
 
   if (!event) {

@@ -3,7 +3,7 @@ import { createGridView } from "./gridView.js";
 import { createPlayheadLayer } from "./playheadLayer.js";
 import { createCursorLayer } from "./cursorLayer.js";
 import { attachMutationCrossCheck } from "../../debug/renderStats.js";
-import { getActivePattern } from "../../model/query.js";
+import { getSelectedPattern } from "../../model/query.js";
 import * as events from "../../state/events.js";
 
 // The React/vanilla-DOM boundary (ECS-156 plan §3/§4): renders one container div with a ref,
@@ -12,11 +12,11 @@ import * as events from "../../state/events.js";
 // playhead, and the cursor are owned entirely by those modules, driven by the store's
 // pub/sub, not by React props/state.
 //
-// The grid itself can still be torn down and rebuilt from inside this same effect: a bank
-// switch, pattern switch, or sequence-length change can land on a pattern whose
-// trackCount/rowCount doesn't match what's currently mounted (see model/mutations.js's
-// setPatternRowCount) — handlePossibleResize() below detects that and rebuilds, rather than
-// trying to resize the existing DOM in place.
+// The grid itself can still be torn down and rebuilt from inside this same effect: a pattern
+// switch or sequence-length change can land on a pattern whose trackCount/rowCount doesn't
+// match what's currently mounted (see model/mutations.js's setPatternRowCount) —
+// handlePossibleResize() below detects that and rebuilds, rather than trying to resize the
+// existing DOM in place.
 export default function TrackerGridHost({ store, playbackController, renderStats }) {
   const containerRef = useRef(null);
 
@@ -31,12 +31,24 @@ export default function TrackerGridHost({ store, playbackController, renderStats
 
     function repaintActivePattern() {
       const state = store.getState();
-      gridView.repaintPattern(getActivePattern(state.song, state.activeBankIndex));
+      const pattern = getSelectedPattern(state.song);
+      gridView.repaintPattern(pattern);
+      pattern.tracks.forEach((track, trackIndex) => gridView.setHeaderLength(trackIndex, track.length, pattern.rowCount));
+    }
+
+    function patchHeaderLength({ trackIndex }) {
+      const state = store.getState();
+      const pattern = getSelectedPattern(state.song);
+      gridView.setHeaderLength(trackIndex, pattern.tracks[trackIndex].length, pattern.rowCount);
+    }
+
+    function handleLengthChange(trackIndex, value) {
+      store.setTrackLength(trackIndex, value);
     }
 
     function patchOneCell({ trackIndex, rowIndex }) {
       const state = store.getState();
-      const pattern = getActivePattern(state.song, state.activeBankIndex);
+      const pattern = getSelectedPattern(state.song);
       gridView.patchCell(trackIndex, rowIndex, pattern.tracks[trackIndex].events[rowIndex]);
     }
 
@@ -63,7 +75,7 @@ export default function TrackerGridHost({ store, playbackController, renderStats
 
     function buildGrid() {
       const state = store.getState();
-      const pattern = getActivePattern(state.song, state.activeBankIndex);
+      const pattern = getSelectedPattern(state.song);
       const { trackCount } = state.song;
       mountedTrackCount = trackCount;
       mountedRowCount = pattern.rowCount;
@@ -73,6 +85,7 @@ export default function TrackerGridHost({ store, playbackController, renderStats
         rowCount: pattern.rowCount,
         onCellPatched: renderStats?.recordCellPatch,
         onCellClick: handleCellClick,
+        onLengthChange: handleLengthChange,
       });
       gridView.mount(containerRef.current);
       renderStats?.setNodeCount(gridView.getNodeCount());
@@ -81,8 +94,10 @@ export default function TrackerGridHost({ store, playbackController, renderStats
         : () => {};
 
       playheadLayer = createPlayheadLayer({
+        trackCount,
+        getColumnRect: gridView.getColumnRect,
         getRowElement: gridView.getRowElement,
-        getRow: () => playbackController.getPlayheadRow(),
+        getTrackRow: (trackIndex) => playbackController.getTrackPlayheadRow(trackIndex),
         onFrame: renderStats?.recordFrameTime,
       });
       playheadLayer.mount(gridView.getContainerElement());
@@ -96,7 +111,7 @@ export default function TrackerGridHost({ store, playbackController, renderStats
 
     function handlePossibleResize() {
       const state = store.getState();
-      const pattern = getActivePattern(state.song, state.activeBankIndex);
+      const pattern = getSelectedPattern(state.song);
       if (state.song.trackCount !== mountedTrackCount || pattern.rowCount !== mountedRowCount) {
         teardownGrid();
         buildGrid();
@@ -109,9 +124,9 @@ export default function TrackerGridHost({ store, playbackController, renderStats
 
     const unsubscribers = [
       store.subscribe(events.CELL_CHANGED, patchOneCell),
-      store.subscribe(events.BANK_SELECTED, handlePossibleResize),
       store.subscribe(events.PATTERN_SELECTED, handlePossibleResize),
       store.subscribe(events.PATTERN_LENGTH_CHANGED, handlePossibleResize),
+      store.subscribe(events.TRACK_LENGTH_CHANGED, patchHeaderLength),
       store.subscribe(events.CURSOR_MOVED, updateCursor),
     ];
 

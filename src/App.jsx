@@ -1,14 +1,21 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import TrackerGridHost from "./ui/grid/TrackerGridHost.jsx";
 import TransportBar from "./ui/chrome/TransportBar.jsx";
 import Mixer from "./ui/chrome/Mixer.jsx";
 import InstrumentPanel from "./ui/chrome/InstrumentPanel.jsx";
 import NoteEditor from "./ui/chrome/NoteEditor.jsx";
+import PatternManager from "./ui/chrome/PatternManager.jsx";
 import PerfPanel from "./ui/debug/PerfPanel.jsx";
 import { createAppContext } from "./appContext.js";
 import { attachTransportKeys } from "./input/transportKeys.js";
 
+const TABS = [
+  { id: "tracker", label: "TRACKER" },
+  { id: "patterns", label: "PATTERNS" },
+];
+
 export default function App() {
+  const [activeTab, setActiveTab] = useState("tracker");
   const {
     store,
     playbackController,
@@ -64,16 +71,36 @@ export default function App() {
         onSaveProject={saveProject}
         onLoadProjectFile={loadProjectFromFile}
       />
-      <div className="app__body">
-        <div className="app__tracker">
-          <TrackerGridHost store={store} playbackController={playbackController} renderStats={renderStats} />
-          <Mixer store={store} />
-        </div>
-        <div className="app__side">
-          <InstrumentPanel store={store} />
-          <NoteEditor store={store} />
-        </div>
+      <div className="app__tabs" role="tablist" aria-label="View">
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            role="tab"
+            aria-selected={activeTab === tab.id}
+            className={`app__tab${activeTab === tab.id ? " app__tab--active" : ""}`}
+            onClick={() => setActiveTab(tab.id)}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
+
+      {activeTab === "tracker" ? (
+        <div className="app__body">
+          <div className="app__tracker">
+            <TrackerGridHost store={store} playbackController={playbackController} renderStats={renderStats} />
+            <Mixer store={store} />
+          </div>
+          <div className="app__side">
+            <InstrumentPanel store={store} />
+            <NoteEditor store={store} />
+          </div>
+        </div>
+      ) : (
+        <div className="app__body">
+          <PatternManager store={store} playbackController={playbackController} />
+        </div>
+      )}
       <PerfPanel renderStats={renderStats} playbackController={playbackController} />
     </div>
   );

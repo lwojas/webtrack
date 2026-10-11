@@ -14,8 +14,8 @@ npm run dev       # http://localhost:5175
 
 Click anywhere on the page once, or press Play — that first gesture is what the browser
 requires before any audio can start, and it's also when the two bundled demo samples
-(`public/samples/kick.wav`, `hat.wav`) load into instrument slots `00`/`01`. The demo song
-(bank A, pattern 1) already has a simple kick/hat pattern in it, so Play works immediately.
+(`public/samples/kick.wav`, `hat.wav`) load into instrument slots `00`/`01`. The demo song's
+one starting pattern already has a simple kick/hat pattern in it, so Play works immediately.
 
 ```bash
 npm test           # vitest run — model/audio/control-registry unit tests
@@ -26,20 +26,31 @@ npm run preview      # serve the production build
 
 ## Using the tracker
 
+### Tracker / Patterns tabs
+
+Two views, switched with the tabs just under the transport bar:
+
+- **Tracker** — the grid, mixer, instrument panel, and note editor (everything below).
+- **Patterns** — the Pattern Manager: a two-column view of every pattern that exists (left) and
+  the ordered queue of pattern references the project plays/is organized around (right). Click
+  a pattern (in either column) to make it the one the Tracker tab edits. **+ NEW PATTERN**
+  creates one and appends it to the end of the queue; **+ QUEUE** on a pool entry appends that
+  *same* pattern again (the queue can reference one pattern more than once); **✕** removes one
+  queue slot, disabled when the queue has only one slot left — it can never be emptied.
+
 ### Transport bar (top)
 
 | Control | Does |
 |---|---|
 | **Play / Stop** | Also toggleable with `Space` |
 | **BPM** | Editable tempo |
-| **A / B / C / D** | Select bank — each bank holds its own independent list of patterns |
-| **1, 2, ...** | Select pattern within the active bank |
-| **LEN** | The active pattern's length, 1–8 bars. Resizes the grid; existing notes are preserved when growing, and notes past the new boundary are dropped when shrinking |
+| **PATTERN** | Read-only — shows the currently selected pattern's name. Change selection from the Patterns tab |
+| **LEN** | The selected pattern's length, 1–8 bars. Resizes the grid; existing notes are preserved when growing, and notes past the new boundary are dropped when shrinking |
 | **SAVE** | Downloads the current project (song, instruments + loaded samples, mixer/cursor state) as a single `.json` file |
 | **LOAD** | Opens a previously saved project file and restores it in place |
 
-> **Switching bank/pattern while playing doesn't cut over immediately.** It shows "SWITCH
-> QUEUED" and takes effect at the start of the next loop, not mid-pattern — this is
+> **Switching the selected pattern while playing doesn't cut over immediately.** It shows
+> "SWITCH QUEUED" and takes effect at the start of the next loop, not mid-pattern — this is
 > intentional (see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#loop-boundary-deferred-pattern-switching)).
 > While stopped, switching is immediate.
 
@@ -104,25 +115,26 @@ the rendering-architecture claims below checkable, not just asserted — see
 
 ## Project status
 
-This is an MVP built against Linear issue ECS-156 (8 tracks, 4 banks, 1–8 bars/pattern),
-since extended with project save/load, mouse-driven selection, an explicit per-note length,
-variable sequence length, a bar/beat legend, and a redesigned horizontal mixer. What's
-explicitly **not** built yet — mostly by design, with the seams left open rather than closed
-off — is listed in
+This is an MVP built against Linear issue ECS-156 (8 tracks, 1–8 bars/pattern), since extended
+with project save/load, mouse-driven selection, an explicit per-note length, variable sequence
+length, a bar/beat legend, a redesigned horizontal mixer, and a Pattern Manager that replaced
+the original bank-based pattern storage with an explicit pattern pool + queue (see
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#data-model)). What's explicitly **not** built yet
+— mostly by design, with the seams left open rather than closed off — is listed in
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#explicitly-out-of-scope): MIDI I/O, a real
-effects/automation engine, a Canvas renderer, per-track FX buses, song arrangement/timeline,
-undo/redo.
+effects/automation engine, a Canvas renderer, per-track FX buses, playing the pattern queue in
+order, per-track playback length/polymetric playback, undo/redo.
 
 ## Repository layout
 
 ```
 src/
-  model/        musical data — Song/Bank/Pattern/Track/Row/Event/timing, framework-agnostic
+  model/        musical data — Song/Pattern/Track/Row/Event/timing, framework-agnostic
   audio/        webdsp integration — compiling the model into playback
   state/        the pub/sub store both React and vanilla DOM code read from
   input/        keyboard → musical events, transport keys
   ui/grid/      the hand-rolled tracker grid (not React) — mouse + keyboard selection
-  ui/chrome/    the React app chrome (transport bar, mixer, instrument panel, note editor)
+  ui/chrome/    the React app chrome (transport bar, mixer, instrument panel, note editor, pattern manager)
   ui/debug/     the F3 perf panel
   control/      a small external control-surface contract (not yet consumed by anything)
   debug/        render/mutation instrumentation

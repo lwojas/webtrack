@@ -35,20 +35,10 @@ function buildControl(def, { store, playbackController }) {
       // Feedback-only, and purely derived from the engine's own clock, same as the UI
       // playhead (ui/grid/playheadLayer.js) — no store event corresponds to this changing.
       return createControl({ def, read: () => playbackController.getPlayheadRow() });
-    case "bank.active":
+    case "pattern.selected":
       return createControl({
         def,
-        read: () => store.getState().activeBankIndex,
-        write: (value) => store.selectBank(value),
-        subscribe: (fn) => store.subscribe(events.BANK_SELECTED, fn),
-      });
-    case "pattern.active":
-      return createControl({
-        def,
-        read: () => {
-          const state = store.getState();
-          return state.song.banks[state.activeBankIndex].activePatternIndex;
-        },
+        read: () => store.getState().song.selectedPatternId,
         write: (value) => store.selectPattern(value),
         subscribe: (fn) => store.subscribe(events.PATTERN_SELECTED, fn),
       });

@@ -45,7 +45,7 @@ grid subtree, not just the playhead, while keeping React for everything that ben
 ### 2. One store, two kinds of subscriber
 
 `src/state/store.js` is a small pub/sub over the `Song` plus UI/session state (cursor, octave,
-edit step, active bank, playing flag, selected instrument). It is **not** a general framework —
+edit step, playing flag, selected instrument). It is **not** a general framework —
 just an event emitter over a fixed set of named events (`src/state/events.js`).
 
 - The vanilla grid modules subscribe directly: `store.subscribe(EVENT_NAME, handler)`.
@@ -70,13 +70,13 @@ render thread's own clock) is the single source of truth for both scheduling and
 playhead. `src/audio/lookaheadPlayer.js` runs a `setInterval` purely to decide *when to top up*
 the schedule a little further into the future — the same "lookahead scheduler" shape
 `webdsp`'s own `src/sequencing/lookaheadPlayer.ts` demonstrates, reimplemented here against
-this app's Song/Bank/Pattern model instead of webdsp's generic example shape.
+this app's Song/Pattern model instead of webdsp's generic example shape.
 
 ## Module map
 
 | Directory | Owns | Imports from |
 |---|---|---|
-| `src/model/` | Song/Bank/Pattern/Track/Row/Event — plain factory functions and mutators, no classes | nothing else in `src/` |
+| `src/model/` | Song/Pattern/Track/Row/Event — plain factory functions and mutators, no classes | nothing else in `src/` |
 | `src/audio/` | Compiling the model to `webdsp` calls, the lookahead player, sample loading, transport | `model/`, `webdsp` |
 | `src/state/` | The pub/sub store, event names, the React bridge hook | `model/` (for mutation helpers) |
 | `src/input/` | Keyboard → musical note events, transport keys, cursor/hex-digit editing | `model/`, `audio/preview.js`, `state/` (via the store it's given) |
@@ -97,16 +97,24 @@ belongs, it almost certainly belongs here, not inside `model/`, `audio/`, or `st
 ## Data model
 
 ```
-Song { bpm, trackCount, rowCount, trackChannels: TrackChannel[8], banks: Bank[4] }
-Bank { id, name, patterns: Pattern[], activePatternIndex }   // each bank's pattern list is independent
-Pattern { name, rowCount, tracks: PatternTrack[8] }           // rowCount is per-pattern — 1-8 bars, see model/timing.js
-PatternTrack { events: Event[rowCount] }
+Song { bpm, trackCount, rowCount, trackChannels: TrackChannel[8],
+       patterns: Pattern[], patternQueue: PatternId[], selectedPatternId: PatternId, nextPatternId }
+Pattern { id, name, rowCount, tracks: PatternTrack[8] }        // rowCount is per-pattern — 1-8 bars, see model/timing.js
+PatternTrack { events: Event[rowCount], length }   // length is the track's own playback loop length — defaults to rowCount, see §8
 Event { note, instrument, velocity, pan, effectCommand, effectParam, length }   // all nullable; empty = all null
 TrackChannel { index, name, muted, solo, volume }   // mixer-level — persists across pattern switches
 Instrument { id, name, sampleId, gain, rootNote, sampleAsset }   // not part of Song — lives in store.instruments
 ```
 
-Two things worth noting:
+`Song.patterns` is a pool of patterns, unique by `id`. `Song.patternQueue` is an ordered list
+of pattern ids — a queue of *references*, not unique occurrences, so the same pattern id can
+appear in it more than once (see `ui/chrome/PatternManager.jsx`, `model/mutations.js`'s
+`addPattern`/`appendPatternToQueue`/`removeFromPatternQueue`). `Song.selectedPatternId` is
+which pattern the Tracker tab currently edits/displays — explicit project state, not UI/session
+state, since a reopened project should restore it. The queue can never be empty;
+`removeFromPatternQueue` refuses a removal that would leave it with zero slots.
+
+Three things worth noting:
 
 - **`TrackChannel` (mute/solo/volume) is separate from `PatternTrack` (the note events).**
   Mute/solo/volume are mixer-level state that should survive switching patterns on the same
@@ -115,7 +123,14 @@ Two things worth noting:
 - **`Instrument` is not part of `Song`.** Instrument slots (and the samples loaded into them)
   are store-level (`store.instruments`), not musical data — an `Event.instrument` is just an
   index into that array. This keeps instrument/sample assignment independent of which pattern
-  or bank you're looking at.
+  you're looking at.
+- **There is no `Bank` abstraction.** An earlier version of this model put patterns under
+  `Bank { patterns: Pattern[], activePatternIndex }`, which conflated pattern identity,
+  sequencing, and selection with an unrelated "which instrument/track set" concept — one that
+  was never actually implemented (`trackChannels` above were already global, shared by every
+  pattern). The Pattern Manager (`ui/chrome/PatternManager.jsx`) replaced it with the
+  pool/queue/selectedPatternId shape above. If bank-scoped instrument sets are added later,
+  they belong on `trackChannels`/`instruments`, not on pattern storage.
 
 `Event.note` is a numeric MIDI-style value (`60` = `C-4`), not a display string — `model/notes.js`
 is the only place that converts to/from `"C-4"`-style text. This matters for MIDI readiness:
@@ -136,7 +151,7 @@ session, these bytes are what `src/persistence/projectFile.js` actually embeds o
 
 | Function | File | What it does |
 |---|---|---|
-| `createSong()` | `model/song.js` | Builds a fresh `Song` with the MVP defaults (8 tracks, 4 banks, 64 rows) |
+| `createSong()` | `model/song.js` | Builds a fresh `Song` with the MVP defaults (8 tracks, 64 rows) and one starting pattern, already queued and selected |
 | `setEventField()` / `clearEvent()` | `model/mutations.js` | The only functions that write into a pattern's events |
 | `compileEvent()` / `compileRow()` | `audio/compile.js` | Pure: `Event` + `TrackChannel` + `Instrument[]` → `webdsp` `ScheduledEvent` (or `null`). No `webdsp` calls — testable with plain assertions |
 | `createLookaheadPlayer()` | `audio/lookaheadPlayer.js` | Drives playback: ticks every 25ms, schedules ~150ms ahead, derives the playhead row purely from `getCurrentTime()` |
@@ -153,7 +168,7 @@ session, these bytes are what `src/persistence/projectFile.js` actually embeds o
   8 track cells per row, 4 `<span>`s per cell (note/ins/vol/fx). Every cell's DOM refs are
   cached in a 2D array at build time.
 - **`patchCell(trackIndex, rowIndex, event)` is the single write path for all cell content.**
-  A single edit calls it once. A bank/pattern switch calls it 512 times (once per cell) — this
+  A single edit calls it once. A pattern switch calls it 512 times (once per cell) — this
   is a repaint via the same function, not a rebuild: zero node allocation after mount.
 - **The playhead and cursor are each one absolutely-positioned `<div>`**, moved via
   `transform`, never one DOM node per row. The playhead's `requestAnimationFrame` loop only
@@ -194,18 +209,21 @@ session, these bytes are what `src/persistence/projectFile.js` actually embeds o
 
 ### Loop-boundary-deferred pattern switching
 
-Switching the active bank/pattern **while playing** doesn't take effect immediately.
+Switching the selected pattern **while playing** doesn't take effect immediately.
 `lookaheadPlayer.requestPatternSwitch()` stores the new pattern as *pending*; `tick()` only
 swaps it in the moment `rowIndex` wraps back to `0` (a loop boundary) — so a switch issued
 mid-pattern finishes the current loop first. `playbackController` reports this via
 `onPatternSwitchPending`, which the store surfaces as `patternSwitchPending` (shown as "SWITCH
 QUEUED" in the transport bar). While **stopped**, there's nothing to defer — `switchPattern()`
-is a no-op and the next `play()` reads the newly active pattern fresh.
+is a no-op and the next `play()` reads the newly selected pattern fresh.
 
-The **edit view** (what the grid displays) is not deferred — selecting a bank/pattern repaints
-the grid immediately via `BANK_SELECTED`/`PATTERN_SELECTED`, independent of whatever is
-currently playing. This is deliberate: you can look at and edit pattern B while pattern A
-keeps playing until its loop finishes.
+The **edit view** (what the grid displays) is not deferred — selecting a pattern (from the
+Pattern Manager, or anything else calling `store.selectPattern()`) repaints the grid
+immediately via `PATTERN_SELECTED`, independent of whatever is currently playing. This is
+deliberate: you can look at and edit pattern B while pattern A keeps playing until its loop
+finishes. Playback itself still loops a single pattern — the queue (`Song.patternQueue`) is
+sequencing/editing state only; nothing currently walks it during playback (see "Explicitly out
+of scope" below).
 
 ## Project persistence (`src/persistence/`)
 
@@ -229,10 +247,17 @@ original persistence recipe anticipated.
 
 Loading a project replaces `state.song`/`state.instruments` wholesale
 (`state/store.js#loadProject()`) rather than merging into the existing ones, then re-emits the
-same granular events (`BANK_SELECTED`, `TRACK_CHANNEL_CHANGED`, `INSTRUMENTS_CHANGED`, etc.)
-normal interaction already produces — every existing subscriber (the grid, the mixer, the
-instrument panel, the note editor) refreshes correctly with no project-load-specific wiring
-anywhere else, including the grid's own rowCount-mismatch rebuild (see Gotcha #8).
+same granular events (`PATTERN_QUEUE_CHANGED`, `PATTERN_SELECTED`, `TRACK_CHANNEL_CHANGED`,
+`INSTRUMENTS_CHANGED`, etc.) normal interaction already produces — every existing subscriber
+(the grid, the mixer, the instrument panel, the note editor, the Pattern Manager) refreshes
+correctly with no project-load-specific wiring anywhere else, including the grid's own
+rowCount-mismatch rebuild (see Gotcha #8).
+
+A project saved under the pre-Pattern-Manager format (`formatVersion: 1`, `Song.banks` instead
+of `Song.patterns`/`patternQueue`) is migrated on load, not rejected —
+`projectFile.js#migrateSongV1ToV2()` flattens every bank's patterns into one pool/queue, in
+bank order, and selects whichever pattern was active in the previously active bank. No pattern
+data is lost; only the bank-shaped addressing is.
 
 ## External control contract (`src/control/`)
 
@@ -240,7 +265,7 @@ A small, fully-specified table of control/action ids (`src/control/contract.js`)
 two generic factories (`createControl`/`createAction`) instead of one hand-written function
 per id. **Nothing in this app consumes it yet** — it exists as a clean, internally-consistent
 seam for a future external controller (e.g. a `midi-core`-based adapter) to read/write
-transport state, bank/pattern selection, and per-track mute/solo/volume, without the tracker
+transport state, pattern selection, and per-track mute/solo/volume, without the tracker
 itself ever importing anything MIDI-specific. See
 [`docs/EXTENDING.md`](EXTENDING.md#adding-to-the-external-control-contract) for how to add to
 it, and [Gotcha #5](#5-the-control-contract-is-deliberately-small) for why it's this small.
@@ -351,9 +376,22 @@ transport bar's LEN control (`store.setSequenceLength()` →
 `pattern.rowCount` fresh every tick/wrap off the live pattern object, so a length change takes
 effect immediately, even mid-playback, with no audio-layer changes needed — a mutation, not a
 reschedule. `ui/grid/TrackerGridHost.jsx` detects a mismatch between the mounted grid's
-trackCount/rowCount and the active pattern's and rebuilds the grid (full remount, not a
-resize-in-place) on `BANK_SELECTED`/`PATTERN_SELECTED`/`PATTERN_LENGTH_CHANGED`. Don't read
-`Song.rowCount` for grid sizing — it's only the default handed to newly created patterns.
+trackCount/rowCount and the selected pattern's and rebuilds the grid (full remount, not a
+resize-in-place) on `PATTERN_SELECTED`/`PATTERN_LENGTH_CHANGED`. Don't read `Song.rowCount` for
+grid sizing — it's only the default handed to newly created patterns.
+
+Each `PatternTrack.events` array is still sized by `setPatternRowCount` together (every track's
+`events` array matches the pattern's `rowCount`), but each track's own `length` — its playback
+*loop* length — is independent and can be shorter (never longer) than that: this is the
+polymetric-track feature. `audio/lookaheadPlayer.js`'s `stepCounter` is the one shared
+transport step every track folds into its own `length` via `trackLocalStep()`
+(`model/pattern.js`) to get the row it's actually playing right now — the same fold
+`audio/compile.js#compileRow` uses for what sounds and `ui/grid/playheadLayer.js` (via
+`playbackController.getTrackPlayheadRow()`) uses for what's drawn, so the two can never
+disagree. There's still exactly one shared clock; nothing introduces a second one or a
+per-track timer. `model/mutations.js#setTrackLength()` is the only mutator — it never touches
+`events`, so shortening a track's length and lengthening it back brings the same notes right
+back.
 
 ## Explicitly out of scope
 
@@ -368,8 +406,9 @@ Left out of this MVP on purpose, with the seam each one would extend noted:
   interface could satisfy without touching `model/`, `audio/`, or anything else.
 - **Per-track `webdsp` FX buses** (`createBus`/`NodeParam`) — mute/solo/volume exist as
   compile-time gain/gating, not real engine buses.
-- **Song arrangement** (chaining multiple patterns into a timeline) — playback is single
-  active-pattern looping with a loop-boundary-deferred switch, not a timeline.
+- **Per-track polymetric playback length/independent playheads** — implemented; see §8 above
+  (`model/pattern.js#trackLocalStep`, `model/mutations.js#setTrackLength`,
+  `ui/chrome/Mixer.jsx`'s LEN control).
 - **Undo/redo, block selection, copy/paste, velocity curves/automation, sample waveform
   trimming.**
 

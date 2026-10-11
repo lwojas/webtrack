@@ -37,8 +37,7 @@ describe("control registry — contract.js's table is the only place ids are dec
     const { registry } = createTestContext();
     expect(registry.getControl("transport.playing")).toBeDefined();
     expect(registry.getControl("transport.playheadRow")).toBeDefined();
-    expect(registry.getControl("bank.active")).toBeDefined();
-    expect(registry.getControl("pattern.active")).toBeDefined();
+    expect(registry.getControl("pattern.selected")).toBeDefined();
     expect(registry.getControl("track.0.muted")).toBeDefined();
     expect(registry.getControl("track.7.volume")).toBeDefined();
     expect(registry.getControl("cursor.row")).toBeDefined();
@@ -62,12 +61,16 @@ describe("control registry — reads reflect live store state", () => {
     expect(control.getValue()).toBe(true);
   });
 
-  it("bank.active control roundtrips through store.selectBank", () => {
-    const { registry } = createTestContext();
-    const control = registry.getControl("bank.active");
-    expect(control.getValue()).toBe(0);
-    control.setValue(2);
-    expect(control.getValue()).toBe(2);
+  it("pattern.selected control roundtrips through store.selectPattern", () => {
+    const { store, registry } = createTestContext();
+    const firstId = store.getState().song.selectedPatternId;
+    const control = registry.getControl("pattern.selected");
+    expect(control.getValue()).toBe(firstId);
+
+    const newPattern = store.addPattern("Verse"); // also selects it
+    control.setValue(firstId); // roundtrip back to the original pattern
+    expect(control.getValue()).toBe(firstId);
+    expect(newPattern.id).not.toBe(firstId);
   });
 
   it("track.<n>.muted/solo/volume controls roundtrip through the store's trackChannel setters", () => {

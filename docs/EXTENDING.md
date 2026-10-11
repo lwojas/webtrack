@@ -99,24 +99,39 @@ Follow `ui/grid/playheadLayer.js`/`cursorLayer.js`'s shape: a factory function r
 mount** if you're using `transform` for positioning — see Gotcha #2 in `ARCHITECTURE.md`; it's
 an easy one to repeat.
 
-### Changing track/row/bank counts
+### Changing track/row counts
 
-`model/song.js#createSong({ bpm, trackCount, rowCount, bankCount })` takes these as options
-with MVP defaults (8/64/4). Nothing in `model/`, `audio/`, or `ui/grid/` hardcodes those
-numbers — they're all read from the `Song`/`Pattern` objects at runtime (`song.trackCount`,
-`pattern.rowCount`, `song.banks.length`). Changing the defaults, or exposing a UI to configure
-them per-song, shouldn't require touching more than `demo/demoSong.js` (if you want the demo
-song itself to look different) and possibly `src/control/contract.js`'s track-control
-generation loop (`TRACK_COUNT`, `ROW_COUNT`, `BANK_COUNT` constants) if the control contract
-needs to stay in sync with a non-default song shape.
+`model/song.js#createSong({ bpm, trackCount, rowCount })` takes these as options with MVP
+defaults (8/64). Nothing in `model/`, `audio/`, or `ui/grid/` hardcodes those numbers — they're
+all read from the `Song`/`Pattern` objects at runtime (`song.trackCount`, `pattern.rowCount`).
+Changing the defaults, or exposing a UI to configure them per-song, shouldn't require touching
+more than `demo/demoSong.js` (if you want the demo song itself to look different) and possibly
+`src/control/contract.js`'s track-control generation loop (`TRACK_COUNT`, `ROW_COUNT`
+constants) if the control contract needs to stay in sync with a non-default song shape.
 
 `pattern.rowCount` specifically already has a live UI path — the transport bar's LEN control
 → `store.setSequenceLength(bars)` → `model/mutations.js#setPatternRowCount()`, bounded to
-`model/timing.js#MAX_BARS` (8). Extending that bound, or exposing `trackCount`/`bankCount`
-the same way, follows the same shape: a mutation that resizes the live `Song`/`Pattern` in
-place, a store method that calls it and emits an event, a UI control that calls the store
-method — see `docs/ARCHITECTURE.md`'s Gotcha #8 for why no audio-layer change is needed when
-`rowCount` changes.
+`model/timing.js#MAX_BARS` (8). Extending that bound, or exposing `trackCount` the same way,
+follows the same shape: a mutation that resizes the live `Song`/`Pattern` in place, a store
+method that calls it and emits an event, a UI control that calls the store method — see
+`docs/ARCHITECTURE.md`'s Gotcha #8 for why no audio-layer change is needed when `rowCount`
+changes.
+
+### Adding/removing patterns, or changing the queue
+
+The Pattern Manager (`ui/chrome/PatternManager.jsx`) already covers the basic contract — create
+a pattern, requeue an existing one, select one, remove a queue slot — all through
+`model/mutations.js`'s `addPattern`/`appendPatternToQueue`/`removeFromPatternQueue`/
+`selectPattern` (see `docs/ARCHITECTURE.md`'s "Data model" section for the pool/queue shape).
+Anything beyond that — reordering the queue — is deliberately not implemented; add it as a new
+mutation plus store method plus UI control, the same shape as everything else here, rather
+than reaching into `Song.patterns`/`patternQueue` directly from a component.
+
+Per-track playback lengths/independent playheads *are* implemented — see
+`docs/ARCHITECTURE.md`'s §8: `model/mutations.js#setTrackLength()`, read by
+`model/pattern.js#trackLocalStep()` from both `audio/compile.js` (what plays) and
+`audio/playbackController.js#getTrackPlayheadRow()` (what `ui/grid/playheadLayer.js` draws),
+and edited from `ui/chrome/Mixer.jsx`'s per-track LEN field.
 
 ### Adding MIDI input
 

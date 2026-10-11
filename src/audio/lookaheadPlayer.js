@@ -3,16 +3,38 @@
 // shape (see ECS-156 plan §1/§6). setInterval only decides when to top up the schedule within
 // a lookahead horizon — it is never the source of timing truth, which is always
 // runtime.getCurrentTime().
+//
+// stepCounter is the one shared transport clock — it counts up for the entire playing session
+// and is never reset, only in start(). There is deliberately no per-track timer/counter
+// anywhere in this file.
+//
+// Each track's own polymetric playhead (model/pattern.js#trackLocalStep) folds not the raw
+// stepCounter but the *pattern-relative* position — stepCounter minus patternStartStep, the
+// stepCounter value at which the current pattern instance began. That keeps stepCounter itself
+// as the one continuous transport clock (never reset, never re-created) while still making
+// every pattern a self-contained musical unit: whenever playback crosses a pattern boundary —
+// a manual switch or the queue auto-advancing, including looping back into the same pattern —
+// patternStartStep jumps to that boundary's stepCounter, so every track's local phase restarts
+// at 0 for the new pattern instance, instead of carrying over wherever it happened to be.
+import { trackLocalStep } from "../model/pattern.js";
+
 const LOOKAHEAD_SECONDS = 0.15;
 const TICK_INTERVAL_MS = 25;
 
-export function createLookaheadPlayer({ runtime, compileRow, getStepDurationSeconds, onPatternSwitched }) {
+// getNextQueueEntry(currentQueueIndex) -> { pattern, queueIndex } | null — resolves what plays
+// after the current pattern finishes, read fresh from the live pattern queue every boundary
+// rather than snapshotted at start() (see audio/playbackController.js#resolveQueueEntry). Not a
+// Song/patternQueue import here, deliberately: this module stays generic over "whatever the
+// caller says comes next," the same way it was already generic over "whatever pattern plays."
+export function createLookaheadPlayer({ runtime, compileRow, getStepDurationSeconds, onPatternSwitched, getNextQueueEntry }) {
   let pattern = null;
-  let pendingPattern = null;
+  let pendingPattern = null; // { pattern, queueIndex } | null — a manually requested switch
+  let queueIndex = 0;
   let trackChannels = null;
   let instruments = null;
   let timerId = null;
   let stepCounter = 0;
+  let patternStartStep = 0;
   let startTime = 0;
   let playing = false;
 
@@ -21,30 +43,56 @@ export function createLookaheadPlayer({ runtime, compileRow, getStepDurationSeco
     const horizon = runtime.getCurrentTime() + LOOKAHEAD_SECONDS;
 
     while (startTime + stepCounter * duration < horizon) {
+      // The *pattern's* own loop boundary (row 0 of its shared grid) — distinct from any
+      // individual track's polymetric wrap, and still what drives queue advance/pattern
+      // switching below; the pattern queue's own semantics (ECS-156 plan §6/§7) are untouched
+      // by per-track lengths.
       const rowIndex = stepCounter % pattern.rowCount;
 
-      // A pattern switch requested mid-loop only takes effect at the next loop boundary
-      // (row 0), not immediately — see ECS-156 plan §6/§7.
-      if (rowIndex === 0 && pendingPattern) {
-        pattern = pendingPattern;
-        pendingPattern = null;
-        onPatternSwitched?.();
+      // A transition only takes effect at a loop boundary (row 0) after at least one full
+      // pass, never mid-pattern (see ECS-156 plan §6/§7). A manually requested switch
+      // (requestPatternSwitch, e.g. the user selecting a different pattern to edit) wins if
+      // one is pending; otherwise the queue auto-advances on its own, so playback never simply
+      // stops just because the queue reached its last entry — a one-entry queue resolves back
+      // to itself every time and loops continuously.
+      if (rowIndex === 0 && stepCounter > 0) {
+        // The pattern boundary itself — whether the queue is moving to a different pattern or
+        // looping back into this same one, a new pattern instance is starting here, so every
+        // track's local phase resets with it (see this file's own top-of-file doc comment).
+        patternStartStep = stepCounter;
+        if (pendingPattern) {
+          pattern = pendingPattern.pattern;
+          queueIndex = pendingPattern.queueIndex;
+          pendingPattern = null;
+          onPatternSwitched?.();
+        } else if (getNextQueueEntry) {
+          const next = getNextQueueEntry(queueIndex);
+          if (next) {
+            pattern = next.pattern;
+            queueIndex = next.queueIndex;
+          }
+        }
       }
 
       const stepTime = startTime + stepCounter * duration;
-      const events = compileRow(pattern, trackChannels, instruments, rowIndex, stepTime, duration);
+      // The pattern-relative position, not the raw stepCounter — compileRow folds it into each
+      // track's own loop length (model/pattern.js#trackLocalStep), and it's this, not the raw
+      // transport, that should restart at 0 on every new pattern instance.
+      const events = compileRow(pattern, trackChannels, instruments, stepCounter - patternStartStep, stepTime, duration);
       if (events.length > 0) runtime.schedule(events);
 
       stepCounter += 1;
     }
   }
 
-  function start({ initialPattern, initialTrackChannels, initialInstruments, startAt } = {}) {
+  function start({ initialPattern, initialQueueIndex = 0, initialTrackChannels, initialInstruments, startAt } = {}) {
     pattern = initialPattern;
+    queueIndex = initialQueueIndex;
     pendingPattern = null;
     trackChannels = initialTrackChannels;
     instruments = initialInstruments;
     stepCounter = 0;
+    patternStartStep = 0;
     startTime = startAt ?? runtime.getCurrentTime() + 0.05;
     playing = true;
 
@@ -68,20 +116,53 @@ export function createLookaheadPlayer({ runtime, compileRow, getStepDurationSeco
     return playing;
   }
 
-  // Deferred to the next loop boundary — see tick() above.
-  function requestPatternSwitch(newPattern) {
-    pendingPattern = newPattern;
+  // Deferred to the next loop boundary — see tick() above. newQueueIndex is whatever the
+  // caller resolved newPattern to in the live queue (or just the player's current queueIndex,
+  // unchanged, if newPattern isn't queued at all — see playbackController.js#switchPattern).
+  function requestPatternSwitch(newPattern, newQueueIndex) {
+    pendingPattern = { pattern: newPattern, queueIndex: newQueueIndex };
   }
 
-  // Purely derived from the engine's own clock — never the setInterval timer above — so a
-  // slow/throttled UI thread only degrades the playhead's redraw rate, never audio timing.
-  function getPlayheadRow() {
-    if (!playing || !pattern) return -1;
+  // The shared transport step, purely derived from the engine's own clock — never the
+  // setInterval timer above, and never reset at a pattern boundary (see tick()'s own doc
+  // comment) — so a slow/throttled UI thread only degrades the playhead's redraw rate, never
+  // audio timing, and every track's playhead reads the exact same clock position audio
+  // scheduling used.
+  function getTransportStep() {
+    if (!playing) return -1;
     const duration = getStepDurationSeconds();
     const elapsed = runtime.getCurrentTime() - startTime;
     if (elapsed < 0) return -1;
-    return Math.floor(elapsed / duration) % pattern.rowCount;
+    return Math.floor(elapsed / duration);
   }
 
-  return { start, stop, isPlaying, requestPatternSwitch, getPlayheadRow };
+  // The pattern-grid-relative row — kept for existing single-row consumers (the MVP control
+  // contract's "transport.playheadRow", src/ui/debug/PerfPanel.jsx). The per-track visual
+  // playhead (ui/grid/playheadLayer.js) uses getTrackPlayheadRow below instead.
+  function getPlayheadRow() {
+    if (!pattern) return -1;
+    const step = getTransportStep();
+    return step < 0 ? -1 : step % pattern.rowCount;
+  }
+
+  // One track's own local playhead row — the same trackLocalStep(track, patternPosition) fold
+  // audio/compile.js uses to decide what plays, so the visual playhead can never show a
+  // position the audio didn't actually use. getTransportStep() is the absolute, continuous
+  // transport; patternStartStep (set at the last pattern boundary — see tick()) converts it to
+  // the pattern-relative position every track's phase is actually anchored to.
+  function getTrackPlayheadRow(trackIndex) {
+    const track = pattern?.tracks[trackIndex];
+    if (!track) return -1;
+    const step = getTransportStep();
+    return step < 0 ? -1 : trackLocalStep(track, step - patternStartStep);
+  }
+
+  // The queue slot currently sounding — distinct from song.selectedPatternId (ui/chrome/
+  // PatternManager.jsx's playing-entry highlight needs to track this, not the Tracker's edit
+  // target). -1 while stopped, matching getPlayheadRow()'s convention.
+  function getQueueIndex() {
+    return playing ? queueIndex : -1;
+  }
+
+  return { start, stop, isPlaying, requestPatternSwitch, getPlayheadRow, getTrackPlayheadRow, getQueueIndex };
 }

@@ -1,5 +1,5 @@
 import {
-  setActivePatternIndex,
+  selectPattern as selectPatternModel,
   setEventField,
   clearEvent as clearEventModel,
   pasteEvent as pasteEventModel,
@@ -7,7 +7,14 @@ import {
   setTrackChannelSolo as setTrackChannelSoloModel,
   setTrackChannelVolume as setTrackChannelVolumeModel,
   setPatternRowCount,
+  setTrackLength as setTrackLengthModel,
   setSongName,
+  addPattern as addPatternModel,
+  appendPatternToQueue as appendPatternToQueueModel,
+  removeFromPatternQueue as removeFromPatternQueueModel,
+  duplicatePattern as duplicatePatternModel,
+  deletePattern as deletePatternModel,
+  renamePattern as renamePatternModel,
 } from "../model/mutations.js";
 import { createInstrumentSlot } from "../model/instrument.js";
 import { rowCountForBars } from "../model/timing.js";
@@ -45,7 +52,6 @@ export function createStore({ song, instruments }) {
   const state = {
     song,
     instruments,
-    activeBankIndex: 0,
     cursor: { trackIndex: 0, rowIndex: 0, field: "note" },
     // MVP starts in edit mode so keyboard note entry works immediately — Esc toggles it.
     editMode: true,
@@ -64,25 +70,83 @@ export function createStore({ song, instruments }) {
     return emitter.on(eventName, fn);
   }
 
-  function selectBank(bankIndex) {
-    if (!state.song.banks[bankIndex]) return;
-    state.activeBankIndex = bankIndex;
-    emitter.emit(events.BANK_SELECTED, { bankIndex });
+  // The pattern the tracker edits/displays — explicit project state (song.selectedPatternId),
+  // not UI/session state, since it's meaningful musical state a reopened project restores.
+  function selectPattern(patternId) {
+    selectPatternModel(state.song, patternId);
+    emitter.emit(events.PATTERN_SELECTED, { patternId: state.song.selectedPatternId });
   }
 
-  function selectPattern(patternIndex) {
-    setActivePatternIndex(state.song, state.activeBankIndex, patternIndex);
-    emitter.emit(events.PATTERN_SELECTED, { bankIndex: state.activeBankIndex, patternIndex });
+  // Pattern Manager actions: create a new pattern (appended to the queue and selected),
+  // requeue an existing one (appended again, selection unchanged), or remove one queue slot
+  // (refused if it would empty the queue — see model/mutations.js).
+  function addPattern(name) {
+    const pattern = addPatternModel(state.song, { name });
+    emitter.emit(events.PATTERN_QUEUE_CHANGED, {});
+    emitter.emit(events.PATTERN_SELECTED, { patternId: state.song.selectedPatternId });
+    return pattern;
   }
 
-  // bars: 1-8 (see model/timing.js#MAX_BARS). Resizes the active pattern in place — no
+  function appendPatternToQueue(patternId) {
+    appendPatternToQueueModel(state.song, patternId);
+    emitter.emit(events.PATTERN_QUEUE_CHANGED, {});
+  }
+
+  function removeFromPatternQueue(queueIndex) {
+    const previousSelectedId = state.song.selectedPatternId;
+    removeFromPatternQueueModel(state.song, queueIndex);
+    emitter.emit(events.PATTERN_QUEUE_CHANGED, {});
+    if (state.song.selectedPatternId !== previousSelectedId) {
+      emitter.emit(events.PATTERN_SELECTED, { patternId: state.song.selectedPatternId });
+    }
+  }
+
+  // Duplicates a pattern (new id, independent copy of its events) without touching the
+  // queue — see model/mutations.js#duplicatePattern for why that's deliberate.
+  function duplicatePattern(patternId) {
+    const pattern = duplicatePatternModel(state.song, patternId);
+    emitter.emit(events.PATTERN_QUEUE_CHANGED, {});
+    emitter.emit(events.PATTERN_SELECTED, { patternId: state.song.selectedPatternId });
+    return pattern;
+  }
+
+  // Deletes a pattern from the pool and every queue slot referencing it (refused for the last
+  // remaining pattern — see model/mutations.js#deletePattern).
+  function deletePattern(patternId) {
+    const previousSelectedId = state.song.selectedPatternId;
+    deletePatternModel(state.song, patternId);
+    emitter.emit(events.PATTERN_QUEUE_CHANGED, {});
+    if (state.song.selectedPatternId !== previousSelectedId) {
+      emitter.emit(events.PATTERN_SELECTED, { patternId: state.song.selectedPatternId });
+    }
+  }
+
+  // Inline rename from the Pattern Manager's list — re-emits PATTERN_SELECTED too (even though
+  // selection itself hasn't changed) so anything reading the selected pattern's live name, like
+  // TransportBar's readout, refreshes along with the Pattern Manager's own lists.
+  function renamePattern(patternId, name) {
+    renamePatternModel(state.song, patternId, name);
+    emitter.emit(events.PATTERN_QUEUE_CHANGED, {});
+    emitter.emit(events.PATTERN_SELECTED, { patternId: state.song.selectedPatternId });
+  }
+
+  // bars: 1-8 (see model/timing.js#MAX_BARS). Resizes the selected pattern in place — no
   // playback-side handling is needed because lookaheadPlayer/compileRow already read
   // pattern.rowCount fresh every tick, even mid-playback.
   function setSequenceLength(bars) {
-    const bankIndex = state.activeBankIndex;
-    const patternIndex = state.song.banks[bankIndex].activePatternIndex;
-    setPatternRowCount(state.song, bankIndex, patternIndex, rowCountForBars(bars));
-    emitter.emit(events.PATTERN_LENGTH_CHANGED, { bankIndex, patternIndex });
+    const { selectedPatternId } = state.song;
+    setPatternRowCount(state.song, selectedPatternId, rowCountForBars(bars));
+    emitter.emit(events.PATTERN_LENGTH_CHANGED, { patternId: selectedPatternId });
+  }
+
+  // A single track's own playback loop length, within whichever pattern is currently selected
+  // (model/mutations.js#setTrackLength) — no playback-side handling needed beyond this, since
+  // audio/compile.js reads track.length fresh every tick via model/pattern.js#trackLocalStep,
+  // same as pattern.rowCount already does.
+  function setTrackLength(trackIndex, length) {
+    const { selectedPatternId } = state.song;
+    setTrackLengthModel(state.song, selectedPatternId, trackIndex, length);
+    emitter.emit(events.TRACK_LENGTH_CHANGED, { trackIndex });
   }
 
   // Used by audio/playbackController.js's onTransportChange callback (wired in appContext.js).
@@ -97,22 +161,22 @@ export function createStore({ song, instruments }) {
   }
 
   function setCell(trackIndex, rowIndex, field, value) {
-    const patternIndex = state.song.banks[state.activeBankIndex].activePatternIndex;
-    setEventField(state.song, { bankIndex: state.activeBankIndex, patternIndex, trackIndex, rowIndex }, field, value);
+    const { selectedPatternId } = state.song;
+    setEventField(state.song, { patternId: selectedPatternId, trackIndex, rowIndex }, field, value);
     emitter.emit(events.CELL_CHANGED, { trackIndex, rowIndex });
   }
 
   function clearCell(trackIndex, rowIndex) {
-    const patternIndex = state.song.banks[state.activeBankIndex].activePatternIndex;
-    clearEventModel(state.song, { bankIndex: state.activeBankIndex, patternIndex, trackIndex, rowIndex });
+    const { selectedPatternId } = state.song;
+    clearEventModel(state.song, { patternId: selectedPatternId, trackIndex, rowIndex });
     emitter.emit(events.CELL_CHANGED, { trackIndex, rowIndex });
   }
 
   // sourceEvent is cloned into the target slot by model/mutations.js#pasteEvent — the caller
   // (editController.js's clipboard) can safely reuse the same sourceEvent for multiple pastes.
   function pasteCell(trackIndex, rowIndex, sourceEvent) {
-    const patternIndex = state.song.banks[state.activeBankIndex].activePatternIndex;
-    pasteEventModel(state.song, { bankIndex: state.activeBankIndex, patternIndex, trackIndex, rowIndex }, sourceEvent);
+    const { selectedPatternId } = state.song;
+    pasteEventModel(state.song, { patternId: selectedPatternId, trackIndex, rowIndex }, sourceEvent);
     emitter.emit(events.CELL_CHANGED, { trackIndex, rowIndex });
   }
 
@@ -227,13 +291,11 @@ export function createStore({ song, instruments }) {
   // closure elsewhere reads store.getState() live, so this never orphans anything (see
   // ARCHITECTURE.md's in-place-mutation gotcha, which this deliberately mirrors at the
   // top level). Re-emits the existing granular events instead of inventing a new one, so
-  // every current subscriber (grid, mixer, instrument panel, transport bar, note editor)
-  // refreshes with zero new wiring — including the grid's own resize check, which reacts to
-  // BANK_SELECTED/PATTERN_SELECTED already.
+  // every current subscriber (grid, mixer, instrument panel, transport bar, note editor,
+  // pattern manager) refreshes with zero new wiring.
   function loadProject({ song, instruments, ui = {} }) {
     state.song = song;
     state.instruments = instruments;
-    state.activeBankIndex = ui.activeBankIndex ?? 0;
     state.cursor = ui.cursor ?? { trackIndex: 0, rowIndex: 0, field: "note" };
     state.editMode = true;
     state.editStep = ui.editStep ?? 1;
@@ -242,9 +304,8 @@ export function createStore({ song, instruments }) {
     state.playing = false;
     state.patternSwitchPending = false;
 
-    const patternIndex = state.song.banks[state.activeBankIndex].activePatternIndex;
-    emitter.emit(events.BANK_SELECTED, { bankIndex: state.activeBankIndex });
-    emitter.emit(events.PATTERN_SELECTED, { bankIndex: state.activeBankIndex, patternIndex });
+    emitter.emit(events.PATTERN_QUEUE_CHANGED, {});
+    emitter.emit(events.PATTERN_SELECTED, { patternId: state.song.selectedPatternId });
     emitter.emit(events.TRANSPORT_CHANGED, { playing: false, bpm: state.song.bpm });
     emitter.emit(events.PROJECT_NAME_CHANGED, { name: state.song.name });
     emitter.emit(events.TRACK_CHANNEL_CHANGED, {});
@@ -256,8 +317,13 @@ export function createStore({ song, instruments }) {
   return {
     getState,
     subscribe,
-    selectBank,
     selectPattern,
+    addPattern,
+    appendPatternToQueue,
+    removeFromPatternQueue,
+    duplicatePattern,
+    deletePattern,
+    renamePattern,
     setTransport,
     setBpm,
     setCell,
@@ -267,6 +333,7 @@ export function createStore({ song, instruments }) {
     moveCursor,
     selectCell,
     setSequenceLength,
+    setTrackLength,
     toggleEditMode,
     setEditStep,
     setOctave,

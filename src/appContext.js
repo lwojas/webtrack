@@ -9,7 +9,7 @@ import { createPlaybackController } from "./audio/playbackController.js";
 import { initRuntime } from "./audio/runtime.js";
 import { loadSample } from "./audio/instrumentLoader.js";
 import { createDemoSong, createDemoInstruments } from "./demo/demoSong.js";
-import { getActivePattern } from "./model/query.js";
+import { getSelectedPattern } from "./model/query.js";
 import { createKeyboardNoteSource } from "./input/keyboardNoteMap.js";
 import { createEditController } from "./input/editController.js";
 import { createRenderStats } from "./debug/renderStats.js";
@@ -25,10 +25,7 @@ export function createAppContext() {
   const renderStats = createRenderStats();
 
   const playbackController = createPlaybackController({
-    getActivePattern: () => {
-      const state = store.getState();
-      return getActivePattern(state.song, state.activeBankIndex);
-    },
+    getSong: () => store.getState().song,
     getTrackChannels: () => store.getState().song.trackChannels,
     getInstruments: () => store.getState().instruments,
     getBpm: () => store.getState().song.bpm,
@@ -36,17 +33,15 @@ export function createAppContext() {
     onPatternSwitchPending: (pending) => store.setPatternSwitchPending(pending),
   });
 
-  // Selecting a bank/pattern always repaints the grid (the edit view) immediately — see
-  // state/store.js's selectBank/selectPattern. Whether that's also what plays next depends on
-  // whether playback is running: while stopped, playbackController.switchPattern() is a no-op
-  // and the next play() call reads the newly active pattern fresh anyway; while playing, it
-  // requests a switch deferred to the next loop boundary (ECS-156 plan §6/§7).
-  function notifyPlaybackOfActivePattern() {
-    const state = store.getState();
-    playbackController.switchPattern(getActivePattern(state.song, state.activeBankIndex));
+  // Selecting a pattern always repaints the grid (the edit view) immediately — see
+  // state/store.js's selectPattern. Whether that's also what plays next depends on whether
+  // playback is running: while stopped, playbackController.switchPattern() is a no-op and the
+  // next play() call reads the newly selected pattern fresh anyway; while playing, it requests
+  // a switch deferred to the next loop boundary (ECS-156 plan §6/§7).
+  function notifyPlaybackOfSelectedPattern() {
+    playbackController.switchPattern(getSelectedPattern(store.getState().song));
   }
-  store.subscribe(events.BANK_SELECTED, notifyPlaybackOfActivePattern);
-  store.subscribe(events.PATTERN_SELECTED, notifyPlaybackOfActivePattern);
+  store.subscribe(events.PATTERN_SELECTED, notifyPlaybackOfSelectedPattern);
 
   const noteSource = createKeyboardNoteSource({ getOctave: () => store.getState().octave });
   const editController = createEditController({ store, noteSource });
@@ -94,7 +89,6 @@ export function createAppContext() {
       song: state.song,
       instruments: state.instruments,
       ui: {
-        activeBankIndex: state.activeBankIndex,
         selectedInstrumentIndex: state.selectedInstrumentIndex,
         octave: state.octave,
         editStep: state.editStep,

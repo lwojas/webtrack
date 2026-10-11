@@ -1,29 +1,22 @@
 import { useStore } from "../../state/useStore.js";
 import * as events from "../../state/events.js";
-import { getActivePattern } from "../../model/query.js";
+import { getSelectedPattern } from "../../model/query.js";
 import { barsForRowCount, MAX_BARS } from "../../model/timing.js";
 
 // Ordinary stateful forms-and-buttons UI with no rendering-performance requirement — exactly
 // where React earns its keep (ECS-156 plan §3). Reads the same store the vanilla grid modules
-// mutate; nothing here touches grid DOM directly.
+// mutate; nothing here touches grid DOM directly. Pattern selection/creation lives in the
+// Pattern Manager tab (ui/chrome/PatternManager.jsx) — this bar only shows which pattern is
+// currently selected and lets its length be changed.
 export default function TransportBar({ store, playbackController, onSaveProject, onLoadProjectFile }) {
   const playing = useStore(store, events.TRANSPORT_CHANGED, (s) => s.playing);
   const bpm = useStore(store, events.TRANSPORT_CHANGED, (s) => s.song.bpm);
   const switchPending = useStore(store, events.PATTERN_SWITCH_PENDING, (s) => s.patternSwitchPending);
-  const activeBankIndex = useStore(store, events.BANK_SELECTED, (s) => s.activeBankIndex);
-  const activePatternIndex = useStore(
-    store,
-    events.PATTERN_SELECTED,
-    (s) => s.song.banks[s.activeBankIndex].activePatternIndex,
-  );
+  const selectedPatternName = useStore(store, events.PATTERN_SELECTED, (s) => getSelectedPattern(s.song).name);
   const sequenceBars = useStore(store, events.PATTERN_LENGTH_CHANGED, (s) =>
-    barsForRowCount(getActivePattern(s.song, s.activeBankIndex).rowCount),
+    barsForRowCount(getSelectedPattern(s.song).rowCount),
   );
   const projectName = useStore(store, events.PROJECT_NAME_CHANGED, (s) => s.song.name ?? "");
-
-  const { song } = store.getState();
-  const bankCount = song.banks.length;
-  const patternCount = song.banks[activeBankIndex].patterns.length;
 
   function togglePlay() {
     if (playing) playbackController.stop();
@@ -58,29 +51,9 @@ export default function TransportBar({ store, playbackController, onSaveProject,
         />
       </label>
 
-      <div className="transport-bar__group" role="group" aria-label="Bank">
-        {Array.from({ length: bankCount }, (_, i) => (
-          <button
-            key={i}
-            className={`transport-bar__chip${i === activeBankIndex ? " transport-bar__chip--active" : ""}`}
-            onClick={() => store.selectBank(i)}
-          >
-            {String.fromCharCode(65 + i)}
-          </button>
-        ))}
-      </div>
-
-      <div className="transport-bar__group" role="group" aria-label="Pattern">
-        {Array.from({ length: patternCount }, (_, i) => (
-          <button
-            key={i}
-            className={`transport-bar__chip${i === activePatternIndex ? " transport-bar__chip--active" : ""}`}
-            onClick={() => store.selectPattern(i)}
-          >
-            {i + 1}
-          </button>
-        ))}
-      </div>
+      <span className="transport-bar__pattern-name" title="Selected pattern — change this from the Patterns tab">
+        PATTERN: {selectedPatternName}
+      </span>
 
       <label className="transport-bar__bpm">
         LEN

@@ -6,6 +6,11 @@ import * as events from "../../state/events.js";
 // with Object.is, so a selector must return the primitive fields that actually changed, not
 // the mutable container object itself, or React never detects the change. The name never
 // changes after creation, so it's read once outside any hook rather than subscribed to.
+//
+// The track's own playback length (model/pattern.js) lives in the tracker grid's per-column
+// header instead of here (ui/grid/gridView.js's track-header row) — it reads naturally sitting
+// above the column it governs, and this strip is left with only the song-wide trackChannel
+// fields (mute/solo/volume), which are shared across every pattern.
 function ChannelStrip({ store, trackIndex }) {
   const name = store.getState().song.trackChannels[trackIndex].name;
   const muted = useStore(store, events.TRACK_CHANNEL_CHANGED, (s) => s.song.trackChannels[trackIndex].muted);
@@ -27,20 +32,22 @@ function ChannelStrip({ store, trackIndex }) {
           title={`Volume: ${volume.toFixed(2)}`}
         />
       </div>
-      <button
-        className={`channel-strip__mute${muted ? " channel-strip__mute--active" : ""}`}
-        onClick={() => store.setTrackChannelMuted(trackIndex, !muted)}
-        title="Mute"
-      >
-        M
-      </button>
-      <button
-        className={`channel-strip__solo${solo ? " channel-strip__solo--active" : ""}`}
-        onClick={() => store.setTrackChannelSolo(trackIndex, !solo)}
-        title="Solo"
-      >
-        S
-      </button>
+      <div className="channel-strip__switches">
+        <button
+          className={`channel-strip__mute${muted ? " channel-strip__mute--active" : ""}`}
+          onClick={() => store.setTrackChannelMuted(trackIndex, !muted)}
+          title="Mute"
+        >
+          M
+        </button>
+        <button
+          className={`channel-strip__solo${solo ? " channel-strip__solo--active" : ""}`}
+          onClick={() => store.setTrackChannelSolo(trackIndex, !solo)}
+          title="Solo"
+        >
+          S
+        </button>
+      </div>
     </div>
   );
 }

@@ -2,16 +2,17 @@
 // undo/history requirement, so structural sharing would be pure overhead (see ECS-156 plan
 // §5). Callers (state/store.js) are responsible for emitting the matching change event.
 import { createEmptyEvent, cloneEvent } from "./event.js";
+import { createPattern } from "./pattern.js";
 import { getEvent, getPattern, getTrackChannel } from "./query.js";
 
-export function setEventField(song, { bankIndex, patternIndex, trackIndex, rowIndex }, field, value) {
-  const event = getEvent(song, bankIndex, patternIndex, trackIndex, rowIndex);
+export function setEventField(song, { patternId, trackIndex, rowIndex }, field, value) {
+  const event = getEvent(song, patternId, trackIndex, rowIndex);
   if (!event) return;
   event[field] = value;
 }
 
-export function clearEvent(song, { bankIndex, patternIndex, trackIndex, rowIndex }) {
-  const track = getPattern(song, bankIndex, patternIndex)?.tracks[trackIndex];
+export function clearEvent(song, { patternId, trackIndex, rowIndex }) {
+  const track = getPattern(song, patternId)?.tracks[trackIndex];
   if (!track) return;
   track.events[rowIndex] = createEmptyEvent();
 }
@@ -19,8 +20,8 @@ export function clearEvent(song, { bankIndex, patternIndex, trackIndex, rowIndex
 // Replaces the target slot's event outright with a clone of sourceEvent — never the same
 // object reference, so pasting the same clipboard event into several cells never lets an edit
 // to one cell leak into another (see model/event.js#cloneEvent).
-export function pasteEvent(song, { bankIndex, patternIndex, trackIndex, rowIndex }, sourceEvent) {
-  const track = getPattern(song, bankIndex, patternIndex)?.tracks[trackIndex];
+export function pasteEvent(song, { patternId, trackIndex, rowIndex }, sourceEvent) {
+  const track = getPattern(song, patternId)?.tracks[trackIndex];
   if (!track) return;
   track.events[rowIndex] = cloneEvent(sourceEvent);
 }
@@ -44,26 +45,143 @@ export function setTrackChannelVolume(song, trackIndex, volume) {
   if (channel) channel.volume = volume;
 }
 
-export function setActivePatternIndex(song, bankIndex, patternIndex) {
-  const bank = song.banks[bankIndex];
-  if (bank?.patterns[patternIndex]) bank.activePatternIndex = patternIndex;
+// The tracker edits whichever pattern this points at — only ever repointed to a patternId that
+// actually exists in song.patterns, so a stale/typo'd id can never leave the project with no
+// resolvable selected pattern.
+export function selectPattern(song, patternId) {
+  if (song.patterns.some((pattern) => pattern.id === patternId)) song.selectedPatternId = patternId;
 }
 
 // Resizes every track's event array to match a new sequence length. Growing preserves all
 // existing notes (new rows start empty); shrinking intentionally drops any notes sitting past
 // the new boundary — the caller is deliberately shortening the sequence, so silently keeping
 // unreachable trailing events would just be dead data the grid can no longer show or edit.
-export function setPatternRowCount(song, bankIndex, patternIndex, newRowCount) {
-  const pattern = getPattern(song, bankIndex, patternIndex);
+//
+// Each track's playback `length` (model/pattern.js) rides along: a track that still matches
+// the *old* rowCount exactly (the default, untouched-by-the-user case) is resized right along
+// with the grid, so existing 16-step-style projects keep behaving exactly as they do today. A
+// track whose length was explicitly set to something else is left alone, except when the grid
+// shrinks past it — a track can never claim to loop over more steps than the grid now has.
+export function setPatternRowCount(song, patternId, newRowCount) {
+  const pattern = getPattern(song, patternId);
   if (!pattern || newRowCount === pattern.rowCount) return;
 
   const oldRowCount = pattern.rowCount;
   pattern.tracks.forEach((track) => {
+    const matchedOldRowCount = track.length === oldRowCount;
+
     if (newRowCount > oldRowCount) {
       for (let i = oldRowCount; i < newRowCount; i++) track.events.push(createEmptyEvent());
     } else {
       track.events.length = newRowCount;
     }
+
+    track.length = matchedOldRowCount ? newRowCount : Math.min(track.length, newRowCount);
   });
   pattern.rowCount = newRowCount;
+}
+
+// A track's own playback loop length (model/pattern.js's doc comment), clamped to between 1
+// step and however many rows the track actually has — it can never claim to loop over more
+// steps than exist to play. Never touches `events`: shortening playback length is reversible
+// (lengthening it again brings the same notes right back), unlike setPatternRowCount's
+// shrink path, which really does drop trailing notes.
+export function setTrackLength(song, patternId, trackIndex, length) {
+  const track = getPattern(song, patternId)?.tracks[trackIndex];
+  if (!track) return;
+  track.length = Math.max(1, Math.min(Math.round(length), track.events.length));
+}
+
+// Creates a brand-new pattern, adds it to the pool, appends it to the end of the queue, and
+// selects it — the Pattern Manager's "+ NEW PATTERN" action. Never leaves the queue without
+// this new entry, so there's no separate "add" step that could be skipped.
+export function addPattern(song, { name } = {}) {
+  const pattern = createPattern({
+    id: song.nextPatternId++,
+    trackCount: song.trackCount,
+    rowCount: song.rowCount,
+    name: name ?? `Pattern ${song.patterns.length + 1}`,
+  });
+  song.patterns.push(pattern);
+  song.patternQueue.push(pattern.id);
+  song.selectedPatternId = pattern.id;
+  return pattern;
+}
+
+// Appends an *existing* pattern's id to the end of the queue again — the queue is a list of
+// pattern references, not unique occurrences, so this is deliberately just a push, never a
+// clone of the pattern's data (see model/song.js's doc comment).
+export function appendPatternToQueue(song, patternId) {
+  if (!song.patterns.some((pattern) => pattern.id === patternId)) return;
+  song.patternQueue.push(patternId);
+}
+
+// Removes one queue slot by position (not by id — the same pattern id may occupy several
+// slots, and only one of them should go). Refuses to empty the queue. If the removed slot held
+// the currently selected pattern and no other slot still references that id, falls back to
+// whatever now sits at the same (clamped) position, so selectedPatternId always resolves.
+export function removeFromPatternQueue(song, queueIndex) {
+  if (song.patternQueue.length <= 1) return;
+  if (queueIndex < 0 || queueIndex >= song.patternQueue.length) return;
+
+  song.patternQueue.splice(queueIndex, 1);
+
+  if (!song.patternQueue.includes(song.selectedPatternId)) {
+    const fallbackIndex = Math.min(queueIndex, song.patternQueue.length - 1);
+    song.selectedPatternId = song.patternQueue[fallbackIndex];
+  }
+}
+
+// Creates an independent copy of an existing pattern — a new stable id, a deep clone of every
+// track's events (model/event.js#cloneEvent), so editing one can never touch the other. Added
+// to the pool right after its source and selected, but deliberately *not* queued — duplicating
+// a pattern and adding another occurrence of one to the queue are different operations (see
+// appendPatternToQueue above and ui/chrome/PatternManager.jsx); the caller queues the
+// duplicate explicitly if it should play.
+export function duplicatePattern(song, patternId) {
+  const source = getPattern(song, patternId);
+  if (!source) return undefined;
+
+  const duplicate = {
+    id: song.nextPatternId++,
+    name: `${source.name} copy`,
+    rowCount: source.rowCount,
+    tracks: source.tracks.map((track) => ({ events: track.events.map(cloneEvent), length: track.length })),
+  };
+
+  song.patterns.splice(song.patterns.indexOf(source) + 1, 0, duplicate);
+  song.selectedPatternId = duplicate.id;
+  return duplicate;
+}
+
+// Removes a pattern from the pool entirely, and every queue slot that referenced it — distinct
+// from removeFromPatternQueue, which drops one queue *slot* but leaves the pattern itself in
+// the pool. Refuses when it's the only pattern left (the pool, like the queue, can never go
+// empty). If every queue slot referenced the deleted pattern, falls back to queuing whatever
+// pattern is now first in the pool, rather than leaving the queue empty — and if the deleted
+// pattern was selected, falls back to whatever now leads the queue.
+export function deletePattern(song, patternId) {
+  if (song.patterns.length <= 1) return;
+
+  const index = song.patterns.findIndex((pattern) => pattern.id === patternId);
+  if (index === -1) return;
+
+  song.patterns.splice(index, 1);
+  song.patternQueue = song.patternQueue.filter((id) => id !== patternId);
+  if (song.patternQueue.length === 0) song.patternQueue.push(song.patterns[0].id);
+
+  if (song.selectedPatternId === patternId) {
+    song.selectedPatternId = song.patternQueue[0];
+  }
+}
+
+// Inline rename from the Pattern Manager's list — part of the pattern's persisted data, not
+// transient UI state. An empty/whitespace-only name is rejected rather than stored, so a
+// pattern can never end up with a blank label; the caller's input simply keeps showing the
+// last valid name.
+export function renamePattern(song, patternId, name) {
+  const pattern = getPattern(song, patternId);
+  if (!pattern) return;
+  const trimmed = name.trim();
+  if (trimmed) pattern.name = trimmed;
 }

@@ -2,19 +2,19 @@ import { createSong } from "../model/song.js";
 import { createInstrumentSlot } from "../model/instrument.js";
 import { setEventField } from "../model/mutations.js";
 
-// A simple 4-on-the-floor kick + off-beat hat pattern in bank 0's first pattern, so the app
-// (and the phase-3 audio harness) is playable with zero setup.
+// A simple 4-on-the-floor kick + off-beat hat pattern in the project's one starting pattern,
+// so the app (and the phase-3 audio harness) is playable with zero setup.
 export function createDemoSong() {
   const song = createSong({ name: "Demo Song" });
-  const pattern = song.banks[0].patterns[0];
+  const pattern = song.patterns[0];
 
   for (let row = 0; row < pattern.rowCount; row += 4) {
-    setEventField(song, { bankIndex: 0, patternIndex: 0, trackIndex: 0, rowIndex: row }, "note", 60);
-    setEventField(song, { bankIndex: 0, patternIndex: 0, trackIndex: 0, rowIndex: row }, "instrument", 0);
+    setEventField(song, { patternId: pattern.id, trackIndex: 0, rowIndex: row }, "note", 60);
+    setEventField(song, { patternId: pattern.id, trackIndex: 0, rowIndex: row }, "instrument", 0);
   }
   for (let row = 2; row < pattern.rowCount; row += 4) {
-    setEventField(song, { bankIndex: 0, patternIndex: 0, trackIndex: 1, rowIndex: row }, "note", 60);
-    setEventField(song, { bankIndex: 0, patternIndex: 0, trackIndex: 1, rowIndex: row }, "instrument", 1);
+    setEventField(song, { patternId: pattern.id, trackIndex: 1, rowIndex: row }, "note", 60);
+    setEventField(song, { patternId: pattern.id, trackIndex: 1, rowIndex: row }, "instrument", 1);
   }
 
   return song;

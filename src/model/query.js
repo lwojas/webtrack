@@ -1,18 +1,13 @@
-export function getBank(song, bankIndex) {
-  return song.banks[bankIndex];
+export function getPattern(song, patternId) {
+  return song.patterns.find((pattern) => pattern.id === patternId);
 }
 
-export function getPattern(song, bankIndex, patternIndex) {
-  return getBank(song, bankIndex)?.patterns[patternIndex];
+export function getSelectedPattern(song) {
+  return getPattern(song, song.selectedPatternId);
 }
 
-export function getActivePattern(song, bankIndex) {
-  const bank = getBank(song, bankIndex);
-  return bank ? bank.patterns[bank.activePatternIndex] : undefined;
-}
-
-export function getEvent(song, bankIndex, patternIndex, trackIndex, rowIndex) {
-  const pattern = getPattern(song, bankIndex, patternIndex);
+export function getEvent(song, patternId, trackIndex, rowIndex) {
+  const pattern = getPattern(song, patternId);
   return pattern?.tracks[trackIndex]?.events[rowIndex];
 }
 
@@ -22,4 +17,15 @@ export function getTrackChannel(song, trackIndex) {
 
 export function isAnyTrackSoloed(song) {
   return song.trackChannels.some((channel) => channel.solo);
+}
+
+// The queue as a list of { queueIndex, patternId, pattern } — what the Pattern Manager
+// renders. Resolves each queue slot's pattern fresh rather than assuming queue order matches
+// song.patterns order (it doesn't: the same patternId can occupy more than one slot).
+export function getPatternQueueEntries(song) {
+  return song.patternQueue.map((patternId, queueIndex) => ({
+    queueIndex,
+    patternId,
+    pattern: getPattern(song, patternId),
+  }));
 }

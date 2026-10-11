@@ -188,6 +188,63 @@ textarea {
   border-bottom: 1px solid var(--border);
 }
 
+/* Per-track playback length (model/pattern.js), one control per column, sitting above the
+   column it governs instead of in the mixer strip below (see ui/grid/gridView.js's
+   buildHeaderRow doc comment). Sticky so it stays pinned to the top of the scrollable grid
+   host (.tracker-grid-host) while rows scroll past underneath, but still scrolls horizontally
+   with the rest of the grid since it's a normal-flow row, not an absolutely positioned
+   overlay. */
+.tracker-track-header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  height: calc(var(--row-height) + var(--space-xs));
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border-active);
+}
+
+.tracker-track-header__index {
+  /* Same width *and* font-size as .tracker-row__index below — `ch` is relative to the
+     element's own font-size, so matching only the width value here without also matching the
+     font-size it's computed against would leave the two 4ch's resolving to different pixel
+     widths and throwing off every column's alignment. */
+  width: 4ch;
+  padding: 0 var(--space-sm);
+  color: var(--text-dim);
+  font-size: var(--text-label);
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+  text-align: right;
+}
+
+/* Width is set inline per column (ui/grid/gridView.js#mount), measured off the real rendered
+   data cell below it rather than duplicated here as a constant — see that file's own doc
+   comment. */
+.tracker-track-header__cell {
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+  padding: 0 var(--space-xs);
+  border-left: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.tracker-track-header__length {
+  width: 100%;
+  min-width: 0;
+  background: var(--surface-1);
+  color: var(--text);
+  border: 1px solid var(--border);
+  text-align: center;
+  font-size: var(--text-label);
+}
+
+.tracker-track-header__length:hover {
+  border-color: var(--border-active);
+}
+
 .tracker-row__index {
   width: 4ch;
   padding: 0 var(--space-sm);
@@ -261,6 +318,38 @@ textarea {
   outline-offset: -1px;
   box-shadow: var(--focus-glow);
   z-index: 2;
+}
+
+/* --- view tabs (Tracker / Patterns) --- */
+
+.app__tabs {
+  flex-shrink: 0;
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.app__tab {
+  padding: var(--space-xs) var(--space-lg);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font-size: var(--text-label);
+  letter-spacing: 0.04em;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.app__tab:hover {
+  background: var(--surface-3);
+  color: var(--cyan);
+}
+
+.app__tab--active {
+  background: var(--surface-1);
+  color: var(--cyan);
+  border-bottom-color: var(--surface-1);
 }
 
 /* --- chrome (React) --- */
@@ -448,6 +537,11 @@ textarea {
   height: 20px;
   margin: 0;
   transform: rotate(-90deg);
+}
+
+.channel-strip__switches {
+  display: flex;
+  gap: var(--space-xs);
 }
 
 .channel-strip__mute,
@@ -648,6 +742,209 @@ textarea {
   width: 7ch;
 }
 
+/* --- pattern manager: deliberately simple pool + queue view (see
+   ui/chrome/PatternManager.jsx) --- */
+
+.pattern-manager {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-md);
+}
+
+.pattern-manager__panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  padding: var(--space-md);
+  gap: var(--space-sm);
+}
+
+.pattern-manager__header {
+  flex-shrink: 0;
+  color: var(--text-dim);
+  font-size: var(--text-micro);
+  letter-spacing: 0.04em;
+}
+
+.pattern-manager__pool,
+.pattern-manager__queue {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.pattern-manager__pool-row,
+.pattern-manager__queue-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+}
+
+.pattern-manager__pool-row--selected,
+.pattern-manager__queue-row--selected {
+  border-color: var(--cyan);
+  box-shadow: var(--focus-glow);
+}
+
+.pattern-manager__queue-row--playing {
+  border-color: var(--emerald);
+}
+
+.pattern-manager__queue-index {
+  width: 3ch;
+  flex-shrink: 0;
+  color: var(--text-dim);
+  font-size: var(--text-label);
+  text-align: right;
+}
+
+.pattern-manager__queue-index--playing {
+  color: var(--emerald);
+  animation: pattern-manager-playing-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes pattern-manager-playing-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.pattern-manager__pool-name,
+.pattern-manager__queue-name {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  background: transparent;
+  color: var(--text);
+  border: none;
+  padding: var(--space-xs) 0;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: color var(--transition-fast);
+}
+
+.pattern-manager__pool-row--selected .pattern-manager__pool-name,
+.pattern-manager__queue-row--selected .pattern-manager__queue-name {
+  color: var(--cyan);
+  font-weight: 600;
+}
+
+.pattern-manager__pool-name:hover,
+.pattern-manager__queue-name:hover {
+  color: var(--cyan);
+}
+
+.pattern-manager__chip {
+  flex-shrink: 0;
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--surface-1);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font-size: var(--text-micro);
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.pattern-manager__chip:hover {
+  background: var(--surface-3);
+  color: var(--cyan);
+  border-color: var(--border-active);
+}
+
+.pattern-manager__chip--danger:hover {
+  color: var(--crimson);
+  border-color: var(--crimson);
+}
+
+.pattern-manager__chip:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.pattern-manager__chip:disabled:hover {
+  background: var(--surface-1);
+  color: var(--text-dim);
+  border-color: var(--border);
+}
+
+.pattern-manager__chip--icon {
+  min-width: 2.4em;
+  text-align: center;
+}
+
+.pattern-manager__name-input {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface-1);
+  color: var(--text);
+  border: 1px solid var(--border-active);
+  padding: var(--space-xs) var(--space-sm);
+  font: inherit;
+}
+
+.pattern-manager__add {
+  flex-shrink: 0;
+  display: flex;
+  gap: var(--space-xs);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--border);
+}
+
+.pattern-manager__add input {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface-1);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: var(--space-xs) var(--space-sm);
+}
+
+.pattern-manager__add button {
+  flex-shrink: 0;
+  padding: var(--space-xs) var(--space-md);
+  background: var(--surface-1);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font-size: var(--text-micro);
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.pattern-manager__add button:hover {
+  background: var(--surface-3);
+  color: var(--cyan);
+  border-color: var(--border-active);
+}
+
+/* --- transport bar: selected pattern readout (Pattern Manager owns selection/creation) --- */
+
+.transport-bar__pattern-name {
+  color: var(--text-dim);
+  font-size: var(--text-label);
+  letter-spacing: 0.02em;
+}
+
 /* --- perf panel (F3 debug overlay) --- */
 
 .perf-panel {
@@ -712,6 +1009,11 @@ textarea {
 
   .transport-bar__project-name {
     width: 12ch;
+  }
+
+  .pattern-manager {
+    grid-template-columns: 1fr;
+    overflow-y: auto;
   }
 
   .perf-panel {

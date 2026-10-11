@@ -8,7 +8,6 @@
 
 export const TRACK_COUNT = 8; // mirrors model/song.js's default — see registry.js
 export const ROW_COUNT = 64; // mirrors model/song.js's default
-export const BANK_COUNT = 4; // mirrors model/song.js's default
 
 const trackControls = Array.from({ length: TRACK_COUNT }, (_, i) => [
   { id: `track.${i}.muted`, label: `Track ${i + 1} muted`, kind: "boolean" },
@@ -19,8 +18,7 @@ const trackControls = Array.from({ length: TRACK_COUNT }, (_, i) => [
 export const CONTROLS = [
   { id: "transport.playing", label: "Transport playing", kind: "boolean" },
   { id: "transport.playheadRow", label: "Playhead row", kind: "number", min: -1, max: ROW_COUNT - 1 },
-  { id: "bank.active", label: "Active bank", kind: "number", min: 0, max: BANK_COUNT - 1 },
-  { id: "pattern.active", label: "Active pattern (within the active bank)", kind: "number", min: 0, max: 1023 },
+  { id: "pattern.selected", label: "Selected pattern id", kind: "number", min: 0, max: Number.MAX_SAFE_INTEGER },
   ...trackControls,
   { id: "cursor.row", label: "Cursor row", kind: "number", min: 0, max: ROW_COUNT - 1 },
   { id: "cursor.track", label: "Cursor track", kind: "number", min: 0, max: TRACK_COUNT - 1 },

@@ -21,7 +21,8 @@ describe("base64 round-trip", () => {
 describe("serializeProject / deserializeProject", () => {
   it("round-trips song/instrument/ui state, dropping sampleId and re-loading sample bytes", async () => {
     const song = createSong();
-    setEventField(song, { bankIndex: 0, patternIndex: 0, trackIndex: 0, rowIndex: 0 }, "note", 60);
+    const patternId = song.patterns[0].id;
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 60);
 
     const sampleBuffer = makeBuffer([1, 2, 3, 4]);
     const instruments = [
@@ -33,7 +34,7 @@ describe("serializeProject / deserializeProject", () => {
       }),
       createInstrumentSlot({ id: 1, name: "Empty" }),
     ];
-    const ui = { activeBankIndex: 0, selectedInstrumentIndex: 0, octave: 4, editStep: 1, cursor: { trackIndex: 0, rowIndex: 0, field: "note" } };
+    const ui = { selectedInstrumentIndex: 0, octave: 4, editStep: 1, cursor: { trackIndex: 0, rowIndex: 0, field: "note" } };
 
     const serialized = serializeProject({ song, instruments, ui });
     expect(serialized.formatVersion).toBe(PROJECT_FORMAT_VERSION);
@@ -50,7 +51,9 @@ describe("serializeProject / deserializeProject", () => {
       },
     });
 
-    expect(restored.song.banks[0].patterns[0].tracks[0].events[0].note).toBe(60);
+    expect(restored.song.patterns[0].tracks[0].events[0].note).toBe(60);
+    expect(restored.song.selectedPatternId).toBe(patternId);
+    expect(restored.song.patternQueue).toEqual([patternId]);
     expect(loadedSampleCalls).toEqual(["kick.wav"]);
     expect(restored.instruments[0].sampleId).toBe("fresh-id-for-kick.wav");
     expect(new Uint8Array(restored.instruments[0].sampleAsset.buffer)).toEqual(new Uint8Array(sampleBuffer));
@@ -58,7 +61,60 @@ describe("serializeProject / deserializeProject", () => {
     expect(restored.ui).toEqual(ui);
   });
 
+  it("defaults a pre-existing track's playback length to its pattern's rowCount (v2 file saved before per-track length existed)", async () => {
+    const song = createSong();
+    delete song.patterns[0].tracks[0].length; // simulate a v2 file saved before this field existed
+    const serialized = serializeProject({ song, instruments: [], ui: {} });
+
+    const restored = await deserializeProject(serialized, { loadSampleBytes: async () => null });
+
+    expect(restored.song.patterns[0].tracks[0].length).toBe(64);
+    expect(restored.song.patterns[0].tracks[1].length).toBe(64); // untouched track, already had it
+  });
+
   it("rejects an unsupported format version", async () => {
     await expect(deserializeProject({ formatVersion: 999, instruments: [] }, { loadSampleBytes: async () => null })).rejects.toThrow();
+  });
+
+  it("migrates a v1 (bank-based) project into the v2 pattern pool/queue shape", async () => {
+    const oldProject = {
+      formatVersion: 1,
+      savedAt: new Date().toISOString(),
+      song: {
+        name: "Old Song",
+        bpm: 120,
+        trackCount: 2,
+        rowCount: 4,
+        trackChannels: [],
+        banks: [
+          {
+            id: 0,
+            name: "Bank A",
+            activePatternIndex: 1,
+            patterns: [
+              { name: "A1", rowCount: 4, tracks: [{ events: [] }, { events: [] }] },
+              { name: "A2", rowCount: 4, tracks: [{ events: [] }, { events: [] }] },
+            ],
+          },
+          {
+            id: 1,
+            name: "Bank B",
+            activePatternIndex: 0,
+            patterns: [{ name: "B1", rowCount: 4, tracks: [{ events: [] }, { events: [] }] }],
+          },
+        ],
+      },
+      instruments: [],
+      ui: { activeBankIndex: 0, selectedInstrumentIndex: 0, octave: 4, editStep: 1, cursor: { trackIndex: 0, rowIndex: 0, field: "note" } },
+    };
+
+    const restored = await deserializeProject(oldProject, { loadSampleBytes: async () => null });
+
+    // All three patterns survive, flattened into one pool/queue in bank order.
+    expect(restored.song.patterns.map((p) => p.name)).toEqual(["A1", "A2", "B1"]);
+    expect(restored.song.patternQueue).toHaveLength(3);
+    // Bank A's activePatternIndex (1) was the previously-active bank (0) — A2 becomes selected.
+    const selected = restored.song.patterns.find((p) => p.id === restored.song.selectedPatternId);
+    expect(selected.name).toBe("A2");
   });
 });

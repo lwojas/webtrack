@@ -1,4 +1,4 @@
-import { getActivePattern } from "../model/query.js";
+import { getSelectedPattern } from "../model/query.js";
 import { cloneEvent } from "../model/event.js";
 import { triggerPreview } from "../audio/preview.js";
 import { isTypingTarget } from "./isTypingTarget.js";
@@ -55,8 +55,8 @@ export function createEditController({ store, noteSource }) {
   }
 
   function handleCopy() {
-    const { song, cursor, activeBankIndex } = store.getState();
-    const pattern = getActivePattern(song, activeBankIndex);
+    const { song, cursor } = store.getState();
+    const pattern = getSelectedPattern(song);
     const event = pattern?.tracks[cursor.trackIndex]?.events[cursor.rowIndex];
     if (!event) return;
     clipboardEvent = cloneEvent(event);
@@ -133,7 +133,7 @@ export function createEditController({ store, noteSource }) {
   // writing into the model only happens when editing is on and the cursor is on the NOTE
   // column (ECS-156 plan §8).
   function handleNoteOn({ note, velocity }) {
-    const { song, cursor, editMode, activeBankIndex, selectedInstrumentIndex, instruments } = store.getState();
+    const { song, cursor, editMode, selectedInstrumentIndex, instruments } = store.getState();
     const trackChannel = song.trackChannels[cursor.trackIndex];
     const previewEvent = {
       note,
@@ -152,9 +152,9 @@ export function createEditController({ store, noteSource }) {
 
     if (!editMode || cursor.field !== "note") return;
 
-    // Guard against a pattern this cursor position no longer belongs to (e.g. the bank
-    // changed between the keydown and this async-free handler running) before writing.
-    const pattern = getActivePattern(song, activeBankIndex);
+    // Guard against a pattern this cursor position no longer belongs to (e.g. the selected
+    // pattern changed between the keydown and this async-free handler running) before writing.
+    const pattern = getSelectedPattern(song);
     if (!pattern?.tracks[cursor.trackIndex]?.events[cursor.rowIndex]) return;
 
     store.setCell(cursor.trackIndex, cursor.rowIndex, "note", note);
