@@ -76,9 +76,12 @@ export function createAppContext() {
     if (!demoInstrumentsLoaded) {
       demoInstrumentsLoaded = (async () => {
         await initRuntime();
+        // import.meta.env.BASE_URL (always trailing-slash-terminated) rather than a bare
+        // "/samples/..." root path — GitHub Pages serves this app from a /webtrack/ subpath
+        // (see vite.config.js's base), and a root-relative fetch would 404 there.
         await Promise.all([
-          loadDemoInstrument(0, "/samples/kick.wav", "Kick"),
-          loadDemoInstrument(1, "/samples/hat.wav", "Hat"),
+          loadDemoInstrument(0, `${import.meta.env.BASE_URL}samples/kick.wav`, "Kick"),
+          loadDemoInstrument(1, `${import.meta.env.BASE_URL}samples/hat.wav`, "Hat"),
         ]);
       })();
     }
