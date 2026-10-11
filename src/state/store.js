@@ -2,10 +2,12 @@ import {
   setActivePatternIndex,
   setEventField,
   clearEvent as clearEventModel,
+  pasteEvent as pasteEventModel,
   setTrackChannelMuted as setTrackChannelMutedModel,
   setTrackChannelSolo as setTrackChannelSoloModel,
   setTrackChannelVolume as setTrackChannelVolumeModel,
   setPatternRowCount,
+  setSongName,
 } from "../model/mutations.js";
 import { createInstrumentSlot } from "../model/instrument.js";
 import { rowCountForBars } from "../model/timing.js";
@@ -104,6 +106,19 @@ export function createStore({ song, instruments }) {
     const patternIndex = state.song.banks[state.activeBankIndex].activePatternIndex;
     clearEventModel(state.song, { bankIndex: state.activeBankIndex, patternIndex, trackIndex, rowIndex });
     emitter.emit(events.CELL_CHANGED, { trackIndex, rowIndex });
+  }
+
+  // sourceEvent is cloned into the target slot by model/mutations.js#pasteEvent — the caller
+  // (editController.js's clipboard) can safely reuse the same sourceEvent for multiple pastes.
+  function pasteCell(trackIndex, rowIndex, sourceEvent) {
+    const patternIndex = state.song.banks[state.activeBankIndex].activePatternIndex;
+    pasteEventModel(state.song, { bankIndex: state.activeBankIndex, patternIndex, trackIndex, rowIndex }, sourceEvent);
+    emitter.emit(events.CELL_CHANGED, { trackIndex, rowIndex });
+  }
+
+  function setProjectName(name) {
+    setSongName(state.song, name);
+    emitter.emit(events.PROJECT_NAME_CHANGED, { name });
   }
 
   // delta: { row } to move by rows (wraps within the pattern), or { field } to step through
@@ -231,6 +246,7 @@ export function createStore({ song, instruments }) {
     emitter.emit(events.BANK_SELECTED, { bankIndex: state.activeBankIndex });
     emitter.emit(events.PATTERN_SELECTED, { bankIndex: state.activeBankIndex, patternIndex });
     emitter.emit(events.TRANSPORT_CHANGED, { playing: false, bpm: state.song.bpm });
+    emitter.emit(events.PROJECT_NAME_CHANGED, { name: state.song.name });
     emitter.emit(events.TRACK_CHANNEL_CHANGED, {});
     emitter.emit(events.INSTRUMENTS_CHANGED, {});
     emitter.emit(events.CURSOR_MOVED, state.cursor);
@@ -246,6 +262,8 @@ export function createStore({ song, instruments }) {
     setBpm,
     setCell,
     clearCell,
+    pasteCell,
+    setProjectName,
     moveCursor,
     selectCell,
     setSequenceLength,

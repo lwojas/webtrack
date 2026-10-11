@@ -1,7 +1,7 @@
 // Direct, in-place mutation of the plain object tree, not copy-on-write — MVP has no
 // undo/history requirement, so structural sharing would be pure overhead (see ECS-156 plan
 // §5). Callers (state/store.js) are responsible for emitting the matching change event.
-import { createEmptyEvent } from "./event.js";
+import { createEmptyEvent, cloneEvent } from "./event.js";
 import { getEvent, getPattern, getTrackChannel } from "./query.js";
 
 export function setEventField(song, { bankIndex, patternIndex, trackIndex, rowIndex }, field, value) {
@@ -14,6 +14,19 @@ export function clearEvent(song, { bankIndex, patternIndex, trackIndex, rowIndex
   const track = getPattern(song, bankIndex, patternIndex)?.tracks[trackIndex];
   if (!track) return;
   track.events[rowIndex] = createEmptyEvent();
+}
+
+// Replaces the target slot's event outright with a clone of sourceEvent — never the same
+// object reference, so pasting the same clipboard event into several cells never lets an edit
+// to one cell leak into another (see model/event.js#cloneEvent).
+export function pasteEvent(song, { bankIndex, patternIndex, trackIndex, rowIndex }, sourceEvent) {
+  const track = getPattern(song, bankIndex, patternIndex)?.tracks[trackIndex];
+  if (!track) return;
+  track.events[rowIndex] = cloneEvent(sourceEvent);
+}
+
+export function setSongName(song, name) {
+  song.name = name;
 }
 
 export function setTrackChannelMuted(song, trackIndex, muted) {

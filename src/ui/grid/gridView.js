@@ -1,5 +1,6 @@
 import { formatCell } from "./rowFormatting.js";
 import { rowToBarBeat } from "../../model/timing.js";
+import { isEmptyEvent } from "../../model/event.js";
 
 // Builds the 64-row × 8-track grid exactly once via createElement (ECS-156 plan §4), caching
 // every cell's DOM refs in a 2D array. patchCell() is the single write path for all cell
@@ -106,6 +107,7 @@ export function createGridView({ trackCount, rowCount, onCellPatched, onCellClic
     refs.insEl.textContent = formatted.instrument;
     refs.volEl.textContent = formatted.velocity;
     refs.fxEl.textContent = formatted.fx;
+    refs.cellEl.classList.toggle("tracker-cell--empty", isEmptyEvent(event));
     onCellPatched?.(trackIndex, rowIndex);
   }
 

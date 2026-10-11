@@ -1,16 +1,18 @@
 import { useStore } from "../../state/useStore.js";
 import * as events from "../../state/events.js";
-import { getActivePattern, getEvent } from "../../model/query.js";
+import { getActivePattern } from "../../model/query.js";
 import { EFFECT_COMMANDS } from "../../model/effects.js";
 import { formatBarBeat } from "../../model/timing.js";
-import { noteNumberToName, toHex } from "../../model/notes.js";
+import { noteNumberToName, parseNoteName, toHex } from "../../model/notes.js";
 
-// The extended, low-frequency note editor (see docs/EXTENDING.md's grid-vs-side-editor split):
-// the grid keeps note/instrument/velocity, which already have a fast keyboard+mouse path.
-// This panel owns the properties that have no edit path anywhere else — length, pan, and the
-// effect command/param (ECS-156's own Gotcha #7 — the fx column displays these but nothing
-// let you edit them until now). It always reflects whichever cell the grid's cursor currently
-// points at, mouse- or keyboard-selected alike, since both write the same store.cursor shape.
+// The complete editing surface for the event under the grid's cursor — every field
+// model/event.js defines (note, instrument, velocity, length, pan, effect command/param) is
+// readable and writable here, reading from and writing to the exact same event the grid cell
+// renders (via store.setCell), not a second copy of it. The grid keeps its own fast
+// keyboard+mouse path for note/instrument/velocity (src/input/editController.js) — this panel
+// is the mouse-driven, low-frequency complement to that, not a replacement for it. It always
+// reflects whichever cell the grid's cursor currently points at, mouse- or keyboard-selected
+// alike, since both write the same store.cursor shape.
 export default function NoteEditor({ store }) {
   const cursor = useStore(store, events.CURSOR_MOVED, (s) => s.cursor);
   // CELL_CHANGED covers edits landing on the selected cell from elsewhere (e.g. typing a new
@@ -31,17 +33,31 @@ export default function NoteEditor({ store }) {
   const pattern = getActivePattern(state.song, state.activeBankIndex);
   const event = pattern?.tracks[cursor.trackIndex]?.events[cursor.rowIndex];
 
-  if (!event || event.note === null) {
+  if (!event) {
     return (
       <div className="note-editor">
         <div className="note-editor__header">NOTE EDITOR</div>
-        <div className="note-editor__empty">No note selected</div>
+        <div className="note-editor__empty">No cell selected</div>
       </div>
     );
   }
 
   function setField(field, value) {
     store.setCell(cursor.trackIndex, cursor.rowIndex, field, value);
+  }
+
+  function handleNoteChange(text) {
+    setField("note", parseNoteName(text));
+  }
+
+  function handleHexFieldChange(field, max) {
+    return (text) => {
+      if (text.trim() === "") {
+        setField(field, null);
+        return;
+      }
+      setField(field, Math.max(0, Math.min(max, Number.parseInt(text, 16) || 0)));
+    };
   }
 
   function handleLengthChange(text) {
@@ -71,10 +87,41 @@ export default function NoteEditor({ store }) {
       <div className="note-editor__header">NOTE EDITOR</div>
 
       <div className="note-editor__context">
-        <span>{noteNumberToName(event.note)}</span>
         <span>TRK {cursor.trackIndex + 1}</span>
         <span>{formatBarBeat(cursor.rowIndex)}</span>
       </div>
+
+      <label className="note-editor__field">
+        NOTE
+        <input
+          type="text"
+          placeholder="---"
+          value={noteNumberToName(event.note)}
+          onChange={(e) => handleNoteChange(e.target.value)}
+        />
+      </label>
+
+      <label className="note-editor__field">
+        INSTRUMENT
+        <input
+          type="text"
+          maxLength={2}
+          placeholder="--"
+          value={toHex(event.instrument, 2)}
+          onChange={(e) => handleHexFieldChange("instrument", 255)(e.target.value)}
+        />
+      </label>
+
+      <label className="note-editor__field">
+        VELOCITY
+        <input
+          type="text"
+          maxLength={2}
+          placeholder="--"
+          value={toHex(event.velocity, 2)}
+          onChange={(e) => handleHexFieldChange("velocity", 127)(e.target.value)}
+        />
+      </label>
 
       <label className="note-editor__field">
         LENGTH

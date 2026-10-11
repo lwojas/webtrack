@@ -5,7 +5,7 @@ import { setEventField } from "../model/mutations.js";
 // A simple 4-on-the-floor kick + off-beat hat pattern in bank 0's first pattern, so the app
 // (and the phase-3 audio harness) is playable with zero setup.
 export function createDemoSong() {
-  const song = createSong();
+  const song = createSong({ name: "Demo Song" });
   const pattern = song.banks[0].patterns[0];
 
   for (let row = 0; row < pattern.rowCount; row += 4) {

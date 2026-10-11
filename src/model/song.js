@@ -5,8 +5,9 @@ import { createTrackChannel } from "./trackChannel.js";
 // state/store.js's `activeBankIndex`. Which pattern is selected *within* a bank is part of
 // the bank itself (bank.activePatternIndex), since it's meaningful musical state the song
 // should remember per bank, not a single global cursor.
-export function createSong({ bpm = 120, trackCount = 8, bankCount = 4, rowCount = 64 } = {}) {
+export function createSong({ name = "Untitled Project", bpm = 120, trackCount = 8, bankCount = 4, rowCount = 64 } = {}) {
   return {
+    name,
     bpm,
     trackCount,
     rowCount,

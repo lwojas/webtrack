@@ -1,47 +1,178 @@
-/* DESIGN.md's "Obsidian Signal" tokens, as CSS custom properties (ECS-156 plan §9) — a
-   first functional pass; the full visual-design pass happens in phase 10 polish. */
+/* "Obsidian Signal" design system (see concepts/stitch_webdsp_tracker_mvp/DESIGN.md) as CSS
+   custom properties — colors/spacing/type here are the single source of truth; component
+   rules below consume tokens rather than literal values so the palette/scale stays in one
+   place (DESIGN.md's own "Surface Architecture", "Signal & Phosphor Telemetry", "Typography",
+   and "Layout & Spacing" sections). */
 :root {
-  --surface: #0a0c10;
-  --surface-1: #101319;
-  --surface-2: #151922;
-  --border: #1e2430;
-  --border-active: #2d3748;
-  --cyan: #00f0ff;
-  --amber: #ff9d00;
-  --emerald: #00e676;
-  --crimson: #ff3366;
-  --text: #e2e2e8;
-  --text-dim: #6b7c96;
-  --row-height: 20px;
-}
+  /* Surface Architecture */
+  --surface: #0a0c10; /* Base Canvas */
+  --surface-1: #101319; /* Elevation 1 — track lanes, pattern matrices, channel strips */
+  --surface-2: #151922; /* Elevation 2 — parameter cards, popover inspectors, headers */
+  --surface-3: #1a202c; /* Elevation 3 — dropdown surfaces, hover states, control backdrops */
+  --surface-empty: #242b38; /* Dim Inactive Matrix — off-state step nodes, empty cells */
+  --border: #1e2430; /* Precision Border */
+  --border-active: #2d3748; /* Active Structural Border */
 
-:root {
+  /* Signal & Phosphor Telemetry */
+  --cyan: #00f0ff; /* primary focus, selection, pitch readouts */
+  --amber: #ff9d00; /* secondary modulation, loop/warn */
+  --emerald: #00e676; /* nominal level, playhead, play/online */
+  --crimson: #ff3366; /* clipping, mute, destructive, record */
+  --text: #e2e2e8;
+  --text-dim: #6b7c96; /* tabular headers, inactive ticks, hex indices */
+
+  /* Typography — JetBrains Mono, loaded in index.html; sizes map to DESIGN.md's body-sm/
+     label-md/label-sm (the sizes this dense a UI actually uses — headline-* don't appear). */
+  --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  --text-body: 0.75rem; /* 12px — base/grid text */
+  --text-label: 0.6875rem; /* 11px — field labels, instrument names */
+  --text-micro: 0.5625rem; /* 9px — panel headers, chips, meta */
+
+  /* Layout & Spacing — DESIGN.md's 4px/2px ultra-dense scale */
+  --space-xs: 0.125rem; /* 2px */
+  --space-sm: 0.25rem; /* 4px */
+  --space-md: 0.5rem; /* 8px */
+  --space-lg: 0.75rem; /* 12px */
+  --space-xl: 1rem; /* 16px */
+
+  --row-height: 20px;
+  --radius: 0; /* Shapes: "Zero Border-Radius" across every interactive surface */
+  --focus-glow: 0 0 4px rgba(0, 240, 255, 0.4); /* "Phosphor Bloom" */
+  --transition-fast: 100ms ease;
+
   color-scheme: dark;
+  scrollbar-color: var(--border-active) var(--surface-1);
+  scrollbar-width: thin;
 }
 
 * {
   box-sizing: border-box;
 }
 
-body {
+html,
+body,
+#root {
+  height: 100%;
   margin: 0;
-  background: var(--surface);
-  color: var(--text);
-  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
-  font-size: 12px;
 }
 
-.app {
-  padding: 8px;
-  height: 100vh;
+/* The one deliberate overflow boundary: the document itself never scrolls (see
+   docs/EXTENDING.md / the SPA-viewport requirement) — every panel below establishes its own
+   internal scroll container instead. */
+html,
+body {
   overflow: hidden;
 }
 
+body {
+  background: var(--surface);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--text-body);
+}
+
+button,
+input,
+select {
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+  border-radius: var(--radius);
+}
+
+/* Shapes forbids rounded pills/arcs; this also strips the native rounding Safari/iOS apply
+   to buttons, number-input spinners, and <select> by default. */
+button,
+input,
+select,
+textarea {
+  border-radius: 0;
+}
+
+:focus-visible {
+  outline: 1px solid var(--cyan);
+  outline-offset: 1px;
+  box-shadow: var(--focus-glow);
+}
+
+/* Flat, hairline scrollbars matching the surface/border palette instead of the OS default —
+   applied to every panel that scrolls internally (grid host, side column, mixer). */
+.tracker-grid-host::-webkit-scrollbar,
+.app__side::-webkit-scrollbar,
+.mixer::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.tracker-grid-host::-webkit-scrollbar-track,
+.app__side::-webkit-scrollbar-track,
+.mixer::-webkit-scrollbar-track {
+  background: var(--surface-1);
+}
+
+.tracker-grid-host::-webkit-scrollbar-thumb,
+.app__side::-webkit-scrollbar-thumb,
+.mixer::-webkit-scrollbar-thumb {
+  background: var(--border-active);
+  border-radius: 0;
+}
+
+.tracker-grid-host::-webkit-scrollbar-thumb:hover,
+.app__side::-webkit-scrollbar-thumb:hover,
+.mixer::-webkit-scrollbar-thumb:hover {
+  background: var(--cyan);
+}
+
+/* --- application shell: a true viewport-sized SPA (see docs/EXTENDING.md) ---
+   .app is the only element sized against the viewport; everything under it either sizes to
+   content (header/toolbars) or takes the remaining space and scrolls internally
+   (.app__body's two panels). Nothing here should ever grow the document past 100vh/100vw. */
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  padding: var(--space-md);
+  gap: var(--space-sm);
+  overflow: hidden;
+}
+
+.app__body {
+  flex: 1;
+  min-height: 0; /* flex children default to min-height:auto, which would let content push
+                    this row taller than the viewport instead of scrolling inside it */
+  display: flex;
+  gap: var(--space-md);
+  overflow: hidden;
+}
+
+.app__tracker {
+  flex: 1;
+  min-width: 0; /* same min-height:0 reasoning, for the row axis */
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.app__side {
+  width: 180px;
+  flex-shrink: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  overflow-y: auto; /* instrument slots + note editor fields scroll together rather than
+                        growing the page when there are many instruments */
+}
+
+/* --- tracker grid --- */
+
 .tracker-grid-host {
+  flex: 1; /* fills whatever space is left under the mixer, instead of a fixed max-height */
+  min-height: 0;
   position: relative;
-  overflow-y: auto;
-  overflow-x: auto;
-  max-height: 72vh;
+  overflow: auto; /* wide track counts scroll horizontally, tall patterns scroll vertically —
+                      both stay inside this panel, never the document */
   background: var(--surface-1);
   border: 1px solid var(--border);
 }
@@ -59,8 +190,9 @@ body {
 
 .tracker-row__index {
   width: 4ch;
-  padding: 0 4px;
+  padding: 0 var(--space-sm);
   color: var(--text-dim);
+  font-size: var(--text-label);
   flex-shrink: 0;
   text-align: right;
 }
@@ -71,11 +203,26 @@ body {
 
 .tracker-cell {
   display: flex;
-  gap: 4px;
-  padding: 0 4px;
+  gap: var(--space-sm);
+  padding: 0 var(--space-sm);
   border-left: 1px solid var(--border);
   flex-shrink: 0;
   cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.tracker-cell:hover {
+  background: var(--surface-3);
+}
+
+/* Dim Inactive Matrix: empty steps get a faint fill so the matrix's active/inactive shape
+   reads at a glance, without relying on text color alone (see gridView.js#patchCell). */
+.tracker-cell--empty {
+  background: var(--surface-empty);
+}
+
+.tracker-cell--empty:hover {
+  background: var(--surface-3);
 }
 
 .tracker-cell__note {
@@ -112,30 +259,35 @@ body {
 .tracker-cursor {
   outline: 1px solid var(--cyan);
   outline-offset: -1px;
+  box-shadow: var(--focus-glow);
   z-index: 2;
 }
 
 /* --- chrome (React) --- */
 
 .transport-bar {
+  flex-shrink: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px;
-  margin-bottom: 4px;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
   background: var(--surface-2);
   border: 1px solid var(--border);
 }
 
 .transport-bar__play {
-  padding: 4px 10px;
+  padding: var(--space-xs) var(--space-lg);
   background: var(--surface-1);
   color: var(--text);
   border: 1px solid var(--border);
   cursor: pointer;
-  font-family: inherit;
-  font-size: inherit;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.transport-bar__play:hover {
+  background: var(--surface-3);
+  color: var(--emerald);
 }
 
 .transport-bar__play--active {
@@ -144,41 +296,56 @@ body {
   border-color: var(--emerald);
 }
 
+.transport-bar__play--active:hover {
+  background: var(--emerald);
+  color: var(--surface);
+}
+
 .transport-bar__pending {
   color: var(--amber);
-  font-size: 10px;
+  font-size: var(--text-label);
   letter-spacing: 0.04em;
 }
 
 .transport-bar__bpm {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-sm);
   color: var(--text-dim);
+  font-size: var(--text-label);
 }
 
-.transport-bar__bpm input {
+.transport-bar__bpm input,
+.transport-bar__bpm select {
   width: 8ch;
   background: var(--surface-1);
   color: var(--text);
   border: 1px solid var(--border);
-  font-family: inherit;
-  font-size: inherit;
+}
+
+.transport-bar__bpm input:hover,
+.transport-bar__bpm select:hover {
+  border-color: var(--border-active);
 }
 
 .transport-bar__group {
   display: flex;
-  gap: 2px;
+  gap: var(--space-xs);
 }
 
 .transport-bar__chip {
-  padding: 2px 6px;
+  padding: var(--space-xs) var(--space-sm);
   background: var(--surface-1);
   color: var(--text-dim);
   border: 1px solid var(--border);
   cursor: pointer;
-  font-family: inherit;
-  font-size: inherit;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.transport-bar__chip:hover {
+  background: var(--surface-3);
+  color: var(--cyan);
+  border-color: var(--border-active);
 }
 
 .transport-bar__chip--active {
@@ -187,13 +354,50 @@ body {
   border-color: var(--cyan);
 }
 
+.transport-bar__chip--active:hover {
+  background: var(--cyan);
+  color: var(--surface);
+}
+
+/* --- transport bar project (name + save/load) controls --- */
+
+.transport-bar__project {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0; /* lets the name input truncate instead of forcing the toolbar wider */
+}
+
+.transport-bar__project-name {
+  width: 18ch;
+  max-width: 220px;
+  min-width: 0;
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--surface-1);
+  color: var(--text);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transport-bar__project-name:hover {
+  border-color: var(--border-active);
+}
+
+.transport-bar__load {
+  display: inline-flex;
+  align-items: center;
+}
+
 /* --- mixer: compact horizontal channel strips, below the grid (see App.jsx) --- */
 
 .mixer {
+  flex-shrink: 0;
   display: flex;
-  gap: 4px;
-  margin-top: 4px;
-  padding: 6px;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
   background: var(--surface-2);
   border: 1px solid var(--border);
   overflow-x: auto; /* scroll rather than wrap/overflow on narrow viewports */
@@ -203,10 +407,10 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-sm);
   width: 44px;
   flex-shrink: 0;
-  padding: 4px 2px;
+  padding: var(--space-sm) var(--space-xs);
   background: var(--surface-1);
   border: 1px solid var(--border);
 }
@@ -214,7 +418,7 @@ body {
 .channel-strip__name {
   width: 100%;
   color: var(--text-dim);
-  font-size: 9px;
+  font-size: var(--text-micro);
   text-align: center;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -245,9 +449,21 @@ body {
   color: var(--text-dim);
   border: 1px solid var(--border);
   cursor: pointer;
-  font-family: inherit;
-  font-size: 10px;
+  font-size: var(--text-label);
   line-height: 1;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.channel-strip__mute:hover {
+  background: var(--surface-3);
+  color: var(--crimson);
+  border-color: var(--border-active);
+}
+
+.channel-strip__solo:hover {
+  background: var(--surface-3);
+  color: var(--amber);
+  border-color: var(--border-active);
 }
 
 .channel-strip__mute--active {
@@ -256,50 +472,44 @@ body {
   border-color: var(--crimson);
 }
 
+.channel-strip__mute--active:hover {
+  background: var(--crimson);
+  color: var(--surface);
+}
+
 .channel-strip__solo--active {
   background: var(--amber);
   color: var(--surface);
   border-color: var(--amber);
 }
 
-.app__body {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
+.channel-strip__solo--active:hover {
+  background: var(--amber);
+  color: var(--surface);
 }
 
-.app__tracker {
-  flex: 1;
-  min-width: 0;
-}
-
-.app__side {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  flex-shrink: 0;
-}
+/* --- side column: instrument panel + note editor --- */
 
 .instrument-panel {
-  width: 180px;
   flex-shrink: 0;
   background: var(--surface-2);
   border: 1px solid var(--border);
-  padding: 6px;
+  padding: var(--space-sm);
 }
 
-.instrument-panel__header {
+.instrument-panel__header,
+.note-editor__header {
   color: var(--text-dim);
-  font-size: 10px;
+  font-size: var(--text-micro);
   letter-spacing: 0.04em;
-  margin-bottom: 4px;
+  margin-bottom: var(--space-sm);
 }
 
 .instrument-slot {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 0;
+  gap: var(--space-sm);
+  padding: var(--space-xs) 0;
   border-bottom: 1px solid var(--border);
 }
 
@@ -313,8 +523,12 @@ body {
   color: var(--cyan);
   border: 1px solid var(--border);
   cursor: pointer;
-  font-family: inherit;
-  font-size: inherit;
+  transition: background var(--transition-fast);
+}
+
+.instrument-slot__select:hover {
+  background: var(--surface-3);
+  border-color: var(--border-active);
 }
 
 .instrument-slot__name {
@@ -323,7 +537,7 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 11px;
+  font-size: var(--text-label);
 }
 
 .instrument-slot__name--empty {
@@ -331,11 +545,12 @@ body {
 }
 
 .instrument-slot__load {
-  font-size: 9px;
+  font-size: var(--text-micro);
   color: var(--text-dim);
   border: 1px solid var(--border);
-  padding: 2px 4px;
+  padding: var(--space-xs) var(--space-sm);
   cursor: pointer;
+  transition: color var(--transition-fast), border-color var(--transition-fast);
 }
 
 .instrument-slot__load:hover {
@@ -345,37 +560,35 @@ body {
 
 .instrument-panel__add {
   width: 100%;
-  margin-top: 4px;
-  padding: 4px;
+  margin-top: var(--space-sm);
+  padding: var(--space-sm);
   background: var(--surface-1);
   color: var(--text-dim);
   border: 1px solid var(--border);
   cursor: pointer;
-  font-family: inherit;
-  font-size: 10px;
+  font-size: var(--text-micro);
+  transition: background var(--transition-fast), color var(--transition-fast);
 }
 
-/* --- note editor (right column, below the instrument panel) --- */
+.instrument-panel__add:hover {
+  background: var(--surface-3);
+  color: var(--cyan);
+  border-color: var(--border-active);
+}
+
+/* --- note editor: the complete per-event editing surface (see ui/chrome/NoteEditor.jsx) --- */
 
 .note-editor {
-  width: 180px;
   flex-shrink: 0;
   background: var(--surface-2);
   border: 1px solid var(--border);
-  padding: 6px;
-}
-
-.note-editor__header {
-  color: var(--text-dim);
-  font-size: 10px;
-  letter-spacing: 0.04em;
-  margin-bottom: 4px;
+  padding: var(--space-sm);
 }
 
 .note-editor__empty {
   color: var(--text-dim);
-  font-size: 11px;
-  padding: 8px 0;
+  font-size: var(--text-label);
+  padding: var(--space-md) 0;
   text-align: center;
 }
 
@@ -383,9 +596,9 @@ body {
   display: flex;
   justify-content: space-between;
   color: var(--cyan);
-  font-size: 11px;
-  margin-bottom: 6px;
-  padding-bottom: 4px;
+  font-size: var(--text-label);
+  margin-bottom: var(--space-sm);
+  padding-bottom: var(--space-sm);
   border-bottom: 1px solid var(--border);
 }
 
@@ -393,10 +606,11 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 6px;
+  gap: var(--space-sm);
   color: var(--text-dim);
-  font-size: 10px;
-  padding: 3px 0;
+  font-size: var(--text-micro);
+  letter-spacing: 0.02em;
+  padding: var(--space-xs) 0;
 }
 
 .note-editor__field input,
@@ -404,42 +618,38 @@ body {
   background: var(--surface-1);
   color: var(--text);
   border: 1px solid var(--border);
-  font-family: inherit;
-  font-size: inherit;
+  font-size: var(--text-label);
   width: 8.5ch;
+  transition: border-color var(--transition-fast);
+}
+
+.note-editor__field input:hover,
+.note-editor__field select:hover {
+  border-color: var(--border-active);
 }
 
 .note-editor__field input[type="range"] {
   width: 7ch;
 }
 
-/* --- transport bar project (save/load) controls --- */
-
-.transport-bar__project {
-  margin-left: auto;
-}
-
-.transport-bar__load {
-  display: inline-flex;
-  align-items: center;
-}
+/* --- perf panel (F3 debug overlay) --- */
 
 .perf-panel {
   position: fixed;
-  bottom: 8px;
-  right: 8px;
+  bottom: var(--space-md);
+  right: var(--space-md);
   width: 200px;
   background: var(--surface-2);
   border: 1px solid var(--border-active);
-  padding: 6px 8px;
-  font-size: 10px;
+  padding: var(--space-sm) var(--space-md);
+  font-size: var(--text-label);
   z-index: 1000;
 }
 
 .perf-panel__header {
   color: var(--amber);
   letter-spacing: 0.04em;
-  margin-bottom: 4px;
+  margin-bottom: var(--space-sm);
 }
 
 .perf-panel__row {
@@ -457,22 +667,35 @@ body {
 @media (max-width: 720px) {
   .app__body {
     flex-wrap: wrap;
+    overflow: auto;
   }
 
   .app__tracker {
     flex-basis: 100%;
   }
 
+  /* Below this width, .app__tracker's own height becomes content-driven (it's alone on its
+     wrapped flex line, with nothing to stretch against) — flex:1 on the grid host would have
+     nothing to grow into, so pin a usable floor instead of letting it collapse. */
+  .tracker-grid-host {
+    min-height: 240px;
+  }
+
   .app__side {
+    width: auto;
     flex-direction: row;
     flex-wrap: wrap;
+    overflow: visible;
   }
 
   .instrument-panel,
   .note-editor {
-    width: auto;
     flex: 1;
     min-width: 160px;
+  }
+
+  .transport-bar__project-name {
+    width: 12ch;
   }
 
   .perf-panel {

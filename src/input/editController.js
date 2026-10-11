@@ -1,5 +1,7 @@
 import { getActivePattern } from "../model/query.js";
+import { cloneEvent } from "../model/event.js";
 import { triggerPreview } from "../audio/preview.js";
+import { isTypingTarget } from "./isTypingTarget.js";
 
 // Hex-digit entry (instrument/velocity columns) and cursor navigation. Effect command/param
 // aren't part of this MVP's keyboard cursor flow — the fx column still displays and stores
@@ -8,6 +10,11 @@ const HEX_DIGIT_PATTERN = /^[0-9a-f]$/i;
 const HEX_FIELDS = new Set(["instrument", "velocity"]);
 const FIELD_MAX = { instrument: 255, velocity: 127 };
 
+// Copy/paste operates on a whole event (same granularity as Backspace/Delete's clearCell),
+// not a single field — "duplicate this note around the pattern" is the use case, not
+// "duplicate just this velocity." Only fires when focus isn't in a text input/select (so the
+// BPM field, project name, and the note editor's own inputs keep ordinary OS copy/paste), and
+// only for the plain Ctrl/Cmd+C / Ctrl/Cmd+V chord.
 export function createEditController({ store, noteSource }) {
   // A 2-digit hex entry buffer, scoped to whichever (track, row, field) it was last typed
   // into — resets whenever the cursor moves, matching the tracker convention of live preview
@@ -15,6 +22,11 @@ export function createEditController({ store, noteSource }) {
   // confirm keystroke.
   let digitBuffer = "";
   let digitBufferKey = null;
+
+  // Holds a clone of the last-copied event, independent of whatever's currently in that
+  // source cell — see model/mutations.js#pasteEvent, which clones it again on every paste so
+  // pasting the same clipboard into several cells never lets an edit to one leak into another.
+  let clipboardEvent = null;
 
   function bufferKeyFor(cursor) {
     return `${cursor.trackIndex}.${cursor.rowIndex}.${cursor.field}`;
@@ -42,8 +54,42 @@ export function createEditController({ store, noteSource }) {
     if (digitBuffer.length >= 2) resetDigitBuffer();
   }
 
+  function handleCopy() {
+    const { song, cursor, activeBankIndex } = store.getState();
+    const pattern = getActivePattern(song, activeBankIndex);
+    const event = pattern?.tracks[cursor.trackIndex]?.events[cursor.rowIndex];
+    if (!event) return;
+    clipboardEvent = cloneEvent(event);
+  }
+
+  function handlePaste() {
+    if (!clipboardEvent) return;
+    const { cursor } = store.getState();
+    store.pasteCell(cursor.trackIndex, cursor.rowIndex, clipboardEvent);
+  }
+
   function handleKeyDown(e) {
+    // Every shortcut below (cursor navigation, clear, hex digit entry, copy/paste) targets
+    // the grid, never the focused control — skip all of it while the project name, BPM, or
+    // any other form field has focus, so normal text editing (including Backspace/arrows)
+    // behaves normally instead of also moving the grid cursor or clearing the selected cell.
+    if (isTypingTarget(e)) return;
+
     const { editMode, cursor } = store.getState();
+
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey) {
+      const key = e.key.toLowerCase();
+      if (key === "c") {
+        e.preventDefault();
+        handleCopy();
+        return;
+      }
+      if (key === "v") {
+        e.preventDefault();
+        handlePaste();
+        return;
+      }
+    }
 
     if (e.key === "ArrowUp") {
       e.preventDefault();

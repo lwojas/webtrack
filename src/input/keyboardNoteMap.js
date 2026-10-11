@@ -1,4 +1,5 @@
 import { createNoteInputSource } from "./noteInputSource.js";
+import { isTypingTarget } from "./isTypingTarget.js";
 
 // Standard tracker piano-key layout: two interleaved rows mimicking a piano's black/white
 // keys on a QWERTY keyboard (same physical mapping the concepts/ mockup uses). Row 1 (z..) is
@@ -16,6 +17,14 @@ export function createKeyboardNoteSource({ getOctave } = {}) {
 
   function handleKeyDown(e) {
     if (e.repeat) return;
+    // A held Ctrl/Cmd/Alt means the browser or editController.js's own shortcuts (copy/paste,
+    // etc.) own this keystroke, not note entry — e.key stays the bare letter either way (e.g.
+    // Ctrl+C still reports "c"), so without this guard a copy shortcut would also sound/write
+    // a note.
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    // Typing an ordinary word into the project name (or any other field) must stay silent —
+    // several of its letters (c, v, z, b, ...) are piano keys (see isTypingTarget.js).
+    if (isTypingTarget(e)) return;
     const key = e.key.toLowerCase();
     const offset = KEY_TO_SEMITONE_OFFSET[key];
     if (offset === undefined || activeKeys.has(key)) return;

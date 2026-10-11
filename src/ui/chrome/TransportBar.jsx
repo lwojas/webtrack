@@ -19,6 +19,7 @@ export default function TransportBar({ store, playbackController, onSaveProject,
   const sequenceBars = useStore(store, events.PATTERN_LENGTH_CHANGED, (s) =>
     barsForRowCount(getActivePattern(s.song, s.activeBankIndex).rowCount),
   );
+  const projectName = useStore(store, events.PROJECT_NAME_CHANGED, (s) => s.song.name ?? "");
 
   const { song } = store.getState();
   const bankCount = song.banks.length;
@@ -92,14 +93,24 @@ export default function TransportBar({ store, playbackController, onSaveProject,
         </select>
       </label>
 
-      <div className="transport-bar__group transport-bar__project">
-        <button className="transport-bar__chip" onClick={onSaveProject}>
-          SAVE
-        </button>
-        <label className="transport-bar__chip transport-bar__load">
-          LOAD
-          <input type="file" accept="application/json" hidden onChange={handleLoadFileChange} />
-        </label>
+      <div className="transport-bar__project">
+        <input
+          className="transport-bar__project-name"
+          type="text"
+          value={projectName}
+          placeholder="Untitled Project"
+          title={projectName}
+          onChange={(e) => store.setProjectName(e.target.value)}
+        />
+        <div className="transport-bar__group">
+          <button className="transport-bar__chip" onClick={onSaveProject}>
+            SAVE
+          </button>
+          <label className="transport-bar__chip transport-bar__load">
+            LOAD
+            <input type="file" accept="application/json" hidden onChange={handleLoadFileChange} />
+          </label>
+        </div>
       </div>
     </div>
   );
