@@ -1,0 +1,26 @@
+{
+  "name": "webtracker",
+  "version": "1.0.0",
+  "description": "A web based music tracker using the webdsp audio engine.",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "author": "Lech Wojas",
+  "license": "ISC",
+  "dependencies": {
+    "webdsp": "github:lwojas/webdsp",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^5.4.11",
+    "vitest": "^2.1.8"
+  }
+}

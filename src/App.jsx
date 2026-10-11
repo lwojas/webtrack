@@ -1,0 +1,80 @@
+import { useEffect, useMemo } from "react";
+import TrackerGridHost from "./ui/grid/TrackerGridHost.jsx";
+import TransportBar from "./ui/chrome/TransportBar.jsx";
+import Mixer from "./ui/chrome/Mixer.jsx";
+import InstrumentPanel from "./ui/chrome/InstrumentPanel.jsx";
+import NoteEditor from "./ui/chrome/NoteEditor.jsx";
+import PerfPanel from "./ui/debug/PerfPanel.jsx";
+import { createAppContext } from "./appContext.js";
+import { attachTransportKeys } from "./input/transportKeys.js";
+
+export default function App() {
+  const {
+    store,
+    playbackController,
+    noteSource,
+    editController,
+    ensureDemoInstrumentsLoaded,
+    renderStats,
+    saveProject,
+    loadProjectFromFile,
+  } = useMemo(() => createAppContext(), []);
+
+  useEffect(() => {
+    const detachNoteSource = noteSource.attach();
+    const detachEditController = editController.attach();
+    const detachTransportKeys = attachTransportKeys({
+      onTogglePlay: async () => {
+        if (playbackController.isPlaying()) {
+          playbackController.stop();
+        } else {
+          await ensureDemoInstrumentsLoaded();
+          playbackController.play();
+        }
+      },
+      onToggleEditMode: () => store.toggleEditMode(),
+    });
+
+    // Loading the demo kit needs a user gesture (browser autoplay policy) but isn't tied to
+    // any one specific control — a note keypress for audition is just as valid a first
+    // gesture as pressing Play. ensureDemoInstrumentsLoaded() is idempotent, so firing it
+    // from the first gesture of either kind is enough; this listener then removes itself.
+    function handleFirstGesture() {
+      ensureDemoInstrumentsLoaded();
+      window.removeEventListener("pointerdown", handleFirstGesture);
+      window.removeEventListener("keydown", handleFirstGesture);
+    }
+    window.addEventListener("pointerdown", handleFirstGesture);
+    window.addEventListener("keydown", handleFirstGesture);
+
+    return () => {
+      detachNoteSource();
+      detachEditController();
+      detachTransportKeys();
+      window.removeEventListener("pointerdown", handleFirstGesture);
+      window.removeEventListener("keydown", handleFirstGesture);
+    };
+  }, [store, playbackController, noteSource, editController, ensureDemoInstrumentsLoaded]);
+
+  return (
+    <div className="app">
+      <TransportBar
+        store={store}
+        playbackController={playbackController}
+        onSaveProject={saveProject}
+        onLoadProjectFile={loadProjectFromFile}
+      />
+      <div className="app__body">
+        <div className="app__tracker">
+          <TrackerGridHost store={store} playbackController={playbackController} renderStats={renderStats} />
+          <Mixer store={store} />
+        </div>
+        <div className="app__side">
+          <InstrumentPanel store={store} />
+          <NoteEditor store={store} />
+        </div>
+      </div>
+      <PerfPanel renderStats={renderStats} playbackController={playbackController} />
+    </div>
+  );
+}

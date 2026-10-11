@@ -1,0 +1,481 @@
+/* DESIGN.md's "Obsidian Signal" tokens, as CSS custom properties (ECS-156 plan §9) — a
+   first functional pass; the full visual-design pass happens in phase 10 polish. */
+:root {
+  --surface: #0a0c10;
+  --surface-1: #101319;
+  --surface-2: #151922;
+  --border: #1e2430;
+  --border-active: #2d3748;
+  --cyan: #00f0ff;
+  --amber: #ff9d00;
+  --emerald: #00e676;
+  --crimson: #ff3366;
+  --text: #e2e2e8;
+  --text-dim: #6b7c96;
+  --row-height: 20px;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--surface);
+  color: var(--text);
+  font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  font-size: 12px;
+}
+
+.app {
+  padding: 8px;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.tracker-grid-host {
+  position: relative;
+  overflow-y: auto;
+  overflow-x: auto;
+  max-height: 72vh;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+}
+
+.tracker-grid {
+  position: relative;
+}
+
+.tracker-row {
+  display: flex;
+  align-items: center;
+  height: var(--row-height);
+  border-bottom: 1px solid var(--border);
+}
+
+.tracker-row__index {
+  width: 4ch;
+  padding: 0 4px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.tracker-row__index--beat {
+  color: var(--text);
+}
+
+.tracker-cell {
+  display: flex;
+  gap: 4px;
+  padding: 0 4px;
+  border-left: 1px solid var(--border);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.tracker-cell__note {
+  width: 3ch;
+  color: var(--text);
+}
+
+.tracker-cell__ins,
+.tracker-cell__vol {
+  width: 2ch;
+  color: var(--text-dim);
+}
+
+.tracker-cell__fx {
+  width: 3ch;
+  color: var(--amber);
+}
+
+/* Mouse/keyboard field-level selection — see ui/grid/TrackerGridHost.jsx's updateCursor().
+   The whole-cell box (.tracker-cursor below) still shows which cell is selected; this marks
+   which of its four fields. */
+.tracker-field--active {
+  color: var(--cyan);
+  font-weight: 600;
+}
+
+.tracker-playhead {
+  background: rgba(0, 230, 118, 0.15);
+  border-top: 1px solid var(--emerald);
+  border-bottom: 1px solid var(--emerald);
+  z-index: 1;
+}
+
+.tracker-cursor {
+  outline: 1px solid var(--cyan);
+  outline-offset: -1px;
+  z-index: 2;
+}
+
+/* --- chrome (React) --- */
+
+.transport-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.transport-bar__play {
+  padding: 4px 10px;
+  background: var(--surface-1);
+  color: var(--text);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.transport-bar__play--active {
+  background: var(--emerald);
+  color: var(--surface);
+  border-color: var(--emerald);
+}
+
+.transport-bar__pending {
+  color: var(--amber);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+.transport-bar__bpm {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--text-dim);
+}
+
+.transport-bar__bpm input {
+  width: 8ch;
+  background: var(--surface-1);
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.transport-bar__group {
+  display: flex;
+  gap: 2px;
+}
+
+.transport-bar__chip {
+  padding: 2px 6px;
+  background: var(--surface-1);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.transport-bar__chip--active {
+  background: var(--cyan);
+  color: var(--surface);
+  border-color: var(--cyan);
+}
+
+/* --- mixer: compact horizontal channel strips, below the grid (see App.jsx) --- */
+
+.mixer {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+  padding: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  overflow-x: auto; /* scroll rather than wrap/overflow on narrow viewports */
+}
+
+.channel-strip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 44px;
+  flex-shrink: 0;
+  padding: 4px 2px;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+}
+
+.channel-strip__name {
+  width: 100%;
+  color: var(--text-dim);
+  font-size: 9px;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.channel-strip__volume-track {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 100px;
+}
+
+.channel-strip__volume {
+  width: 100px;
+  height: 20px;
+  margin: 0;
+  transform: rotate(-90deg);
+}
+
+.channel-strip__mute,
+.channel-strip__solo {
+  width: 20px;
+  height: 16px;
+  padding: 0;
+  background: var(--surface-1);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 10px;
+  line-height: 1;
+}
+
+.channel-strip__mute--active {
+  background: var(--crimson);
+  color: var(--surface);
+  border-color: var(--crimson);
+}
+
+.channel-strip__solo--active {
+  background: var(--amber);
+  color: var(--surface);
+  border-color: var(--amber);
+}
+
+.app__body {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.app__tracker {
+  flex: 1;
+  min-width: 0;
+}
+
+.app__side {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.instrument-panel {
+  width: 180px;
+  flex-shrink: 0;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  padding: 6px;
+}
+
+.instrument-panel__header {
+  color: var(--text-dim);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+
+.instrument-slot {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.instrument-slot--selected {
+  outline: 1px solid var(--cyan);
+}
+
+.instrument-slot__select {
+  width: 2.5ch;
+  background: var(--surface-1);
+  color: var(--cyan);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+}
+
+.instrument-slot__name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.instrument-slot__name--empty {
+  color: var(--text-dim);
+}
+
+.instrument-slot__load {
+  font-size: 9px;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  padding: 2px 4px;
+  cursor: pointer;
+}
+
+.instrument-slot__load:hover {
+  color: var(--cyan);
+  border-color: var(--cyan);
+}
+
+.instrument-panel__add {
+  width: 100%;
+  margin-top: 4px;
+  padding: 4px;
+  background: var(--surface-1);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 10px;
+}
+
+/* --- note editor (right column, below the instrument panel) --- */
+
+.note-editor {
+  width: 180px;
+  flex-shrink: 0;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  padding: 6px;
+}
+
+.note-editor__header {
+  color: var(--text-dim);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+
+.note-editor__empty {
+  color: var(--text-dim);
+  font-size: 11px;
+  padding: 8px 0;
+  text-align: center;
+}
+
+.note-editor__context {
+  display: flex;
+  justify-content: space-between;
+  color: var(--cyan);
+  font-size: 11px;
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+}
+
+.note-editor__field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  color: var(--text-dim);
+  font-size: 10px;
+  padding: 3px 0;
+}
+
+.note-editor__field input,
+.note-editor__field select {
+  background: var(--surface-1);
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-family: inherit;
+  font-size: inherit;
+  width: 8.5ch;
+}
+
+.note-editor__field input[type="range"] {
+  width: 7ch;
+}
+
+/* --- transport bar project (save/load) controls --- */
+
+.transport-bar__project {
+  margin-left: auto;
+}
+
+.transport-bar__load {
+  display: inline-flex;
+  align-items: center;
+}
+
+.perf-panel {
+  position: fixed;
+  bottom: 8px;
+  right: 8px;
+  width: 200px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-active);
+  padding: 6px 8px;
+  font-size: 10px;
+  z-index: 1000;
+}
+
+.perf-panel__header {
+  color: var(--amber);
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+
+.perf-panel__row {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-dim);
+  padding: 1px 0;
+}
+
+.perf-panel__row span:last-child {
+  color: var(--emerald);
+}
+
+/* --- small viewports: stack the side column under the tracker instead of squeezing it --- */
+@media (max-width: 720px) {
+  .app__body {
+    flex-wrap: wrap;
+  }
+
+  .app__tracker {
+    flex-basis: 100%;
+  }
+
+  .app__side {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .instrument-panel,
+  .note-editor {
+    width: auto;
+    flex: 1;
+    min-width: 160px;
+  }
+
+  .perf-panel {
+    display: none;
+  }
+}

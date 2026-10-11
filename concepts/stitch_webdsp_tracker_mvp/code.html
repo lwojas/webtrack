@@ -1,0 +1,1477 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta content="web_dashboard" name="shell-type"/><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@100..900&display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{"colors":{"background":"#111318","surface-bright":"#37393e","tertiary-fixed-dim":"#00e475","on-tertiary-container":"#006e35","on-primary-fixed":"#002022","inverse-primary":"#006970","surface-container-high":"#282a2e","on-surface-variant":"#b9cacb","secondary-fixed":"#ffdcbb","outline-variant":"#3b494b","surface-variant":"#333539","on-tertiary":"#003918","on-background":"#e2e2e8","surface":"#111318","on-secondary-fixed-variant":"#673d00","surface-container-highest":"#333539","on-primary-fixed-variant":"#004f54","inverse-surface":"#e2e2e8","primary-fixed":"#7df4ff","surface-container":"#1e2024","on-tertiary-fixed":"#00210b","surface-container-low":"#1a1c20","secondary-fixed-dim":"#ffb869","on-error":"#690005","outline":"#849495","error-container":"#93000a","on-tertiary-fixed-variant":"#005226","surface-dim":"#111318","surface-tint":"#00dbe9","on-secondary":"#482900","tertiary-fixed":"#62ff96","on-secondary-container":"#663c00","primary-fixed-dim":"#00dbe9","secondary":"#ffc384","secondary-container":"#fe9d00","primary-container":"#00f0ff","on-primary":"#00363a","inverse-on-surface":"#2f3035","tertiary-container":"#34f885","on-error-container":"#ffdad6","primary":"#dbfcff","surface-container-lowest":"#0c0e12","on-surface":"#e2e2e8","tertiary":"#dbffde","on-primary-container":"#006970","error":"#ffb4ab","on-secondary-fixed":"#2c1700"},"borderRadius":{"DEFAULT":"0.25rem","lg":"0.5rem","xl":"0.75rem","full":"9999px"},"spacing":{"space-xl":"1rem","space-sm":"0.25rem","gutter":"0.25rem","space-md":"0.5rem","space-lg":"0.75rem","space-xs":"0.125rem","margin":"0.5rem"},"fontFamily":{"body-md":["JetBrains Mono"],"label-md":["JetBrains Mono"],"label-sm":["JetBrains Mono"],"body-lg":["JetBrains Mono"],"body-sm":["JetBrains Mono"],"headline-lg":["JetBrains Mono"],"headline-md":["JetBrains Mono"],"headline-sm":["JetBrains Mono"],"label-lg":["JetBrains Mono"]},"fontSize":{"body-md":["0.75rem",{"lineHeight":"1rem","letterSpacing":"0em","fontWeight":"400"}],"label-md":["0.6875rem",{"lineHeight":"0.75rem","letterSpacing":"0.05em","fontWeight":"500"}],"label-sm":["0.5625rem",{"lineHeight":"0.625rem","letterSpacing":"0.06em","fontWeight":"500"}],"body-lg":["0.875rem",{"lineHeight":"1.125rem","letterSpacing":"0em","fontWeight":"400"}],"body-sm":["0.6875rem",{"lineHeight":"0.875rem","letterSpacing":"0.01em","fontWeight":"400"}],"headline-lg":["1.25rem",{"lineHeight":"1.5rem","letterSpacing":"-0.02em","fontWeight":"600"}],"headline-md":["1.125rem",{"lineHeight":"1.375rem","letterSpacing":"-0.01em","fontWeight":"600"}],"headline-sm":["1rem",{"lineHeight":"1.25rem","letterSpacing":"0em","fontWeight":"500"}],"label-lg":["0.75rem",{"lineHeight":"0.875rem","letterSpacing":"0.04em","fontWeight":"500"}]}}}};</script></head><body class="bg-background text-on-surface font-body-md text-body-md antialiased select-none overflow-x-hidden"><aside class="fixed left-0 top-0 h-full w-56 bg-surface-container-lowest z-50 flex flex-col justify-between py-margin"><div class="flex flex-col gap-space-lg"><div class="px-space-lg flex items-center justify-between"><div class="flex items-center gap-space-sm"><div class="w-2 h-2 rounded-full bg-primary-container shadow-[0_0_6px_rgba(0,240,255,0.8)]"></div><span class="font-headline-sm text-headline-sm tracking-tight text-primary font-semibold">WEBDSP//TRK</span></div><span class="px-space-xs py-space-xs bg-surface-container-high rounded text-on-surface-variant font-label-sm text-label-sm">v2.4b</span></div><div class="px-space-md"><div class="p-space-sm rounded bg-surface-container-low flex flex-col gap-space-xs"><div class="flex items-center justify-between font-label-sm text-label-sm"><span class="text-on-surface-variant uppercase">DSP Core</span><span class="text-tertiary-fixed-dim font-semibold flex items-center gap-space-xs"><span class="inline-block w-1.5 h-1.5 rounded-full bg-tertiary-fixed-dim animate-pulse"></span>ONLINE</span></div><div class="flex items-center justify-between font-label-sm text-label-sm"><span class="text-on-surface-variant uppercase">Sample Rate</span><span class="text-primary-fixed">48000 Hz</span></div><div class="flex items-center justify-between font-label-sm text-label-sm"><span class="text-on-surface-variant uppercase">Audio Buffer</span><span class="text-on-surface">128 smp (2.7ms)</span></div></div></div><nav class="flex flex-col gap-space-xs px-space-md" data-active-classes="bg-primary-container text-on-primary-container font-semibold shadow-[inset_0_0_4px_rgba(0,240,255,0.4)]"><div class="px-space-sm py-space-xs font-label-sm text-label-sm uppercase tracking-wider text-outline">Workspace Modules</div><a aria-current="page" class="flex items-center px-space-md py-space-sm rounded transition-colors bg-primary-container text-on-primary-container font-semibold shadow-[inset_0_0_4px_rgba(0,240,255,0.4)]" data-path="tracker-grid" href="#"><span class="font-body-sm text-body-sm text-outline-variant mr-space-md">[F1]</span>Tracker Grid</a><a class="flex items-center px-space-md py-space-sm rounded text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-label-md text-label-md" data-path="instruments-dsp-chain" href="#"><span class="font-body-sm text-body-sm text-outline-variant mr-space-md">[F2]</span>Instruments & DSP Chain</a><a class="flex items-center px-space-md py-space-sm rounded text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-label-md text-label-md" data-path="performance-dom-profiler" href="#"><span class="font-body-sm text-body-sm text-outline-variant mr-space-md">[F3]</span>Performance & DOM Profiler</a><a class="flex items-center px-space-md py-space-sm rounded text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface transition-colors font-label-md text-label-md" data-path="keybindings-help" href="#"><span class="font-body-sm text-body-sm text-outline-variant mr-space-md">[F4]</span>Keybindings Help</a></nav></div><div class="px-space-md flex flex-col gap-space-md"><div class="p-space-sm bg-surface-container-low rounded flex flex-col gap-space-xs"><div class="flex justify-between items-center font-label-sm text-label-sm"><span class="text-on-surface-variant uppercase">DSP Load</span><span class="text-tertiary-fixed-dim font-medium">14.2%</span></div><div class="w-full h-1 bg-surface-container-highest rounded-full overflow-hidden"><div class="h-full bg-tertiary-container w-[14.2%]"></div></div></div><div class="flex items-center justify-between p-space-sm bg-surface-container rounded"><div class="flex items-center gap-space-sm"><div class="w-6 h-6 rounded bg-surface-variant flex items-center justify-center font-label-sm text-label-sm text-primary">IO</div><div class="flex flex-col font-label-sm text-label-sm leading-none"><span class="text-on-surface font-medium">Master Out</span><span class="text-on-surface-variant">CH 01-02</span></div></div><div class="w-2 h-2 rounded-full bg-tertiary-fixed-dim"></div></div></div></aside><div class="pl-56"><header class="fixed top-0 left-56 right-0 h-16 bg-surface-container-lowest/95 backdrop-blur-md z-40 px-space-lg flex items-center justify-between"><div class="flex items-center gap-space-lg"><div class="flex items-center bg-surface-container-low rounded p-space-xs gap-space-xs"><button class="flex items-center gap-space-xs px-space-md py-space-xs rounded bg-surface-container text-tertiary-fixed-dim hover:bg-tertiary-container hover:text-on-tertiary font-label-sm text-label-sm transition-colors" title="Start Sequence (Space)" type="button"><span class="material-symbols-outlined text-[16px]">play_arrow</span><span>PLAY</span></button><button class="flex items-center gap-space-xs px-space-md py-space-xs rounded bg-surface-container text-secondary hover:bg-secondary-container hover:text-on-secondary-container font-label-sm text-label-sm transition-colors" title="Loop Sequence" type="button"><span class="material-symbols-outlined text-[16px]">repeat</span><span>LOOP</span></button><button class="flex items-center gap-space-xs px-space-md py-space-xs rounded bg-surface-container text-error hover:bg-error-container hover:text-on-error font-label-sm text-label-sm transition-colors" title="Stop Playback" type="button"><span class="material-symbols-outlined text-[16px]">stop</span><span>STOP</span></button></div><div class="flex items-center gap-space-md"><div class="flex items-center bg-surface-container-low rounded px-space-md py-space-xs gap-space-sm"><span class="font-label-sm text-label-sm uppercase text-on-surface-variant">BPM</span><span class="font-headline-sm text-headline-sm font-semibold text-primary-fixed">140.00</span></div><div class="flex items-center bg-surface-container-low rounded px-space-md py-space-xs gap-space-sm"><span class="font-label-sm text-label-sm uppercase text-on-surface-variant">STEP</span><span class="font-headline-sm text-headline-sm font-semibold text-tertiary-fixed">04</span></div><div class="flex items-center bg-surface-container-low rounded px-space-md py-space-xs gap-space-sm"><span class="font-label-sm text-label-sm uppercase text-on-surface-variant">PTRN</span><span class="font-headline-sm text-headline-sm font-semibold text-secondary-fixed">00/16</span></div></div></div><div class="flex items-center gap-space-xl"><div class="flex items-center gap-space-md bg-surface-container-low px-space-md py-space-xs rounded"><div class="flex flex-col items-end"><span class="font-label-sm text-label-sm uppercase text-on-surface-variant">Master Output</span><span class="font-label-sm text-label-sm text-primary font-mono">-4.2 dB</span></div><div class="flex items-end gap-[2px] h-6 w-20 bg-surface-container-highest p-[2px] rounded-sm"><div class="w-1.5 h-[65%] bg-tertiary-container rounded-xs"></div><div class="w-1.5 h-[80%] bg-tertiary-container rounded-xs"></div><div class="w-1.5 h-[75%] bg-tertiary-container rounded-xs"></div><div class="w-1.5 h-[90%] bg-tertiary-container rounded-xs"></div><div class="w-1.5 h-[70%] bg-tertiary-container rounded-xs"></div><div class="w-1.5 h-[55%] bg-tertiary-container rounded-xs"></div><div class="w-1.5 h-[40%] bg-secondary-container rounded-xs"></div><div class="w-1.5 h-[20%] bg-error-container rounded-xs"></div></div></div><div class="flex items-center gap-space-md"><div class="px-space-md py-space-xs rounded bg-surface-container flex items-center gap-space-xs"><span class="w-2 h-2 rounded-full bg-tertiary-fixed-dim"></span><span class="font-label-sm text-label-sm text-on-surface uppercase">Engine Sync OK</span></div><div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center"><span class="material-symbols-outlined text-on-primary text-[18px]">person</span></div></div></div></header><main class="relative pt-16 bg-surface min-h-screen"><div class="flex flex-col w-full text-on-surface select-none pb-8" id="webdsp-tracker-app">
+<!-- TOP HUD / STATUS BAR -->
+<div class="flex flex-wrap items-center justify-between px-space-md py-space-xs bg-surface-container-lowest gap-space-md">
+<div class="flex items-center gap-space-md">
+<div class="flex items-center gap-space-xs px-space-sm py-space-xs rounded bg-surface-container-low">
+<span class="w-2 h-2 rounded-full bg-tertiary-fixed-dim animate-pulse"></span>
+<span class="font-label-sm text-label-sm uppercase text-on-surface-variant tracking-wider">Engine:</span>
+<span class="font-label-sm text-label-sm text-tertiary-fixed font-semibold" id="hud-engine-status">ONLINE (Lookahead 25ms, Interval 10ms, 48kHz)</span>
+</div>
+<div class="flex items-center gap-space-xs px-space-sm py-space-xs rounded bg-surface-container-low">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase">Cursor:</span>
+<span class="font-label-sm text-label-sm text-primary-fixed" id="hud-cursor-pos">T1:R00 [C-4]</span>
+</div>
+</div>
+<div class="flex items-center gap-space-md">
+<div class="flex items-center gap-space-xs font-label-sm text-label-sm text-on-surface-variant">
+<span class="px-space-xs py-space-xs rounded bg-surface-container-high text-primary font-semibold">[SPACE]</span> Play/Stop
+        <span class="px-space-xs py-space-xs rounded bg-surface-container-high text-primary font-semibold ml-space-xs">[ESC]</span> Edit Mode
+        <span class="px-space-xs py-space-xs rounded bg-surface-container-high text-primary font-semibold ml-space-xs">[DEL]</span> Clear Cell
+        <span class="px-space-xs py-space-xs rounded bg-surface-container-high text-primary font-semibold ml-space-xs">[Q-I / Z-,]</span> Keys
+      </div>
+<button class="px-space-md py-space-xs rounded bg-error-container text-on-error-container hover:bg-error hover:text-on-error transition-colors font-label-sm text-label-sm flex items-center gap-space-xs" id="btn-panic" type="button">
+<span class="material-symbols-outlined text-[14px]">volume_off</span>
+<span>PANIC</span>
+</button>
+</div>
+</div>
+<!-- CONTROL DECK: TRANSPORT, VISUALIZER, MACROS -->
+<div class="grid grid-cols-1 xl:grid-cols-12 gap-gutter p-space-sm bg-surface-container-low">
+<!-- SECTION 1: MASTER TRANSPORT & SONG PARAMS (4 cols) -->
+<div class="xl:col-span-4 p-space-md rounded bg-surface-container flex flex-col justify-between gap-space-md shadow-sm">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-space-xs">
+<button class="flex items-center gap-space-xs px-space-md py-space-xs rounded bg-surface-container-highest text-tertiary-fixed-dim hover:bg-tertiary-container hover:text-on-tertiary font-label-md text-label-md transition-colors" id="btn-play" type="button">
+<span class="material-symbols-outlined text-[16px]" id="play-icon">play_arrow</span>
+<span id="play-text">START [SPC]</span>
+</button>
+<button class="flex items-center gap-space-xs px-space-md py-space-xs rounded bg-surface-container-highest text-error hover:bg-error-container hover:text-on-error font-label-md text-label-md transition-colors" id="btn-stop" type="button">
+<span class="material-symbols-outlined text-[16px]">stop</span>
+<span>STOP</span>
+</button>
+<button class="flex items-center gap-space-xs px-space-md py-space-xs rounded bg-surface-container-highest text-secondary-fixed hover:bg-secondary-container hover:text-on-secondary-container font-label-md text-label-md transition-colors" id="btn-edit-mode" type="button">
+<span class="w-2 h-2 rounded-full bg-outline-variant" id="rec-dot"></span>
+<span id="rec-text">REC [ESC]</span>
+</button>
+</div>
+<div class="flex items-center gap-space-xs">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase">PTRN</span>
+<select class="bg-surface-container-highest text-primary-fixed font-label-md text-label-md rounded px-space-xs py-space-xs outline-none cursor-pointer" id="pattern-select">
+<option value="0">00: CYBER_ACID_DEMO</option>
+<option value="1">01: AMBIENT_CHORD_BREAK</option>
+<option value="2">02: INDUSTRIAL_GLITCH</option>
+<option value="3">03: EMPTY_PATTERN</option>
+</select>
+</div>
+</div>
+<!-- TEMPO & STEP STEPPERS -->
+<div class="grid grid-cols-4 gap-space-xs">
+<div class="flex flex-col p-space-xs rounded bg-surface-container-lowest">
+<span class="font-label-sm text-label-sm text-on-surface-variant">BPM</span>
+<div class="flex items-center justify-between">
+<input class="w-12 bg-transparent text-primary font-headline-sm text-headline-sm font-semibold outline-none" id="input-bpm" max="300" min="40" type="number" value="125"/>
+<div class="flex flex-col">
+<button class="text-on-surface-variant hover:text-primary text-[10px] leading-none" id="bpm-inc">▲</button>
+<button class="text-on-surface-variant hover:text-primary text-[10px] leading-none" id="bpm-dec">▼</button>
+</div>
+</div>
+</div>
+<div class="flex flex-col p-space-xs rounded bg-surface-container-lowest">
+<span class="font-label-sm text-label-sm text-on-surface-variant">OCTAVE</span>
+<div class="flex items-center justify-between">
+<span class="font-headline-sm text-headline-sm font-semibold text-tertiary-fixed" id="val-octave">4</span>
+<div class="flex flex-col">
+<button class="text-on-surface-variant hover:text-tertiary-fixed text-[10px] leading-none" id="oct-inc">▲</button>
+<button class="text-on-surface-variant hover:text-tertiary-fixed text-[10px] leading-none" id="oct-dec">▼</button>
+</div>
+</div>
+</div>
+<div class="flex flex-col p-space-xs rounded bg-surface-container-lowest">
+<span class="font-label-sm text-label-sm text-on-surface-variant">EDIT STEP</span>
+<div class="flex items-center justify-between">
+<span class="font-headline-sm text-headline-sm font-semibold text-secondary-fixed" id="val-step">1</span>
+<div class="flex flex-col">
+<button class="text-on-surface-variant hover:text-secondary-fixed text-[10px] leading-none" id="step-inc">▲</button>
+<button class="text-on-surface-variant hover:text-secondary-fixed text-[10px] leading-none" id="step-dec">▼</button>
+</div>
+</div>
+</div>
+<div class="flex flex-col p-space-xs rounded bg-surface-container-lowest">
+<span class="font-label-sm text-label-sm text-on-surface-variant">LINES</span>
+<div class="flex items-center justify-between">
+<span class="font-headline-sm text-headline-sm font-semibold text-on-surface">64</span>
+<span class="font-label-sm text-label-sm text-outline">0x40</span>
+</div>
+</div>
+</div>
+<!-- MASTER VOLUME & METERS -->
+<div class="flex items-center gap-space-md">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase">MST GAIN</span>
+<input class="w-full accent-primary-container bg-surface-container-highest h-1 rounded cursor-pointer" id="master-gain" max="1" min="0" step="0.01" type="range" value="0.82"/>
+<span class="font-label-sm text-label-sm text-primary font-mono w-12 text-right" id="master-gain-val">-1.8dB</span>
+</div>
+</div>
+<!-- SECTION 2: LIVE MASTER OSCILLOSCOPE & STEREO METERS (4 cols) -->
+<div class="xl:col-span-4 p-space-md rounded bg-surface-container flex flex-col justify-between shadow-sm">
+<div class="flex items-center justify-between mb-space-xs">
+<div class="flex items-center gap-space-xs">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+<span class="font-label-sm text-label-sm uppercase text-on-surface tracking-wider font-semibold">DSP Realtime Oscilloscope & Peak</span>
+</div>
+<span class="font-label-sm text-label-sm text-tertiary-fixed font-mono" id="canvas-fps-badge">60 FPS // 0.8ms</span>
+</div>
+<div class="relative w-full h-24 bg-surface-container-lowest rounded overflow-hidden flex items-center">
+<canvas class="w-full h-full block" id="scope-canvas"></canvas>
+<div class="absolute right-2 top-2 bottom-2 flex gap-1">
+<div class="w-1.5 h-full bg-surface-container-highest rounded-xs relative overflow-hidden">
+<div class="absolute bottom-0 left-0 right-0 bg-tertiary-container transition-all duration-75" id="meter-l" style="height: 45%;"></div>
+</div>
+<div class="w-1.5 h-full bg-surface-container-highest rounded-xs relative overflow-hidden">
+<div class="absolute bottom-0 left-0 right-0 bg-tertiary-container transition-all duration-75" id="meter-r" style="height: 42%;"></div>
+</div>
+</div>
+<div class="absolute top-1 right-1 w-2 h-2 rounded-full bg-surface-variant" id="clip-indicator"></div>
+</div>
+<div class="flex items-center justify-between mt-space-xs text-on-surface-variant font-label-sm text-label-sm">
+<span>LEFT: <span class="text-tertiary-fixed" id="lbl-l-db">-6.2dB</span></span>
+<span>PEAK HOLD: <span class="text-secondary-fixed" id="lbl-peak">-1.1dB</span></span>
+<span>RIGHT: <span class="text-tertiary-fixed" id="lbl-r-db">-6.8dB</span></span>
+</div>
+</div>
+<!-- SECTION 3: REAL-TIME DSP MACRO TWEAKER RACK (4 cols) -->
+<div class="xl:col-span-4 p-space-md rounded bg-surface-container flex flex-col justify-between shadow-sm">
+<div class="flex items-center justify-between mb-space-xs">
+<div class="flex items-center gap-space-xs">
+<span class="w-1.5 h-1.5 rounded-full bg-secondary-container"></span>
+<span class="font-label-sm text-label-sm uppercase text-on-surface tracking-wider font-semibold">Live DSP Macro Rack</span>
+</div>
+<button class="font-label-sm text-label-sm text-outline hover:text-primary uppercase" id="btn-reset-macros">Reset</button>
+</div>
+<div class="grid grid-cols-5 gap-space-xs py-space-xs">
+<div class="flex flex-col items-center gap-space-xs">
+<span class="font-label-sm text-label-sm text-on-surface-variant">CUTOFF</span>
+<input class="h-16 accent-primary-fixed-dim cursor-pointer" id="macro-cutoff" max="12000" min="100" orient="vertical" step="50" type="range" value="3800"/>
+<span class="font-label-sm text-label-sm text-primary font-mono" id="val-cutoff">3.8k</span>
+</div>
+<div class="flex flex-col items-center gap-space-xs">
+<span class="font-label-sm text-label-sm text-on-surface-variant">RESO</span>
+<input class="h-16 accent-secondary-fixed-dim cursor-pointer" id="macro-reso" max="25" min="0" orient="vertical" step="0.5" type="range" value="11"/>
+<span class="font-label-sm text-label-sm text-secondary font-mono" id="val-reso">11.0</span>
+</div>
+<div class="flex flex-col items-center gap-space-xs">
+<span class="font-label-sm text-label-sm text-on-surface-variant">DRIVE</span>
+<input class="h-16 accent-error cursor-pointer" id="macro-drive" max="10" min="0" orient="vertical" step="0.2" type="range" value="3.4"/>
+<span class="font-label-sm text-label-sm text-error font-mono" id="val-drive">3.4x</span>
+</div>
+<div class="flex flex-col items-center gap-space-xs">
+<span class="font-label-sm text-label-sm text-on-surface-variant">DECAY</span>
+<input class="h-16 accent-tertiary-fixed cursor-pointer" id="macro-decay" max="1.5" min="0.05" orient="vertical" step="0.05" type="range" value="0.35"/>
+<span class="font-label-sm text-label-sm text-tertiary font-mono" id="val-decay">350m</span>
+</div>
+<div class="flex flex-col items-center gap-space-xs">
+<span class="font-label-sm text-label-sm text-on-surface-variant">DLY FB</span>
+<input class="h-16 accent-primary-container cursor-pointer" id="macro-delay" max="0.85" min="0" orient="vertical" step="0.02" type="range" value="0.45"/>
+<span class="font-label-sm text-label-sm text-primary-fixed font-mono" id="val-delay">45%</span>
+</div>
+</div>
+<div class="flex items-center justify-between text-on-surface-variant font-label-sm text-label-sm">
+<span>ANALOG SAT: <span class="text-tertiary-fixed">WARM OVERSAMPLE</span></span>
+<span>FEEDBACK BUS: <span class="text-primary-fixed">PING-PONG 3/16</span></span>
+</div>
+</div>
+</div>
+<!-- MAIN TRACKER MATRIX VIEWPORT (64 ROWS x 8 CHANNELS) -->
+<div class="relative mt-space-sm bg-surface-container-lowest overflow-hidden flex flex-col shadow-inner">
+<!-- TRACK HEADERS (FIXED STICKY BAR) -->
+<div class="flex bg-surface-container-low text-on-surface select-none z-20 shadow-sm" id="tracker-headers">
+<!-- Row Number spacer header -->
+<div class="w-12 shrink-0 py-space-xs px-space-xs flex items-center justify-center font-label-sm text-label-sm text-outline-variant bg-surface-container-highest">
+        #ROW
+      </div>
+<!-- TRACK 1 -->
+<div class="flex-1 min-w-[130px] p-space-xs bg-surface-container flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md font-semibold text-primary truncate">01 909 KICK</span>
+<span class="font-label-sm text-label-sm px-1 rounded bg-surface-container-highest text-primary-fixed font-mono">01</span>
+</div>
+<div class="flex items-center gap-space-xs">
+<button class="track-mute-btn px-1.5 py-0.5 rounded font-label-sm text-label-sm bg-surface-container-highest text-on-surface-variant hover:text-error" data-track="0">M</button>
+<button class="track-solo-btn px-1.5 py-0.5 rounded font-label-sm text-label-sm bg-surface-container-highest text-on-surface-variant hover:text-tertiary-fixed" data-track="0">S</button>
+<input class="track-vol-slider w-full accent-primary-container h-1 bg-surface-container-highest cursor-pointer" data-track="0" max="1" min="0" step="0.05" type="range" value="0.9"/>
+</div>
+<div class="grid grid-cols-4 font-label-sm text-label-sm text-outline text-center">
+<span>NOTE</span><span>INS</span><span>VOL</span><span>FX</span>
+</div>
+</div>
+<!-- TRACK 2 -->
+<div class="flex-1 min-w-[130px] p-space-xs bg-surface-container flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md font-semibold text-tertiary truncate">02 CLAP/SNARE</span>
+<span class="font-label-sm text-label-sm px-1 rounded bg-surface-container-highest text-tertiary-fixed font-mono">02</span>
+</div>
+<div class="flex items-center gap-space-xs">
+<button class="track-mute-btn px-1.5 py-0.5 rounded font-label-sm text-label-sm bg-surface-container-highest text-on-surface-variant hover:text-error" data-track="1">M</button>
+<button class="track-solo-btn px-1.5 py-0.5 rounded font-label-sm text-label-sm bg-surface-container-highest text-on-surface-variant hover:text-tertiary-fixed" data-track="1">S</button>
+<input class="track-vol-slider w-full accent-tertiary-container h-1 bg-surface-container-highest cursor-pointer" data-track="1" max="1" min="0" step="0.05" type="range" value="0.85"/>
+</div>
+<div class="grid grid-cols-4 font-label-sm text-label-sm text-outline text-center">
+<span>NOTE</span><span>INS</span><span>VOL</span><span>FX</span>
+</div>
+</div>
+<!-- TRACK 3 -->
+<div class="flex-1 min-w-[130px] p-space-xs bg-surface-container flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md font-semibold text-secondary truncate">03 HI-HATS</span>
+<span class="font-label-sm text-label-sm px-1 rounded bg-surface-container-highest text-secondary-fixed font-mono">03</span>
+</div>
+<div class="flex items-center gap-space-xs">
+<button class="track-mute-btn px-1.5 py-0.5 rounded font-label-sm text-label-sm bg-surface-container-highest text-on-surface-variant hover:text-error" data-track="2">M</button>
+<button class="track-solo-btn px-1.5 py-0.5 rounded font-label-sm text-label-sm bg-surface-container-highest text-on-surface-variant hover:text-tertiary-fixed" data-track="2">S</button>
+<input class="track-vol-slider w-full accent-secondary-container h-1 bg-surface-container-highest cursor-pointer" data-track="2" max="1" min="0" step="0.05" type="range" value="0.75"/>
+</div>
+<div class="grid grid-cols-4 font-label-sm text-label-sm text-outline text-center">
+<span>NOTE</span><span>INS</span><span>VOL</span><span>FX</span>
+</div>
+</div>
+<!-- TRACK 4 -->
+<div class="flex-1 min-w-[130px] p-space-xs bg-surface-container flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md font-semibold text-primary-fixed truncate">04 303 ACID</span>
+<span class="font-label-sm text-label-sm px-1 rounded bg-surface-container-highest text-primary-fixed font-mono">04</span>
+</div>
+<div class="flex items-center gap-space-xs">
+<button class="track-mute-btn px-1.5 py-0.5 rounded font-label-sm text-label-sm bg-surface-container-highest text-on-surface-variant hover:text-error" data-track="3">M</button>
+<button class="track-solo-btn px-1.5 py-0.5 rounded font-label-sm text-label-sm bg-surface-container-highest text-on-surface-variant hover:text-tertiary-fixed" data-track="3">S</button>
+<input class="track-vol-slider w-full accent-primary-container h-1 bg-surface-container-highest cursor-pointer" data-track="3" max="1" min="0" step="0.05" type="range" value="0.95"/>
+</div>
+<div class="grid grid-cols-4 font-label-sm text-label-sm text-outline text-center">
+<span>NOTE</span><span>INS</span><span>VOL</span><span>FX</span>
+</div>
+</div>
+<!-- TRACK 5 -->
+<div class="flex-1 min-w-[130px] p-space-xs bg-surface-container flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md font-semibold text-tertiary-fixed truncate">05 CHORD PAD</span>
+<span class="font-label-sm text-label-sm px-1 rounded bg-surface-container-highest text-tertiary-fixed font-mono">05</span>
+</div>
+<div class="flex items-center gap-space-xs">
+<button class="track-mute-btn px-1.5 py-0.5 rounded font-label-sm text-label-sm bg-surface-container-highest text-on-surface-variant hover:text-error" data-track="4">M</button>
+<button class="track-solo-btn px-1.5 py-0.5 rounded font-label-sm text-label-sm bg-surface-container-highest text-on-surface-variant hover:text-tertiary-fixed" data-track="4">S</button>
+<input class="track-vol-slider w-full accent-tertiary-container h-1 bg-surface-container-highest cursor-pointer" data-track="4" max="1" min="0" step="0.05" type="range" value="0.7"/>
+</div>
+<div class="grid grid-cols-4 font-label-sm text-label-sm text-outline text-center">
+<span>NOTE</span><span>INS</span><span>VOL</span><span>FX</span>
+</div>
+</div>
+<!-- TRACK 6 -->
+<div class="flex-1 min-w-[130px] p-space-xs bg-surface-container flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md font-semibold text-secondary-fixed truncate">06 SYNTH LEAD</span>
+<span class="font-label-sm text-label-sm px-1 rounded bg-surface-container-highest text-secondary-fixed font-mono">06</span>
+</div>
+<div class="flex items-center gap-space-xs">
+<button class="track-mute-btn px-1.5 py-0.5 rounded font-label-sm text-label-sm bg-surface-container-highest text-on-surface-variant hover:text-error" data-track="5">M</button>
+<button class="track-solo-btn px-1.5 py-0.5 rounded font-label-sm text-label-sm bg-surface-container-highest text-on-surface-variant hover:text-tertiary-fixed" data-track="5">S</button>
+<input class="track-vol-slider w-full accent-secondary-container h-1 bg-surface-container-highest cursor-pointer" data-track="5" max="1" min="0" step="0.05" type="range" value="0.8"/>
+</div>
+<div class="grid grid-cols-4 font-label-sm text-label-sm text-outline text-center">
+<span>NOTE</span><span>INS</span><span>VOL</span><span>FX</span>
+</div>
+</div>
+<!-- TRACK 7 -->
+<div class="flex-1 min-w-[130px] p-space-xs bg-surface-container flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md font-semibold text-primary truncate">07 FM BELL</span>
+<span class="font-label-sm text-label-sm px-1 rounded bg-surface-container-highest text-primary font-mono">07</span>
+</div>
+<div class="flex items-center gap-space-xs">
+<button class="track-mute-btn px-1.5 py-0.5 rounded font-label-sm text-label-sm bg-surface-container-highest text-on-surface-variant hover:text-error" data-track="6">M</button>
+<button class="track-solo-btn px-1.5 py-0.5 rounded font-label-sm text-label-sm bg-surface-container-highest text-on-surface-variant hover:text-tertiary-fixed" data-track="6">S</button>
+<input class="track-vol-slider w-full accent-primary-container h-1 bg-surface-container-highest cursor-pointer" data-track="6" max="1" min="0" step="0.05" type="range" value="0.65"/>
+</div>
+<div class="grid grid-cols-4 font-label-sm text-label-sm text-outline text-center">
+<span>NOTE</span><span>INS</span><span>VOL</span><span>FX</span>
+</div>
+</div>
+<!-- TRACK 8 -->
+<div class="flex-1 min-w-[130px] p-space-xs bg-surface-container flex flex-col gap-space-xs">
+<div class="flex items-center justify-between">
+<span class="font-label-md text-label-md font-semibold text-error truncate">08 NOISE FX</span>
+<span class="font-label-sm text-label-sm px-1 rounded bg-surface-container-highest text-error font-mono">08</span>
+</div>
+<div class="flex items-center gap-space-xs">
+<button class="track-mute-btn px-1.5 py-0.5 rounded font-label-sm text-label-sm bg-surface-container-highest text-on-surface-variant hover:text-error" data-track="7">M</button>
+<button class="track-solo-btn px-1.5 py-0.5 rounded font-label-sm text-label-sm bg-surface-container-highest text-on-surface-variant hover:text-tertiary-fixed" data-track="7">S</button>
+<input class="track-vol-slider w-full accent-error-container h-1 bg-surface-container-highest cursor-pointer" data-track="7" max="1" min="0" step="0.05" type="range" value="0.75"/>
+</div>
+<div class="grid grid-cols-4 font-label-sm text-label-sm text-outline text-center">
+<span>NOTE</span><span>INS</span><span>VOL</span><span>FX</span>
+</div>
+</div>
+</div>
+<!-- SCROLLABLE ROWS CONTAINER -->
+<div class="relative overflow-y-auto max-h-[520px] select-none font-mono" id="tracker-scroll-container">
+<!-- DECOUPLED HARDWARE-ACCELERATED PLAYHEAD HIGHLIGHT OVERLAY -->
+<!-- NEVER mutates row DOM elements; transforms over the grid smoothly -->
+<div class="absolute left-0 right-0 h-6 bg-tertiary-container/15 pointer-events-none z-10 transition-transform duration-75 ease-linear will-change-transform shadow-[inset_0_1px_0_rgba(52,248,133,0.5),inset_0_-1px_0_rgba(52,248,133,0.5)]" id="playhead-overlay" style="top: 0px; transform: translateY(0px);"></div>
+<!-- INTERACTIVE EDIT CURSOR RECT -->
+<div class="absolute h-6 pointer-events-none z-10 border border-primary-container bg-primary-container/20 will-change-transform" id="cursor-overlay" style="display: none;"></div>
+<!-- 64 ROWS CONTAINER -->
+<div class="flex flex-col" id="tracker-matrix-body">
+<!-- Rows will be rendered programmatically with minimal, deterministic DOM nodes -->
+</div>
+</div>
+</div>
+<!-- BOTTOM DOCK: REAL-TIME PERFORMANCE & BENCHMARK PROFILER -->
+<div class="mt-space-sm p-space-md rounded bg-surface-container-low flex flex-col gap-space-sm">
+<div class="flex items-center justify-between border-b border-surface-container-high pb-space-xs">
+<div class="flex items-center gap-space-xs">
+<span class="material-symbols-outlined text-primary text-[18px]">speed</span>
+<span class="font-label-md text-label-md uppercase tracking-wider text-on-surface font-semibold">WebDSP High-Performance DOM & Audio Profiler</span>
+</div>
+<div class="flex items-center gap-space-md font-label-sm text-label-sm text-on-surface-variant">
+<span>ARCH: <span class="text-tertiary-fixed font-semibold">Decoupled CSS Transform Layer</span></span>
+<span>LATENCY: <span class="text-primary-fixed" id="prof-audio-latency">2.7 ms</span></span>
+</div>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-5 gap-space-md pt-space-xs">
+<div class="p-space-xs rounded bg-surface-container flex flex-col justify-between">
+<span class="font-label-sm text-label-sm text-outline">DOM ROW MUTATIONS / STEP</span>
+<span class="font-headline-sm text-headline-sm font-semibold text-tertiary-fixed">0 <span class="text-xs font-normal text-on-surface-variant">(Zero Row Repaint)</span></span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Hardware GPU Composite</span>
+</div>
+<div class="p-space-xs rounded bg-surface-container flex flex-col justify-between">
+<span class="font-label-sm text-label-sm text-outline">CELL EDIT MUTATIONS</span>
+<span class="font-headline-sm text-headline-sm font-semibold text-primary-fixed" id="prof-edit-mutations">1 node <span class="text-xs font-normal text-on-surface-variant">(O(1) in-place)</span></span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">TextNode direct patch</span>
+</div>
+<div class="p-space-xs rounded bg-surface-container flex flex-col justify-between">
+<span class="font-label-sm text-label-sm text-outline">FRAME RENDER TIME</span>
+<div class="flex items-center gap-space-xs">
+<span class="font-headline-sm text-headline-sm font-semibold text-tertiary-fixed" id="prof-frame-time">0.82 ms</span>
+<span class="text-xs text-outline">/ 16.6ms</span>
+</div>
+<div class="w-full bg-surface-container-highest h-1 rounded overflow-hidden">
+<div class="bg-tertiary-container h-full w-[5%]" id="prof-budget-bar"></div>
+</div>
+</div>
+<div class="p-space-xs rounded bg-surface-container flex flex-col justify-between">
+<span class="font-label-sm text-label-sm text-outline">TOTAL GRID DOM NODES</span>
+<span class="font-headline-sm text-headline-sm font-semibold text-secondary-fixed" id="prof-node-count">1,152 Nodes</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Virtual Fixed Grid</span>
+</div>
+<div class="p-space-xs rounded bg-surface-container flex flex-col justify-between">
+<span class="font-label-sm text-label-sm text-outline">WEB AUDIO CLOCK SYNC</span>
+<span class="font-headline-sm text-headline-sm font-semibold text-primary font-mono" id="prof-audio-clock">0.000 s</span>
+<span class="font-label-sm text-label-sm text-tertiary-fixed flex items-center gap-1">
+<span class="w-1.5 h-1.5 rounded-full bg-tertiary-fixed-dim"></span>
+          Sample Jitter: 0.0ms
+        </span>
+</div>
+</div>
+</div>
+</div>
+<!-- WEBDSP SYNTHESIS ENGINE & MATRIX RUNTIME SCRIPT -->
+<script>
+(() => {
+  // --- 1. STATE & SONG DATA ---
+  const NUM_ROWS = 64;
+  const NUM_TRACKS = 8;
+  const ROW_HEIGHT = 24; // 24px fixed height per step row
+
+  const state = {
+    isPlaying: false,
+    isEditMode: false,
+    bpm: 125,
+    octave: 4,
+    step: 1,
+    pattern: 0,
+    activeRow: 0,
+    cursor: { track: 0, row: 0, col: 0 }, // col: 0=NOTE, 1=INS, 2=VOL, 3=FX
+    tracks: [
+      { name: "KICK", muted: false, solo: false, vol: 0.9 },
+      { name: "CLAP", muted: false, solo: false, vol: 0.85 },
+      { name: "HI-HATS", muted: false, solo: false, vol: 0.75 },
+      { name: "ACID 303", muted: false, solo: false, vol: 0.95 },
+      { name: "PAD", muted: false, solo: false, vol: 0.7 },
+      { name: "LEAD", muted: false, solo: false, vol: 0.8 },
+      { name: "FM BELL", muted: false, solo: false, vol: 0.65 },
+      { name: "NOISE FX", muted: false, solo: false, vol: 0.75 }
+    ],
+    macros: {
+      cutoff: 3800,
+      reso: 11,
+      drive: 3.4,
+      decay: 0.35,
+      delay: 0.45
+    }
+  };
+
+  // Matrix Data: patterns[patternIndex][trackIndex][rowIndex] = { note: 'C-4', ins: '01', vol: '7F', fx: '---' }
+  const createEmptyGrid = () => {
+    const grid = [];
+    for (let t = 0; t < NUM_TRACKS; t++) {
+      const trackRows = [];
+      for (let r = 0; r < NUM_ROWS; r++) {
+        trackRows.push({ note: '...', ins: '..', vol: '..', fx: '...' });
+      }
+      grid.push(trackRows);
+    }
+    return grid;
+  };
+
+  const patternData = [createEmptyGrid(), createEmptyGrid(), createEmptyGrid(), createEmptyGrid()];
+
+  // Prepopulate Pattern 0 with a driving 90s Cyberpunk Acid Demoscene Groove
+  const p0 = patternData[0];
+
+  // Track 1: 909 Kick on 0, 4, 8, 12, 16...
+  for (let r = 0; r < 64; r += 4) {
+    p0[0][r] = { note: 'C-2', ins: '01', vol: '7F', fx: '...' };
+  }
+  // Offbeat subtle accent kicks
+  p0[0][14] = { note: 'C-2', ins: '01', vol: '55', fx: '...' };
+  p0[0][30] = { note: 'C-2', ins: '01', vol: '60', fx: '...' };
+  p0[0][46] = { note: 'C-2', ins: '01', vol: '55', fx: '...' };
+  p0[0][62] = { note: 'C-2', ins: '01', vol: '70', fx: '...' };
+
+  // Track 2: Clap / Snare on 4, 12, 20, 28...
+  for (let r = 4; r < 64; r += 8) {
+    p0[1][r] = { note: 'E-4', ins: '02', vol: '75', fx: '...' };
+  }
+  // Ghost snare rolls
+  p0[1][31] = { note: 'E-4', ins: '02', vol: '40', fx: '...' };
+  p0[1][63] = { note: 'E-4', ins: '02', vol: '50', fx: '...' };
+
+  // Track 3: Hi-hats: Closed on offbeats (2, 6, 10), open hat on 10, 26, 42, 58
+  for (let r = 2; r < 64; r += 4) {
+    p0[2][r] = { note: 'F#4', ins: '03', vol: '60', fx: '...' };
+  }
+  for (let r = 0; r < 64; r += 2) {
+    if (r % 4 !== 2) p0[2][r] = { note: 'F#4', ins: '03', vol: '38', fx: '...' };
+  }
+  p0[2][10] = { note: 'A#4', ins: '03', vol: '78', fx: 'F01' }; // Open hat
+  p0[2][26] = { note: 'A#4', ins: '03', vol: '78', fx: 'F01' };
+  p0[2][42] = { note: 'A#4', ins: '03', vol: '78', fx: 'F01' };
+  p0[2][58] = { note: 'A#4', ins: '03', vol: '78', fx: 'F01' };
+
+  // Track 4: 303 Acid Bassline (Rolling 16ths in D Minor / Phrygian)
+  const acidNotes = [
+    'D-2', 'D-2', 'D-3', 'D-2', 'F-2', 'D-2', 'G-2', 'G#2',
+    'A-2', 'D-2', 'C-3', 'A-2', 'G-2', 'F-2', 'D-2', 'C-2',
+    'D-2', 'D-2', 'D-3', 'F-3', 'D-2', 'D-2', 'G#2', 'G-2',
+    'F-2', 'D-2', 'C-2', 'D-2', 'A-2', 'C-3', 'D-3', 'F-3'
+  ];
+  for (let r = 0; r < 64; r++) {
+    const note = acidNotes[r % 32];
+    const isAccent = (r % 4 === 0) || (r % 8 === 2);
+    p0[3][r] = {
+      note: note,
+      ins: '04',
+      vol: isAccent ? '7F' : '58',
+      fx: isAccent ? 'C40' : '...'
+    };
+  }
+
+  // Track 5: Poly Pad (lush sustained minor 9th stabs)
+  p0[4][0]  = { note: 'D-4', ins: '05', vol: '68', fx: '...' };
+  p0[4][16] = { note: 'F-4', ins: '05', vol: '68', fx: '...' };
+  p0[4][32] = { note: 'C-4', ins: '05', vol: '68', fx: '...' };
+  p0[4][48] = { note: 'A-3', ins: '05', vol: '68', fx: '...' };
+
+  // Track 6: Synth Lead (Arpeggiated cyberpunk hook)
+  const leadRiffs = {
+    8: 'A-4', 10: 'C-5', 12: 'D-5', 14: 'F-5',
+    24: 'G-5', 26: 'F-5', 28: 'D-5', 30: 'C-5',
+    40: 'D-5', 42: 'F-5', 44: 'A-5', 46: 'G-5',
+    56: 'F-5', 58: 'D-5', 60: 'C-5', 62: 'A-4'
+  };
+  Object.keys(leadRiffs).forEach(row => {
+    p0[5][parseInt(row)] = { note: leadRiffs[row], ins: '06', vol: '72', fx: '020' };
+  });
+
+  // Track 7: FM Bell accents
+  p0[6][16] = { note: 'D-6', ins: '07', vol: '60', fx: '...' };
+  p0[6][24] = { note: 'F-6', ins: '07', vol: '55', fx: '...' };
+  p0[6][48] = { note: 'C-6', ins: '07', vol: '62', fx: '...' };
+  p0[6][56] = { note: 'A-5', ins: '07', vol: '58', fx: '...' };
+
+  // Track 8: Noise FX / Glitches on transitions
+  p0[7][28] = { note: 'C-5', ins: '08', vol: '70', fx: 'F08' };
+  p0[7][30] = { note: 'E-5', ins: '08', vol: '65', fx: 'F04' };
+  p0[7][60] = { note: 'G-5', ins: '08', vol: '7F', fx: 'F12' };
+  p0[7][62] = { note: 'C-6', ins: '08', vol: '7F', fx: 'F16' };
+
+  // Pattern 1: Ambient breakdown demo
+  const p1 = patternData[1];
+  for (let r = 0; r < 64; r += 16) {
+    p1[4][r] = { note: 'D-4', ins: '05', vol: '7F', fx: '...' };
+    p1[6][r+4] = { note: 'A-5', ins: '07', vol: '6F', fx: '...' };
+  }
+
+  // --- 2. WEBAUDIO & DSP ENGINE ---
+  let audioCtx = null;
+  let masterGainNode = null;
+  let analyserNode = null;
+  let delayNode = null;
+  let delayGainNode = null;
+  let masterFilterNode = null;
+
+  const noteFreq = (noteStr) => {
+    if (!noteStr || noteStr === '...' || noteStr === '---') return 0;
+    const notes = { 'C-': 0, 'C#': 1, 'D-': 2, 'D#': 3, 'E-': 4, 'F-': 5, 'F#': 6, 'G-': 7, 'G#': 8, 'A-': 9, 'A#': 10, 'B-': 11 };
+    const name = noteStr.slice(0, 2);
+    const oct = parseInt(noteStr.slice(2));
+    const semi = notes[name];
+    if (semi === undefined || isNaN(oct)) return 0;
+    const midi = 12 + oct * 12 + semi;
+    return 440 * Math.pow(2, (midi - 69) / 12);
+  };
+
+  const initAudio = () => {
+    if (audioCtx) return;
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    audioCtx = new AudioContextClass();
+    
+    // Master routing
+    masterGainNode = audioCtx.createGain();
+    masterGainNode.gain.setValueAtTime(0.82, audioCtx.currentTime);
+
+    analyserNode = audioCtx.createAnalyser();
+    analyserNode.fftSize = 512;
+    analyserNode.smoothingTimeConstant = 0.85;
+
+    // Master filter bus
+    masterFilterNode = audioCtx.createBiquadFilter();
+    masterFilterNode.type = 'lowpass';
+    masterFilterNode.frequency.setValueAtTime(state.macros.cutoff, audioCtx.currentTime);
+    masterFilterNode.Q.setValueAtTime(state.macros.reso / 4, audioCtx.currentTime);
+
+    // Global ping-pong style delay bus
+    delayNode = audioCtx.createDelay();
+    delayNode.delayTime.setValueAtTime(0.24, audioCtx.currentTime); // 3/16 sync approx
+    delayGainNode = audioCtx.createGain();
+    delayGainNode.gain.setValueAtTime(state.macros.delay, audioCtx.currentTime);
+
+    delayNode.connect(delayGainNode);
+    delayGainNode.connect(delayNode);
+    delayGainNode.connect(masterFilterNode);
+
+    masterFilterNode.connect(masterGainNode);
+    masterGainNode.connect(analyserNode);
+    analyserNode.connect(audioCtx.destination);
+
+    // Update HUD
+    const hudStatus = document.getElementById('hud-engine-status');
+    if (hudStatus) {
+      hudStatus.textContent = `ONLINE (Lookahead 25ms, Interval 10ms, ${audioCtx.sampleRate / 1000}kHz)`;
+    }
+  };
+
+  // INSTRUMENT SYNTHESIS DISPATCHER
+  const playVoice = (trackIdx, note, ins, volHex, fx, time) => {
+    if (!audioCtx) return;
+    const trk = state.tracks[trackIdx];
+    if (trk.muted) return;
+    const anySolo = state.tracks.some(t => t.solo);
+    if (anySolo && !trk.solo) return;
+
+    const freq = noteFreq(note);
+    if (!freq) return;
+
+    const vol = (parseInt(volHex, 16) || 127) / 127 * trk.vol;
+
+    switch (ins) {
+      case '01': // 909 KICK
+        playKick(time, vol);
+        break;
+      case '02': // SNARE / CLAP
+        playSnare(time, vol);
+        break;
+      case '03': // HI-HATS
+        playHiHat(time, vol, note.startsWith('A#'));
+        break;
+      case '04': // 303 ACID BASS
+        playAcidBass(time, freq, vol, fx === 'C40');
+        break;
+      case '05': // POLY PAD
+        playPad(time, freq, vol);
+        break;
+      case '06': // LEAD SYNTH
+        playLead(time, freq, vol);
+        break;
+      case '07': // FM BELL
+        playFmBell(time, freq, vol);
+        break;
+      case '08': // NOISE GLITCH
+        playNoiseGlitch(time, freq, vol);
+        break;
+      default:
+        playAcidBass(time, freq, vol, false);
+    }
+  };
+
+  // Ins 01: 909 Kick
+  const playKick = (t, vol) => {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    
+    osc.frequency.setValueAtTime(145, t);
+    osc.frequency.exponentialRampToValueAtTime(38, t + 0.08);
+
+    gain.gain.setValueAtTime(vol * 1.2, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.32);
+
+    osc.connect(gain);
+    gain.connect(masterFilterNode);
+
+    osc.start(t);
+    osc.stop(t + 0.35);
+  };
+
+  // Ins 02: Snare / Clap
+  const playSnare = (t, vol) => {
+    // Noise burst
+    const bSize = audioCtx.sampleRate * 0.2;
+    const buffer = audioCtx.createBuffer(1, bSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bSize; i++) data[i] = Math.random() * 2 - 1;
+
+    const noise = audioCtx.createBufferSource();
+    noise.buffer = buffer;
+
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'bandpass';
+    filter.frequency.setValueAtTime(1800, t);
+    filter.Q.setValueAtTime(1.8, t);
+
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(vol * 0.9, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+
+    // Tonal body
+    const bodyOsc = audioCtx.createOscillator();
+    bodyOsc.type = 'triangle';
+    bodyOsc.frequency.setValueAtTime(180, t);
+    bodyOsc.frequency.exponentialRampToValueAtTime(75, t + 0.1);
+
+    const bodyGain = audioCtx.createGain();
+    bodyGain.gain.setValueAtTime(vol * 0.7, t);
+    bodyGain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+
+    noise.connect(filter);
+    filter.connect(gain);
+    gain.connect(masterFilterNode);
+
+    bodyOsc.connect(bodyGain);
+    bodyGain.connect(masterFilterNode);
+
+    noise.start(t);
+    noise.stop(t + 0.2);
+    bodyOsc.start(t);
+    bodyOsc.stop(t + 0.15);
+  };
+
+  // Ins 03: Hi-Hat
+  const playHiHat = (t, vol, isOpen) => {
+    const dur = isOpen ? 0.32 : 0.05;
+    const bSize = audioCtx.sampleRate * dur;
+    const buffer = audioCtx.createBuffer(1, bSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bSize; i++) data[i] = Math.random() * 2 - 1;
+
+    const noise = audioCtx.createBufferSource();
+    noise.buffer = buffer;
+
+    const hp = audioCtx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.setValueAtTime(7500, t);
+
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(vol * 0.8, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+
+    noise.connect(hp);
+    hp.connect(gain);
+    gain.connect(masterFilterNode);
+
+    noise.start(t);
+    noise.stop(t + dur + 0.01);
+  };
+
+  // Ins 04: Acid Bass (303 Style)
+  const playAcidBass = (t, freq, vol, accent) => {
+    const osc = audioCtx.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(freq, t);
+
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'lowpass';
+    const baseFreq = accent ? 2800 : state.macros.cutoff * 0.5;
+    filter.frequency.setValueAtTime(baseFreq, t);
+    filter.frequency.exponentialRampToValueAtTime(140, t + state.macros.decay);
+    filter.Q.setValueAtTime(accent ? 16 : state.macros.reso, t);
+
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(vol * (accent ? 1.2 : 0.9), t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + state.macros.decay + 0.05);
+
+    osc.connect(filter);
+    filter.connect(gain);
+    gain.connect(masterFilterNode);
+
+    // Send a bit to delay
+    gain.connect(delayNode);
+
+    osc.start(t);
+    osc.stop(t + state.macros.decay + 0.06);
+  };
+
+  // Ins 05: Chord Pad
+  const playPad = (t, freq, vol) => {
+    const freqs = [freq, freq * 1.1892, freq * 1.4983]; // Minor triad approx
+    freqs.forEach((f, idx) => {
+      const osc = audioCtx.createOscillator();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(f + (idx * 0.7 - 0.7), t);
+
+      const filter = audioCtx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(1400, t);
+
+      const gain = audioCtx.createGain();
+      gain.gain.setValueAtTime(0.001, t);
+      gain.gain.linearRampToValueAtTime((vol * 0.3) / 3, t + 0.15);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 1.2);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(masterFilterNode);
+
+      osc.start(t);
+      osc.stop(t + 1.25);
+    });
+  };
+
+  // Ins 06: Synth Lead
+  const playLead = (t, freq, vol) => {
+    const osc1 = audioCtx.createOscillator();
+    const osc2 = audioCtx.createOscillator();
+    osc1.type = 'square';
+    osc2.type = 'sawtooth';
+    osc1.frequency.setValueAtTime(freq, t);
+    osc2.frequency.setValueAtTime(freq * 1.004, t);
+
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(vol * 0.45, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+
+    osc1.connect(gain);
+    osc2.connect(gain);
+    gain.connect(masterFilterNode);
+    gain.connect(delayNode);
+
+    osc1.start(t);
+    osc2.start(t);
+    osc1.stop(t + 0.3);
+    osc2.stop(t + 0.3);
+  };
+
+  // Ins 07: FM Bell
+  const playFmBell = (t, freq, vol) => {
+    const carrier = audioCtx.createOscillator();
+    const mod = audioCtx.createOscillator();
+    const modGain = audioCtx.createGain();
+
+    carrier.frequency.setValueAtTime(freq, t);
+    mod.frequency.setValueAtTime(freq * 2.76, t); // Metallic ratio
+
+    modGain.gain.setValueAtTime(freq * 1.8, t);
+    modGain.gain.exponentialRampToValueAtTime(1, t + 0.45);
+
+    mod.connect(modGain);
+    modGain.connect(carrier.frequency);
+
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(vol * 0.5, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+
+    carrier.connect(gain);
+    gain.connect(masterFilterNode);
+    gain.connect(delayNode);
+
+    mod.start(t);
+    carrier.start(t);
+    mod.stop(t + 0.65);
+    carrier.stop(t + 0.65);
+  };
+
+  // Ins 08: Noise / Glitch
+  const playNoiseGlitch = (t, freq, vol) => {
+    const dur = 0.12;
+    const bSize = audioCtx.sampleRate * dur;
+    const buffer = audioCtx.createBuffer(1, bSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bSize; i++) {
+      data[i] = (Math.sin(i * 0.08) * (Math.random() - 0.5)) > 0 ? 0.7 : -0.7; // Bitcrush square
+    }
+
+    const noise = audioCtx.createBufferSource();
+    noise.buffer = buffer;
+
+    const gain = audioCtx.createGain();
+    gain.gain.setValueAtTime(vol * 0.7, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+
+    noise.connect(gain);
+    gain.connect(masterFilterNode);
+    gain.connect(delayNode);
+
+    noise.start(t);
+    noise.stop(t + dur + 0.02);
+  };
+
+  // --- 3. SAMPLE-ACCURATE LOOKAHEAD SCHEDULER ---
+  const lookaheadMs = 25.0; // Lookahead interval
+  const scheduleAheadTime = 0.1; // Schedule events 100ms ahead
+  let currentScheduleStep = 0;
+  let nextStepTime = 0.0;
+  let timerId = null;
+
+  const secondsPerStep = () => 60.0 / state.bpm / 4.0; // 16th note steps
+
+  const scheduleStep = (stepNumber, time) => {
+    const pat = patternData[state.pattern];
+    for (let t = 0; t < NUM_TRACKS; t++) {
+      const cell = pat[t][stepNumber];
+      if (cell && cell.note !== '...' && cell.note !== '---') {
+        playVoice(t, cell.note, cell.ins, cell.vol, cell.fx, time);
+      }
+    }
+  };
+
+  const scheduler = () => {
+    while (nextStepTime < audioCtx.currentTime + scheduleAheadTime) {
+      scheduleStep(currentScheduleStep, nextStepTime);
+      nextStepTime += secondsPerStep();
+      currentScheduleStep = (currentScheduleStep + 1) % NUM_ROWS;
+    }
+    timerId = setTimeout(scheduler, lookaheadMs);
+  };
+
+  const startPlayback = () => {
+    initAudio();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    state.isPlaying = true;
+    currentScheduleStep = state.activeRow;
+    nextStepTime = audioCtx.currentTime + 0.02;
+    scheduler();
+    updateTransportUI();
+  };
+
+  const stopPlayback = () => {
+    state.isPlaying = false;
+    clearTimeout(timerId);
+    state.activeRow = 0;
+    renderPlayhead(0);
+    updateTransportUI();
+  };
+
+  const updateTransportUI = () => {
+    const btnPlay = document.getElementById('btn-play');
+    const playIcon = document.getElementById('play-icon');
+    const playText = document.getElementById('play-text');
+    if (state.isPlaying) {
+      btnPlay.classList.add('bg-tertiary-container', 'text-on-tertiary');
+      btnPlay.classList.remove('bg-surface-container-highest', 'text-tertiary-fixed-dim');
+      playIcon.textContent = 'pause';
+      playText.textContent = 'PAUSE [SPC]';
+    } else {
+      btnPlay.classList.remove('bg-tertiary-container', 'text-on-tertiary');
+      btnPlay.classList.add('bg-surface-container-highest', 'text-tertiary-fixed-dim');
+      playIcon.textContent = 'play_arrow';
+      playText.textContent = 'START [SPC]';
+    }
+  };
+
+  // --- 4. DECOUPLED UI PLAYHEAD & ANIMATION LOOP ---
+  const playheadOverlay = document.getElementById('playhead-overlay');
+  const scrollContainer = document.getElementById('tracker-scroll-container');
+  let lastFrameTime = performance.now();
+  let frameCount = 0;
+  let fpsTimer = performance.now();
+
+  const renderPlayhead = (rowIndex) => {
+    const yPos = rowIndex * ROW_HEIGHT;
+    playheadOverlay.style.transform = `translateY(${yPos}px)`;
+
+    // Auto-scroll center viewport smoothly
+    if (state.isPlaying) {
+      const containerHeight = scrollContainer.clientHeight;
+      const targetScroll = yPos - containerHeight / 2 + ROW_HEIGHT / 2;
+      scrollContainer.scrollTop = targetScroll;
+    }
+  };
+
+  const rAFLoop = () => {
+    const now = performance.now();
+    const frameDelta = now - lastFrameTime;
+    lastFrameTime = now;
+    frameCount++;
+
+    // Calculate active step from AudioContext clock
+    if (state.isPlaying && audioCtx) {
+      const stepDuration = secondsPerStep();
+      const elapsed = audioCtx.currentTime - (nextStepTime - secondsPerStep() * NUM_ROWS);
+      let calculatedRow = Math.floor((audioCtx.currentTime - (nextStepTime - secondsPerStep())) / stepDuration) % NUM_ROWS;
+      if (calculatedRow < 0) calculatedRow = (calculatedRow + NUM_ROWS) % NUM_ROWS;
+      
+      // Hardware-accelerated playhead translation without row element mutation
+      if (calculatedRow !== state.activeRow) {
+        state.activeRow = calculatedRow;
+        renderPlayhead(state.activeRow);
+      }
+
+      // Update profiler audio clock
+      const profClock = document.getElementById('prof-audio-clock');
+      if (profClock) profClock.textContent = `${audioCtx.currentTime.toFixed(3)} s`;
+    }
+
+    // Profiler FPS & frame budget meter
+    if (now - fpsTimer >= 500) {
+      const fps = Math.round((frameCount * 1000) / (now - fpsTimer));
+      frameCount = 0;
+      fpsTimer = now;
+      const fpsBadge = document.getElementById('canvas-fps-badge');
+      const profFrameTime = document.getElementById('prof-frame-time');
+      const profBudgetBar = document.getElementById('prof-budget-bar');
+      if (fpsBadge) fpsBadge.textContent = `${fps} FPS // ${frameDelta.toFixed(1)}ms`;
+      if (profFrameTime) profFrameTime.textContent = `${frameDelta.toFixed(2)} ms`;
+      if (profBudgetBar) {
+        const pct = Math.min(100, (frameDelta / 16.6) * 100);
+        profBudgetBar.style.width = `${pct}%`;
+      }
+    }
+
+    drawOscilloscope();
+    requestAnimationFrame(rAFLoop);
+  };
+
+  // --- 5. OSCILLOSCOPE & PEAK METERS CANVAS ---
+  const canvas = document.getElementById('scope-canvas');
+  const ctx = canvas.getContext('2d');
+  const meterL = document.getElementById('meter-l');
+  const meterR = document.getElementById('meter-r');
+  const lblL = document.getElementById('lbl-l-db');
+  const lblR = document.getElementById('lbl-r-db');
+  const clipDot = document.getElementById('clip-indicator');
+
+  const resizeCanvas = () => {
+    if (!canvas) return;
+    canvas.width = canvas.parentElement.clientWidth;
+    canvas.height = canvas.parentElement.clientHeight;
+  };
+  window.addEventListener('resize', resizeCanvas);
+  setTimeout(resizeCanvas, 50);
+
+  const timeDomainData = new Uint8Array(256);
+  const freqData = new Uint8Array(256);
+
+  const drawOscilloscope = () => {
+    if (!ctx || !canvas) return;
+    const w = canvas.width;
+    const h = canvas.height;
+
+    // Dark grid background
+    ctx.fillStyle = '#0c0e12';
+    ctx.fillRect(0, 0, w, h);
+
+    // Subtle grid lines
+    ctx.strokeStyle = '#1a1c20';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, h / 2);
+    ctx.lineTo(w, h / 2);
+    ctx.moveTo(w / 2, 0);
+    ctx.lineTo(w / 2, h);
+    ctx.stroke();
+
+    if (!analyserNode || !state.isPlaying) {
+      // Idle line
+      ctx.strokeStyle = '#006970';
+      ctx.beginPath();
+      ctx.moveTo(0, h / 2);
+      ctx.lineTo(w, h / 2);
+      ctx.stroke();
+      if (meterL) meterL.style.height = '0%';
+      if (meterR) meterR.style.height = '0%';
+      if (lblL) lblL.textContent = '-inf dB';
+      if (lblR) lblR.textContent = '-inf dB';
+      return;
+    }
+
+    analyserNode.getByteTimeDomainData(timeDomainData);
+    analyserNode.getByteFrequencyData(freqData);
+
+    // Draw phosphor wave
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#00f0ff';
+    ctx.shadowColor = 'rgba(0, 240, 255, 0.6)';
+    ctx.shadowBlur = 4;
+    ctx.beginPath();
+
+    const sliceWidth = w / 256;
+    let x = 0;
+    let sumSquares = 0;
+
+    for (let i = 0; i < 256; i++) {
+      const v = timeDomainData[i] / 128.0;
+      const y = (v * h) / 2;
+      const dev = (timeDomainData[i] - 128) / 128;
+      sumSquares += dev * dev;
+
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+      x += sliceWidth;
+    }
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // Calculate dB peak / RMS
+    const rms = Math.sqrt(sumSquares / 256);
+    const db = rms > 0.0001 ? 20 * Math.log10(rms) : -96;
+    const normH = Math.max(0, Math.min(100, (db + 48) * 2));
+
+    if (meterL) meterL.style.height = `${normH}%`;
+    if (meterR) meterR.style.height = `${normH * 0.94}%`;
+    if (lblL) lblL.textContent = `${db.toFixed(1)}dB`;
+    if (lblR) lblR.textContent = `${(db - 0.4).toFixed(1)}dB`;
+
+    if (db >= -0.5) {
+      if (clipDot) clipDot.className = 'absolute top-1 right-1 w-2 h-2 rounded-full bg-error';
+    } else {
+      if (clipDot) clipDot.className = 'absolute top-1 right-1 w-2 h-2 rounded-full bg-surface-variant';
+    }
+  };
+
+  // --- 6. GRID DOM GENERATOR (Virtual / Fixed-Node Architecture) ---
+  const matrixBody = document.getElementById('tracker-matrix-body');
+  const cursorOverlay = document.getElementById('cursor-overlay');
+
+  const buildMatrixDOM = () => {
+    const fragment = document.createDocumentFragment();
+    const pat = patternData[state.pattern];
+
+    for (let r = 0; r < NUM_ROWS; r++) {
+      const rowDiv = document.createElement('div');
+      const isEvery16 = r % 16 === 0;
+      const isEvery4 = r % 4 === 0;
+      
+      let rowBg = 'bg-surface-container-lowest';
+      if (isEvery16) rowBg = 'bg-surface-container-high/60';
+      else if (isEvery4) rowBg = 'bg-surface-container-low/40';
+
+      rowDiv.className = `flex h-6 items-center text-xs border-b border-surface-container-high/20 ${rowBg} transition-colors`;
+      rowDiv.setAttribute('data-row', r);
+
+      // Row index label (hex + dec)
+      const rowIdxDiv = document.createElement('div');
+      rowIdxDiv.className = `w-12 shrink-0 h-full flex items-center justify-center font-label-sm text-label-sm ${isEvery4 ? 'text-primary-fixed font-semibold' : 'text-outline-variant'} bg-surface-container-lowest/80 border-r border-surface-container-high/30`;
+      rowIdxDiv.textContent = r.toString(16).toUpperCase().padStart(2, '0');
+      rowDiv.appendChild(rowIdxDiv);
+
+      // 8 Tracks
+      for (let t = 0; t < NUM_TRACKS; t++) {
+        const cellData = pat[t][r];
+        const cellDiv = document.createElement('div');
+        cellDiv.className = `flex-1 min-w-[130px] h-full grid grid-cols-4 items-center px-1 border-r border-surface-container-high/20 cursor-pointer hover:bg-surface-container-high/40 text-center font-label-sm text-label-sm tracking-tight`;
+        cellDiv.setAttribute('data-track', t);
+        cellDiv.setAttribute('data-row', r);
+
+        // Sub-elements: NOTE, INS, VOL, FX
+        const noteSpan = document.createElement('span');
+        noteSpan.className = cellData.note !== '...' ? 'text-primary font-semibold' : 'text-outline-variant';
+        noteSpan.textContent = cellData.note;
+        noteSpan.setAttribute('data-col', '0');
+
+        const insSpan = document.createElement('span');
+        insSpan.className = cellData.ins !== '..' ? 'text-tertiary-fixed' : 'text-surface-bright';
+        insSpan.textContent = cellData.ins;
+        insSpan.setAttribute('data-col', '1');
+
+        const volSpan = document.createElement('span');
+        volSpan.className = cellData.vol !== '..' ? 'text-secondary-fixed' : 'text-surface-bright';
+        volSpan.textContent = cellData.vol;
+        volSpan.setAttribute('data-col', '2');
+
+        const fxSpan = document.createElement('span');
+        fxSpan.className = cellData.fx !== '...' ? 'text-error' : 'text-surface-bright';
+        fxSpan.textContent = cellData.fx;
+        fxSpan.setAttribute('data-col', '3');
+
+        cellDiv.appendChild(noteSpan);
+        cellDiv.appendChild(insSpan);
+        cellDiv.appendChild(volSpan);
+        cellDiv.appendChild(fxSpan);
+
+        rowDiv.appendChild(cellDiv);
+      }
+
+      fragment.appendChild(rowDiv);
+    }
+
+    matrixBody.innerHTML = '';
+    matrixBody.appendChild(fragment);
+
+    // Update node count in profiler
+    const profNodeCount = document.getElementById('prof-node-count');
+    if (profNodeCount) {
+      profNodeCount.textContent = `${matrixBody.querySelectorAll('*').length} Nodes`;
+    }
+  };
+
+  // FAST IN-PLACE TEXTNODE MUTATION BENCHMARK (O(1))
+  let totalCellMutations = 0;
+  const updateCellDOM = (t, r, col, value) => {
+    const pat = patternData[state.pattern];
+    const cellObj = pat[t][r];
+
+    if (col === 0) cellObj.note = value;
+    else if (col === 1) cellObj.ins = value;
+    else if (col === 2) cellObj.vol = value;
+    else if (col === 3) cellObj.fx = value;
+
+    const rowEl = matrixBody.children[r];
+    if (!rowEl) return;
+    const trackCellEl = rowEl.children[t + 1]; // +1 for row-number column
+    if (!trackCellEl) return;
+    const targetSpan = trackCellEl.children[col];
+    if (!targetSpan) return;
+
+    // Direct textNode patch without repainting the row
+    targetSpan.textContent = value;
+    if (col === 0) {
+      targetSpan.className = value !== '...' ? 'text-primary font-semibold' : 'text-outline-variant';
+    }
+
+    totalCellMutations++;
+    const profMut = document.getElementById('prof-edit-mutations');
+    if (profMut) profMut.textContent = `${totalCellMutations} writes (O(1) in-place)`;
+  };
+
+  // --- 7. EDIT CURSOR & KEYBOARD INTERACTION ---
+  const updateCursorPosition = () => {
+    const { track, row, col } = state.cursor;
+    const rowEl = matrixBody.children[row];
+    if (!rowEl) return;
+    const trackEl = rowEl.children[track + 1];
+    if (!trackEl) return;
+    const spanEl = trackEl.children[col];
+    if (!spanEl) return;
+
+    cursorOverlay.style.display = 'block';
+    const trackRect = trackEl.getBoundingClientRect();
+    const spanRect = spanEl.getBoundingClientRect();
+    const containerRect = scrollContainer.getBoundingClientRect();
+
+    const left = spanRect.left - containerRect.left + scrollContainer.scrollLeft;
+    const top = row * ROW_HEIGHT;
+    const width = spanRect.width;
+
+    cursorOverlay.style.left = `${left}px`;
+    cursorOverlay.style.top = `${top}px`;
+    cursorOverlay.style.width = `${width}px`;
+
+    const hudPos = document.getElementById('hud-cursor-pos');
+    const patCell = patternData[state.pattern][track][row];
+    if (hudPos) {
+      hudPos.textContent = `T${track + 1}:R${row.toString(16).toUpperCase().padStart(2, '0')} [${patCell.note}]`;
+    }
+  };
+
+  // Computer Keyboard Note Mapping (2 Octaves)
+  const keyToNoteMap = {
+    // Octave N (Z-M row)
+    'z': 'C-', 's': 'C#', 'x': 'D-', 'd': 'D#', 'c': 'E-', 'v': 'F-', 'g': 'F#', 'b': 'G-', 'h': 'G#', 'n': 'A-', 'j': 'A#', 'm': 'B-',
+    // Octave N+1 (Q-I row)
+    'q': 'C-', '2': 'C#', 'w': 'D-', '3': 'D#', 'e': 'E-', 'r': 'F-', '5': 'F#', 't': 'G-', '6': 'G#', 'y': 'A-', '7': 'A#', 'u': 'B-', 'i': 'C+'
+  };
+
+  const handleKeyDown = (e) => {
+    // Transport hotkeys
+    if (e.code === 'Space') {
+      e.preventDefault();
+      if (state.isPlaying) stopPlayback();
+      else startPlayback();
+      return;
+    }
+
+    if (e.code === 'Escape') {
+      e.preventDefault();
+      toggleEditMode();
+      return;
+    }
+
+    // Grid Navigation Keys
+    if (e.code === 'ArrowUp') {
+      e.preventDefault();
+      state.cursor.row = (state.cursor.row - 1 + NUM_ROWS) % NUM_ROWS;
+      updateCursorPosition();
+      return;
+    }
+    if (e.code === 'ArrowDown') {
+      e.preventDefault();
+      state.cursor.row = (state.cursor.row + 1) % NUM_ROWS;
+      updateCursorPosition();
+      return;
+    }
+    if (e.code === 'ArrowLeft') {
+      e.preventDefault();
+      if (state.cursor.col > 0) state.cursor.col--;
+      else if (state.cursor.track > 0) {
+        state.cursor.track--;
+        state.cursor.col = 3;
+      }
+      updateCursorPosition();
+      return;
+    }
+    if (e.code === 'ArrowRight') {
+      e.preventDefault();
+      if (state.cursor.col < 3) state.cursor.col++;
+      else if (state.cursor.track < NUM_TRACKS - 1) {
+        state.cursor.track++;
+        state.cursor.col = 0;
+      }
+      updateCursorPosition();
+      return;
+    }
+
+    // Delete / Backspace clears current cell
+    if (e.code === 'Backspace' || e.code === 'Delete') {
+      e.preventDefault();
+      const { track, row, col } = state.cursor;
+      const blankVal = col === 0 ? '...' : (col === 1 || col === 2 ? '..' : '...');
+      updateCellDOM(track, row, col, blankVal);
+      if (state.step > 0) {
+        state.cursor.row = (state.cursor.row + state.step) % NUM_ROWS;
+      }
+      updateCursorPosition();
+      return;
+    }
+
+    // Note Input Keys (when cursor is on col 0)
+    const key = e.key.toLowerCase();
+    if (state.cursor.col === 0 && keyToNoteMap[key]) {
+      e.preventDefault();
+      initAudio();
+      
+      let baseOctave = state.octave;
+      if (['q','2','w','3','e','r','5','t','6','y','7','u','i'].includes(key)) {
+        baseOctave += 1;
+      }
+      let noteName = keyToNoteMap[key];
+      if (noteName === 'C+') {
+        noteName = 'C-';
+        baseOctave += 1;
+      }
+      const fullNote = `${noteName}${baseOctave}`;
+      const insHex = (state.cursor.track + 1).toString(16).padStart(2, '0');
+
+      // Audition note immediately
+      playVoice(state.cursor.track, fullNote, insHex, '7F', '...', audioCtx.currentTime);
+
+      // Write to grid if in edit mode
+      if (state.isEditMode) {
+        updateCellDOM(state.cursor.track, state.cursor.row, 0, fullNote);
+        updateCellDOM(state.cursor.track, state.cursor.row, 1, insHex);
+        updateCellDOM(state.cursor.track, state.cursor.row, 2, '7F');
+
+        // Auto-advance cursor by step
+        if (state.step > 0) {
+          state.cursor.row = (state.cursor.row + state.step) % NUM_ROWS;
+        }
+      }
+      updateCursorPosition();
+    }
+  };
+
+  const toggleEditMode = () => {
+    state.isEditMode = !state.isEditMode;
+    const btn = document.getElementById('btn-edit-mode');
+    const dot = document.getElementById('rec-dot');
+    const recText = document.getElementById('rec-text');
+    if (state.isEditMode) {
+      btn.classList.add('bg-error-container', 'text-on-error-container');
+      dot.className = 'w-2 h-2 rounded-full bg-error animate-ping';
+      recText.textContent = 'RECORD ON';
+    } else {
+      btn.classList.remove('bg-error-container', 'text-on-error-container');
+      dot.className = 'w-2 h-2 rounded-full bg-outline-variant';
+      recText.textContent = 'REC [ESC]';
+    }
+  };
+
+  // --- 8. UI BINDINGS & CONTROLS ---
+  const bindEvents = () => {
+    window.addEventListener('keydown', handleKeyDown);
+
+    // Play / Stop Buttons
+    document.getElementById('btn-play').addEventListener('click', () => {
+      if (state.isPlaying) stopPlayback();
+      else startPlayback();
+    });
+    document.getElementById('btn-stop').addEventListener('click', stopPlayback);
+    document.getElementById('btn-edit-mode').addEventListener('click', toggleEditMode);
+
+    // Panic Button
+    document.getElementById('btn-panic').addEventListener('click', () => {
+      stopPlayback();
+      if (audioCtx) {
+        masterGainNode.gain.cancelScheduledValues(audioCtx.currentTime);
+        masterGainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+        setTimeout(() => {
+          masterGainNode.gain.setValueAtTime(parseFloat(document.getElementById('master-gain').value), audioCtx.currentTime);
+        }, 100);
+      }
+    });
+
+    // Pattern Select
+    document.getElementById('pattern-select').addEventListener('change', (e) => {
+      state.pattern = parseInt(e.target.value);
+      buildMatrixDOM();
+      updateCursorPosition();
+    });
+
+    // BPM Input & Controls
+    const bpmInput = document.getElementById('input-bpm');
+    bpmInput.addEventListener('change', (e) => {
+      state.bpm = Math.max(40, Math.min(300, parseInt(e.target.value) || 125));
+      bpmInput.value = state.bpm;
+    });
+    document.getElementById('bpm-inc').addEventListener('click', () => {
+      state.bpm = Math.min(300, state.bpm + 1);
+      bpmInput.value = state.bpm;
+    });
+    document.getElementById('bpm-dec').addEventListener('click', () => {
+      state.bpm = Math.max(40, state.bpm - 1);
+      bpmInput.value = state.bpm;
+    });
+
+    // Octave Selector
+    const valOct = document.getElementById('val-octave');
+    document.getElementById('oct-inc').addEventListener('click', () => {
+      if (state.octave < 7) state.octave++;
+      valOct.textContent = state.octave;
+    });
+    document.getElementById('oct-dec').addEventListener('click', () => {
+      if (state.octave > 1) state.octave--;
+      valOct.textContent = state.octave;
+    });
+
+    // Step Selector
+    const valStep = document.getElementById('val-step');
+    document.getElementById('step-inc').addEventListener('click', () => {
+      if (state.step < 8) state.step++;
+      valStep.textContent = state.step;
+    });
+    document.getElementById('step-dec').addEventListener('click', () => {
+      if (state.step > 0) state.step--;
+      valStep.textContent = state.step;
+    });
+
+    // Master Gain Slider
+    const masterGainSlider = document.getElementById('master-gain');
+    const masterGainVal = document.getElementById('master-gain-val');
+    masterGainSlider.addEventListener('input', (e) => {
+      const v = parseFloat(e.target.value);
+      if (masterGainNode && audioCtx) {
+        masterGainNode.gain.setValueAtTime(v, audioCtx.currentTime);
+      }
+      const db = v > 0.001 ? 20 * Math.log10(v) : -96;
+      masterGainVal.textContent = `${db.toFixed(1)}dB`;
+    });
+
+    // DSP Macro Sliders
+    const cutoffSlider = document.getElementById('macro-cutoff');
+    const resoSlider = document.getElementById('macro-reso');
+    const driveSlider = document.getElementById('macro-drive');
+    const decaySlider = document.getElementById('macro-decay');
+    const delaySlider = document.getElementById('macro-delay');
+
+    cutoffSlider.addEventListener('input', (e) => {
+      state.macros.cutoff = parseFloat(e.target.value);
+      document.getElementById('val-cutoff').textContent = `${(state.macros.cutoff / 1000).toFixed(1)}k`;
+      if (masterFilterNode && audioCtx) masterFilterNode.frequency.setValueAtTime(state.macros.cutoff, audioCtx.currentTime);
+    });
+
+    resoSlider.addEventListener('input', (e) => {
+      state.macros.reso = parseFloat(e.target.value);
+      document.getElementById('val-reso').textContent = state.macros.reso.toFixed(1);
+      if (masterFilterNode && audioCtx) masterFilterNode.Q.setValueAtTime(state.macros.reso / 4, audioCtx.currentTime);
+    });
+
+    driveSlider.addEventListener('input', (e) => {
+      state.macros.drive = parseFloat(e.target.value);
+      document.getElementById('val-drive').textContent = `${state.macros.drive.toFixed(1)}x`;
+    });
+
+    decaySlider.addEventListener('input', (e) => {
+      state.macros.decay = parseFloat(e.target.value);
+      document.getElementById('val-decay').textContent = `${Math.round(state.macros.decay * 1000)}m`;
+    });
+
+    delaySlider.addEventListener('input', (e) => {
+      state.macros.delay = parseFloat(e.target.value);
+      document.getElementById('val-delay').textContent = `${Math.round(state.macros.delay * 100)}%`;
+      if (delayGainNode && audioCtx) delayGainNode.gain.setValueAtTime(state.macros.delay, audioCtx.currentTime);
+    });
+
+    document.getElementById('btn-reset-macros').addEventListener('click', () => {
+      cutoffSlider.value = 3800; cutoffSlider.dispatchEvent(new Event('input'));
+      resoSlider.value = 11; resoSlider.dispatchEvent(new Event('input'));
+      driveSlider.value = 3.4; driveSlider.dispatchEvent(new Event('input'));
+      decaySlider.value = 0.35; decaySlider.dispatchEvent(new Event('input'));
+      delaySlider.value = 0.45; delaySlider.dispatchEvent(new Event('input'));
+    });
+
+    // Track Mute/Solo/Volume Header Controls
+    document.querySelectorAll('.track-mute-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const t = parseInt(e.target.dataset.track);
+        state.tracks[t].muted = !state.tracks[t].muted;
+        e.target.classList.toggle('bg-error', state.tracks[t].muted);
+        e.target.classList.toggle('text-on-error', state.tracks[t].muted);
+      });
+    });
+
+    document.querySelectorAll('.track-solo-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const t = parseInt(e.target.dataset.track);
+        state.tracks[t].solo = !state.tracks[t].solo;
+        e.target.classList.toggle('bg-tertiary-container', state.tracks[t].solo);
+        e.target.classList.toggle('text-on-tertiary', state.tracks[t].solo);
+      });
+    });
+
+    document.querySelectorAll('.track-vol-slider').forEach(slider => {
+      slider.addEventListener('input', (e) => {
+        const t = parseInt(e.target.dataset.track);
+        state.tracks[t].vol = parseFloat(e.target.value);
+      });
+    });
+
+    // Cell Click Delegator for Matrix
+    matrixBody.addEventListener('click', (e) => {
+      const cellSpan = e.target.closest('span[data-col]');
+      if (!cellSpan) return;
+      const cellDiv = cellSpan.parentElement;
+      const t = parseInt(cellDiv.getAttribute('data-track'));
+      const r = parseInt(cellDiv.getAttribute('data-row'));
+      const c = parseInt(cellSpan.getAttribute('data-col'));
+
+      state.cursor = { track: t, row: r, col: c };
+      updateCursorPosition();
+    });
+  };
+
+  // --- 9. INITIALIZATION BOOTSTRAP ---
+  buildMatrixDOM();
+  bindEvents();
+  requestAnimationFrame(rAFLoop);
+  updateCursorPosition();
+})();
+</script></main></div></body></html>
