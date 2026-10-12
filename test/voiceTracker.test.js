@@ -100,3 +100,18 @@ describe("createVoiceTracker — ending voices", () => {
     expect(tracker.getActiveCount(1)).toBe(0);
   });
 });
+
+describe("createVoiceTracker — releaseTrack", () => {
+  it("hands back every active handle on the track and clears its bookkeeping", () => {
+    const tracker = createVoiceTracker();
+    tracker.registerVoice(0, 1);
+    tracker.registerVoice(0, 2);
+    tracker.registerVoice(1, 3);
+
+    expect(tracker.releaseTrack(0)).toEqual([1, 2]);
+    expect(tracker.getActiveCount(0)).toBe(0);
+    expect(tracker.getActiveCount(1)).toBe(1); // untouched
+
+    expect(tracker.releaseTrack(0)).toEqual([]); // already-silent track is a no-op
+  });
+});

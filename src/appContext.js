@@ -95,6 +95,12 @@ export function createAppContext() {
   }
   store.subscribe(events.PATTERN_SELECTED, notifyPlaybackOfSelectedPattern);
 
+  // Mute/solo need to silence whatever's already sounding the instant they're toggled, not
+  // just gate future note triggers (see playbackController.js#syncTrackMuting's own doc
+  // comment) — every mute/solo/volume/voiceMode edit fires this same event, so this just
+  // recomputes and is a no-op unless mute/solo actually changed what's audible.
+  store.subscribe(events.TRACK_CHANNEL_CHANGED, () => playbackController.syncTrackMuting());
+
   const noteSource = createKeyboardNoteSource({ getOctave: () => store.getState().octave });
   const editController = createEditController({ store, noteSource });
 

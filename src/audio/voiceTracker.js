@@ -85,13 +85,26 @@ export function createVoiceTracker() {
     return activeByTrack.get(trackIndex)?.length ?? 0;
   }
 
+  // Hands back every handle this module still thinks is active on a track and clears its
+  // bookkeeping for it — used when mute/solo makes a track inaudible mid-playback
+  // (audio/playbackController.js#syncTrackMuting) to actually stop whatever's already
+  // sounding, instead of just letting reserveVoiceSlot's compile-time gate keep the *next*
+  // trigger from starting. The caller is responsible for calling runtime.release() on each
+  // handle — this module only tracks which ones were active, same division as
+  // reserveVoiceSlot above.
+  function releaseTrack(trackIndex) {
+    const active = activeByTrack.get(trackIndex) ?? [];
+    activeByTrack.set(trackIndex, []);
+    return active;
+  }
+
   // audio/playbackController.js#play calls this on every (re)start — a fresh session's handles
   // have nothing to do with whatever a previous session was tracking.
   function reset() {
     activeByTrack.clear();
   }
 
-  return { reserveVoiceSlot, registerVoice, getActiveCount, reset };
+  return { reserveVoiceSlot, registerVoice, getActiveCount, releaseTrack, reset };
 }
 
 // One shared instance for the whole app: scheduled playback (audio/lookaheadPlayer.js) and

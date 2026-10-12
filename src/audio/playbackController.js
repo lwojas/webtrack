@@ -1,7 +1,8 @@
-import { initRuntime, ensureTrackBuses } from "./runtime.js";
+import { initRuntime, ensureTrackBuses, getRuntime } from "./runtime.js";
 import { createLookaheadPlayer } from "./lookaheadPlayer.js";
 import { compileRow, compileRowFx } from "./compile.js";
 import { setTrackFxParam, isFxBypassed } from "./fx.js";
+import { voiceTracker } from "./voiceTracker.js";
 import { STEPS_PER_BEAT } from "../model/timing.js";
 import { getPatternQueueEntries } from "../model/query.js";
 
@@ -116,6 +117,29 @@ export function createPlaybackController({
     return player?.isPlaying() ?? false;
   }
 
+  // Stops whatever's already sounding on any track that mute/solo just made inaudible.
+  // audio/compile.js#compileRow's mute/solo gate is compile-time-only — it keeps a gated
+  // track's *next* note from being scheduled, but has no way to reach back and silence a
+  // voice already handed to the engine (runtime.schedule()/trigger()), which otherwise just
+  // rings on until it ends naturally or the track's next retrigger falls on a gated row —
+  // for a long/sustained note, that can look like "mute doesn't work until the pattern
+  // loops." Called from appContext.js on every TRACK_CHANNEL_CHANGED (mute, solo, or
+  // otherwise) — recomputing the full audibility set each time and releasing only what's
+  // actually gated keeps this correct regardless of which field changed, and releasing an
+  // already-empty track is just a no-op. A no-op entirely while stopped.
+  function syncTrackMuting() {
+    if (!player?.isPlaying()) return;
+    const channels = getTrackChannels();
+    const soloActive = channels.some((channel) => channel.solo);
+    channels.forEach((channel, trackIndex) => {
+      const audible = !channel.muted && (!soloActive || channel.solo);
+      if (audible) return;
+      const handles = voiceTracker.releaseTrack(trackIndex);
+      if (handles.length === 0) return;
+      getRuntime().then((runtime) => handles.forEach((handle) => runtime.release(handle)));
+    });
+  }
+
   function getPlayheadRow() {
     return player?.getPlayheadRow() ?? -1;
   }
@@ -132,5 +156,5 @@ export function createPlaybackController({
     return player?.getQueueIndex() ?? -1;
   }
 
-  return { play, stop, switchPattern, isPlaying, getPlayheadRow, getTrackPlayheadRow, getPlayingQueueIndex };
+  return { play, stop, switchPattern, isPlaying, getPlayheadRow, getTrackPlayheadRow, getPlayingQueueIndex, syncTrackMuting };
 }
