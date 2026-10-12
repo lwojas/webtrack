@@ -78,6 +78,19 @@ function ensureTrackLengths(song) {
   });
 }
 
+// trackChannel.fx / song.masterFx (model/trackChannel.js, model/song.js) are purely additive
+// too, added after format v2 shipped without them — same reasoning as ensureTrackLengths
+// above: default them here rather than bump PROJECT_FORMAT_VERSION for a field an old project
+// simply never had an opinion about. A cell's own Event.fx needs no equivalent default: every
+// read path already treats a missing/undefined fx map the same as an explicit null (see
+// model/event.js#isEmptyEvent, audio/compile.js#compileRowFx).
+function ensureFxDefaults(song) {
+  song.trackChannels.forEach((channel) => {
+    if (!channel.fx) channel.fx = {};
+  });
+  if (!song.masterFx) song.masterFx = {};
+}
+
 // song/instruments/ui come straight from state/store.js's state shape.
 export function serializeProject({ song, instruments, ui }) {
   return {
@@ -107,6 +120,7 @@ export async function deserializeProject(parsed, { loadSampleBytes }) {
   }
 
   ensureTrackLengths(parsed.song);
+  ensureFxDefaults(parsed.song);
 
   const instruments = await Promise.all(
     parsed.instruments.map(async (def) => {

@@ -26,7 +26,16 @@ const TICK_INTERVAL_MS = 25;
 // rather than snapshotted at start() (see audio/playbackController.js#resolveQueueEntry). Not a
 // Song/patternQueue import here, deliberately: this module stays generic over "whatever the
 // caller says comes next," the same way it was already generic over "whatever pattern plays."
-export function createLookaheadPlayer({ runtime, compileRow, getStepDurationSeconds, onPatternSwitched, getNextQueueEntry }) {
+export function createLookaheadPlayer({
+  runtime,
+  compileRow,
+  compileRowFx = () => [],
+  trackBusIds,
+  getStepDurationSeconds,
+  onPatternSwitched,
+  getNextQueueEntry,
+  onTrackFxChange,
+}) {
   let pattern = null;
   let pendingPattern = null; // { pattern, queueIndex } | null — a manually requested switch
   let queueIndex = 0;
@@ -78,8 +87,20 @@ export function createLookaheadPlayer({ runtime, compileRow, getStepDurationSeco
       // The pattern-relative position, not the raw stepCounter — compileRow folds it into each
       // track's own loop length (model/pattern.js#trackLocalStep), and it's this, not the raw
       // transport, that should restart at 0 on every new pattern instance.
-      const events = compileRow(pattern, trackChannels, instruments, stepCounter - patternStartStep, stepTime, duration);
+      const patternRelativeStep = stepCounter - patternStartStep;
+      const events = compileRow(pattern, trackChannels, instruments, patternRelativeStep, stepTime, duration, trackBusIds);
       if (events.length > 0) runtime.schedule(events);
+
+      // Cell FX automation rides the same tick/lookahead cadence as note scheduling above —
+      // see audio/fx.js's doc comment on webdsp's setNodeParameter having no timestamp of its
+      // own, unlike schedule()'s sample-accurate ScheduledEvent.time. onTrackFxChange is who
+      // actually calls setNodeParameter (wired in audio/playbackController.js); this file never
+      // touches NodeParam/bus ids directly, same separation compileRow/trackChannels already
+      // keep it at.
+      if (onTrackFxChange) {
+        const fxChanges = compileRowFx(pattern, patternRelativeStep);
+        fxChanges.forEach(({ trackIndex, paramId, value }) => onTrackFxChange(trackIndex, paramId, value));
+      }
 
       stepCounter += 1;
     }

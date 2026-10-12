@@ -2,8 +2,9 @@
 
 A browser-based music tracker built on [`webdsp`](https://github.com/lwojas/webdsp) — plain
 JavaScript (no TypeScript), React for the app chrome, hand-rolled DOM rendering for the dense
-pattern grid. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for how it's built and
-[`docs/EXTENDING.md`](docs/EXTENDING.md) for how to add to it.
+pattern grid. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for how it's built,
+[`docs/EXTENDING.md`](docs/EXTENDING.md) for how to add to it, and
+[`docs/FX.md`](docs/FX.md) for the track/master FX buses and cell automation.
 
 ## Quick start
 
@@ -54,11 +55,18 @@ Two views, switched with the tabs just under the transport bar:
 > intentional (see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#loop-boundary-deferred-pattern-switching)).
 > While stopped, switching is immediate.
 
-### Mixer (below the grid)
+### Mixer / FX (below the grid)
 
-A compact horizontal row of per-track channel strips — name, a vertical volume slider (0–1.5×),
-`M` (mute), `S` (solo). Soloing any track silences every other non-soloed track. Scrolls
-horizontally on narrow viewports rather than wrapping.
+The lower panel tabs between **MIXER** and **FX** (same slot, switched in place).
+
+**Mixer**: a compact horizontal row of per-track channel strips — name, a vertical volume
+slider (0–1.5×), `M` (mute), `S` (solo). Soloing any track silences every other non-soloed
+track. Scrolls horizontally on narrow viewports rather than wrapping.
+
+**FX**: shapes either the selected track's own insert FX chain or the master bus (a TRACK/
+MASTER toggle picks which), across Filter/Delay/Reverb/Compressor/Saturation/Chorus-Flanger/
+Output. See [`docs/FX.md`](docs/FX.md) for how this reaches `webdsp`'s actual DSP chain and how
+it relates to the note editor's CELL FX automation above.
 
 ### The grid — mouse or keyboard
 
@@ -91,8 +99,11 @@ position (`1.1`, `1.2`, ...) rather than a raw row number — labeled on each be
 
 Shows the properties of whichever note is currently selected that don't fit in the compact
 grid: **length** (steps the note holds for — blank/"auto" means hold until the next note),
-**pan**, and the **effect** command + parameter. Shows a placeholder when the selected cell has
-no note, since editing those properties on an empty cell is meaningless.
+**pan**, the **effect** command + parameter, and **CELL FX** — sparse FX automation (see
+[`docs/FX.md`](docs/FX.md)): pick a parameter from the "+ ADD FX" dropdown to set its value at
+this cell; it holds from here until the next cell that sets the same parameter, or the end of
+playback. Shows a placeholder when the selected cell has no note, since editing those
+properties on an empty cell is meaningless.
 
 **Piano key layout** (mirrors a keyboard's black/white keys, two octaves):
 ```
@@ -117,13 +128,15 @@ the rendering-architecture claims below checkable, not just asserted — see
 
 This is an MVP built against Linear issue ECS-156 (8 tracks, 1–8 bars/pattern), since extended
 with project save/load, mouse-driven selection, an explicit per-note length, variable sequence
-length, a bar/beat legend, a redesigned horizontal mixer, and a Pattern Manager that replaced
-the original bank-based pattern storage with an explicit pattern pool + queue (see
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#data-model)). What's explicitly **not** built yet
-— mostly by design, with the seams left open rather than closed off — is listed in
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#explicitly-out-of-scope): MIDI I/O, a real
-effects/automation engine, a Canvas renderer, per-track FX buses, playing the pattern queue in
-order, per-track playback length/polymetric playback, undo/redo.
+length, a bar/beat legend, a redesigned horizontal mixer, a Pattern Manager that replaced the
+original bank-based pattern storage with an explicit pattern pool + queue (see
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#data-model)), per-track polymetric playback
+length, and per-track/master FX buses with sparse cell-level automation (see
+[`docs/FX.md`](docs/FX.md)). What's explicitly **not** built yet — mostly by design, with the
+seams left open rather than closed off — is listed in
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#explicitly-out-of-scope): MIDI I/O, a Canvas
+renderer, send/aux buses, playing the pattern queue in order, tracker FX columns/Push-MIDI
+consumers of the FX parameter catalog, undo/redo.
 
 ## Repository layout
 

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { compileEvent, compileRow, noteDurationSteps } from "../src/audio/compile.js";
+import { compileEvent, compileRow, compileRowFx, noteDurationSteps } from "../src/audio/compile.js";
 import { createSong } from "../src/model/song.js";
 import { createInstrumentSlot } from "../src/model/instrument.js";
-import { setEventField, setTrackLength } from "../src/model/mutations.js";
+import { setEventField, setTrackLength, setCellFxParam } from "../src/model/mutations.js";
 import { getSelectedPattern } from "../src/model/query.js";
 
 function makeInstruments() {
@@ -64,6 +64,26 @@ describe("compileEvent", () => {
     const compiled = compileEvent(event, song.trackChannels[0], makeInstruments());
     expect(compiled).not.toHaveProperty("time");
     expect(compiled).not.toHaveProperty("duration");
+  });
+
+  it("routes the compiled voice into the given bus (a track's insert-bus FX chain)", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 60);
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "instrument", 0);
+    const event = getSelectedPattern(song).tracks[0].events[0];
+    const compiled = compileEvent(event, song.trackChannels[0], makeInstruments(), undefined, undefined, 7);
+    expect(compiled.bus).toBe(7);
+  });
+
+  it("omits bus (falls back to AudioRuntime's MASTER_BUS default) when none is given", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 60);
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "instrument", 0);
+    const event = getSelectedPattern(song).tracks[0].events[0];
+    const compiled = compileEvent(event, song.trackChannels[0], makeInstruments());
+    expect(compiled).not.toHaveProperty("bus");
   });
 });
 
@@ -181,5 +201,69 @@ describe("compileRow", () => {
     // transport step 1 -> local row 1 (empty); transport step 4 -> wraps back to local row 0 (the note)
     expect(compileRow(pattern, song.trackChannels, instruments, 1, 0, 0.25)).toHaveLength(0);
     expect(compileRow(pattern, song.trackChannels, instruments, 4, 0, 0.25)).toHaveLength(1);
+  });
+
+  it("routes each track's compiled voice into its own trackBusIds entry", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 60);
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "instrument", 0);
+    setEventField(song, { patternId, trackIndex: 3, rowIndex: 0 }, "note", 48);
+    setEventField(song, { patternId, trackIndex: 3, rowIndex: 0 }, "instrument", 1);
+
+    const instruments = [createInstrumentSlot({ id: 0, sampleId: 1 }), createInstrumentSlot({ id: 1, sampleId: 2 })];
+    const pattern = getSelectedPattern(song);
+    const trackBusIds = [10, 11, 12, 13, 14, 15, 16, 17];
+
+    const events = compileRow(pattern, song.trackChannels, instruments, 0, 0, 0.25, trackBusIds);
+    expect(events.find((e) => e.sampleId === 1).bus).toBe(10);
+    expect(events.find((e) => e.sampleId === 2).bus).toBe(13);
+  });
+});
+
+describe("compileRowFx", () => {
+  it("returns a sparse change per track whose cell at this row has fx set", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setCellFxParam(song, { patternId, trackIndex: 0, rowIndex: 0 }, "filter.cutoff", 1200);
+    setCellFxParam(song, { patternId, trackIndex: 2, rowIndex: 0 }, "delay.mix", 0.25);
+    const pattern = getSelectedPattern(song);
+
+    const changes = compileRowFx(pattern, 0);
+
+    expect(changes).toEqual(
+      expect.arrayContaining([
+        { trackIndex: 0, paramId: "filter.cutoff", value: 1200 },
+        { trackIndex: 2, paramId: "delay.mix", value: 0.25 },
+      ]),
+    );
+    expect(changes).toHaveLength(2);
+  });
+
+  it("returns nothing for a row with no fx-automated cells", () => {
+    const song = createSong();
+    const pattern = getSelectedPattern(song);
+    expect(compileRowFx(pattern, 0)).toEqual([]);
+  });
+
+  it("isn't gated by mute/solo — fx automation latches in even on a muted track", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setCellFxParam(song, { patternId, trackIndex: 0, rowIndex: 0 }, "filter.cutoff", 1200);
+    song.trackChannels[0].muted = true;
+    const pattern = getSelectedPattern(song);
+
+    expect(compileRowFx(pattern, 0)).toEqual([{ trackIndex: 0, paramId: "filter.cutoff", value: 1200 }]);
+  });
+
+  it("folds the transport step through each track's own polymetric length, same as compileRow", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setTrackLength(song, patternId, 0, 4);
+    setCellFxParam(song, { patternId, trackIndex: 0, rowIndex: 3 }, "delay.mix", 0.5);
+    const pattern = getSelectedPattern(song);
+
+    // transport step 7 -> local row 3 (7 % 4) on a track of length 4
+    expect(compileRowFx(pattern, 7)).toEqual([{ trackIndex: 0, paramId: "delay.mix", value: 0.5 }]);
   });
 });

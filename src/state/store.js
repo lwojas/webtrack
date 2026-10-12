@@ -6,6 +6,9 @@ import {
   setTrackChannelMuted as setTrackChannelMutedModel,
   setTrackChannelSolo as setTrackChannelSoloModel,
   setTrackChannelVolume as setTrackChannelVolumeModel,
+  setTrackFxParam as setTrackFxParamModel,
+  setMasterFxParam as setMasterFxParamModel,
+  setCellFxParam as setCellFxParamModel,
   setPatternRowCount,
   setTrackLength as setTrackLengthModel,
   setSongName,
@@ -180,6 +183,34 @@ export function createStore({ song, instruments }) {
     emitter.emit(events.CELL_CHANGED, { trackIndex, rowIndex });
   }
 
+  // One entry in a cell's sparse FX automation map (model/event.js#fx; ui/chrome/NoteEditor.jsx
+  // is the editing surface) — value === null removes that entry. Reuses CELL_CHANGED, the same
+  // event every other per-cell write already emits, rather than a dedicated event (see
+  // setCell/clearCell above).
+  function setCellFx(trackIndex, rowIndex, paramId, value) {
+    const { selectedPatternId } = state.song;
+    setCellFxParamModel(state.song, { patternId: selectedPatternId, trackIndex, rowIndex }, paramId, value);
+    emitter.emit(events.CELL_CHANGED, { trackIndex, rowIndex });
+  }
+
+  // A track's FX panel/cell-automation baseline (model/trackChannel.js#fx) — called directly
+  // by the FX panel (ui/chrome/FxPanel.jsx) and by appContext.js's wiring of
+  // playbackController's onTrackFxChange callback, so model state stays in sync with whichever
+  // of the two actually changed it. Doesn't touch the audio engine itself — that's
+  // audio/fx.js#setTrackFxParam, called separately by whichever of those two call sites needs
+  // the real runtime.setNodeParameter() too (appContext.js's applyTrackFxParam bundles both
+  // for the FX panel's own direct use).
+  function setTrackFxParam(trackIndex, paramId, value) {
+    setTrackFxParamModel(state.song, trackIndex, paramId, value);
+    emitter.emit(events.TRACK_FX_CHANGED, { trackIndex, paramId });
+  }
+
+  // The master bus's own FX baseline (model/song.js#masterFx) — the FX panel's MASTER view.
+  function setMasterFxParam(paramId, value) {
+    setMasterFxParamModel(state.song, paramId, value);
+    emitter.emit(events.MASTER_FX_CHANGED, { paramId });
+  }
+
   function setProjectName(name) {
     setSongName(state.song, name);
     emitter.emit(events.PROJECT_NAME_CHANGED, { name });
@@ -309,6 +340,8 @@ export function createStore({ song, instruments }) {
     emitter.emit(events.TRANSPORT_CHANGED, { playing: false, bpm: state.song.bpm });
     emitter.emit(events.PROJECT_NAME_CHANGED, { name: state.song.name });
     emitter.emit(events.TRACK_CHANNEL_CHANGED, {});
+    emitter.emit(events.TRACK_FX_CHANGED, {});
+    emitter.emit(events.MASTER_FX_CHANGED, {});
     emitter.emit(events.INSTRUMENTS_CHANGED, {});
     emitter.emit(events.CURSOR_MOVED, state.cursor);
     emitter.emit(events.PATTERN_SWITCH_PENDING, { pending: false });
@@ -329,6 +362,9 @@ export function createStore({ song, instruments }) {
     setCell,
     clearCell,
     pasteCell,
+    setCellFx,
+    setTrackFxParam,
+    setMasterFxParam,
     setProjectName,
     moveCursor,
     selectCell,

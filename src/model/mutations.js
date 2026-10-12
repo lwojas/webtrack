@@ -45,6 +45,52 @@ export function setTrackChannelVolume(song, trackIndex, volume) {
   if (channel) channel.volume = volume;
 }
 
+// A track's insert-bus FX baseline (model/trackChannel.js#fx) — called by both the FX panel
+// (a user dragging a slider) and playback's cell-automation path (audio/compile.js's
+// compileRowFx, via appContext.js's wiring), so the model and whatever's actually sounding
+// never disagree about a track's current FX state. value === null removes the entry instead of
+// storing it, matching setCellFxParam's own null-means-unset convention below.
+export function setTrackFxParam(song, trackIndex, paramId, value) {
+  const channel = getTrackChannel(song, trackIndex);
+  if (!channel) return;
+  if (value === null || value === undefined) {
+    delete channel.fx[paramId];
+    return;
+  }
+  channel.fx[paramId] = value;
+}
+
+// The master bus's own FX baseline (model/song.js#masterFx) — the FX panel's MASTER view only;
+// never reachable from a tracker cell (see audio/compile.js#compileRowFx's doc comment).
+export function setMasterFxParam(song, paramId, value) {
+  if (value === null || value === undefined) {
+    delete song.masterFx[paramId];
+    return;
+  }
+  song.masterFx[paramId] = value;
+}
+
+// A cell's sparse FX automation map (model/event.js#fx). Unlike setEventField, this doesn't
+// replace a whole field — it adds/updates/removes one entry in the cell's fx map, leaving
+// every other key (and every other field) untouched. value === null removes paramId from the
+// cell entirely (collapsing back to `fx: null` once the map is empty) rather than storing a
+// literal null — a cell with no fx automation should look exactly like one that never had any,
+// not carry around empty-value entries that playback would then have to special-case.
+export function setCellFxParam(song, { patternId, trackIndex, rowIndex }, paramId, value) {
+  const event = getEvent(song, patternId, trackIndex, rowIndex);
+  if (!event) return;
+
+  if (value === null || value === undefined) {
+    if (!event.fx) return;
+    delete event.fx[paramId];
+    if (Object.keys(event.fx).length === 0) event.fx = null;
+    return;
+  }
+
+  if (!event.fx) event.fx = {};
+  event.fx[paramId] = value;
+}
+
 // The tracker edits whichever pattern this points at — only ever repointed to a patternId that
 // actually exists in song.patterns, so a stale/typo'd id can never leave the project with no
 // resolvable selected pattern.

@@ -149,6 +149,42 @@ describe("createLookaheadPlayer — one shared transport, independent per-track 
     player.stop();
   });
 
+  it("calls onTrackFxChange for every cell-fx entry compileRowFx reports at the row being scheduled", () => {
+    const runtime = createFakeRuntime();
+    const pattern = makePattern({ rowCount: 16, trackLengths: [4, 4] });
+    const compileRowFx = vi.fn((_pattern, transportStep) =>
+      transportStep === 0 ? [{ trackIndex: 0, paramId: "filter.cutoff", value: 1200 }] : [],
+    );
+    const changes = [];
+    const onTrackFxChange = vi.fn((trackIndex, paramId, value) => changes.push({ trackIndex, paramId, value }));
+    const player = createLookaheadPlayer({
+      runtime,
+      compileRow: () => [],
+      compileRowFx,
+      getStepDurationSeconds: () => 1,
+      onTrackFxChange,
+    });
+
+    player.start({ initialPattern: pattern, initialTrackChannels: [], initialInstruments: [], startAt: 0 });
+
+    expect(changes).toEqual([{ trackIndex: 0, paramId: "filter.cutoff", value: 1200 }]);
+
+    player.stop();
+  });
+
+  it("never calls compileRowFx when no onTrackFxChange callback was given", () => {
+    const runtime = createFakeRuntime();
+    const pattern = makePattern({ rowCount: 16, trackLengths: [4, 4] });
+    const compileRowFx = vi.fn(() => []);
+    const player = createLookaheadPlayer({ runtime, compileRow: () => [], compileRowFx, getStepDurationSeconds: () => 1 });
+
+    player.start({ initialPattern: pattern, initialTrackChannels: [], initialInstruments: [], startAt: 0 });
+
+    expect(compileRowFx).not.toHaveBeenCalled();
+
+    player.stop();
+  });
+
   it("getTrackPlayheadRow is -1 for an unknown track index or while stopped", () => {
     const runtime = createFakeRuntime();
     const player = createLookaheadPlayer({ runtime, compileRow: () => [], getStepDurationSeconds: () => 1 });

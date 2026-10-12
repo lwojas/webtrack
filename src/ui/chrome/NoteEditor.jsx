@@ -2,6 +2,7 @@ import { useStore } from "../../state/useStore.js";
 import * as events from "../../state/events.js";
 import { getSelectedPattern } from "../../model/query.js";
 import { EFFECT_COMMANDS } from "../../model/effects.js";
+import { FX_PARAMS, getFxParam, formatFxValue } from "../../model/fxParams.js";
 import { formatBarBeat } from "../../model/timing.js";
 import { noteNumberToName, parseNoteName, toHex } from "../../model/notes.js";
 
@@ -26,7 +27,16 @@ export default function NoteEditor({ store }) {
     const pattern = getSelectedPattern(s.song);
     const selected = pattern?.tracks[trackIndex]?.events[rowIndex];
     if (!selected) return "";
-    return [selected.note, selected.instrument, selected.velocity, selected.pan, selected.effectCommand, selected.effectParam, selected.length].join("|");
+    return [
+      selected.note,
+      selected.instrument,
+      selected.velocity,
+      selected.pan,
+      selected.effectCommand,
+      selected.effectParam,
+      selected.length,
+      JSON.stringify(selected.fx),
+    ].join("|");
   });
 
   const state = store.getState();
@@ -80,6 +90,26 @@ export default function NoteEditor({ store }) {
   function handleEffectParamChange(text) {
     const value = Math.max(0, Math.min(255, Number.parseInt(text, 16) || 0));
     setField("effectParam", value);
+  }
+
+  // Cell FX automation (model/event.js#fx) — a sparse subset of FX_PARAMS, shared with
+  // ui/chrome/FxPanel.jsx so a given parameter edits with the exact same range/step/formatting
+  // wherever it shows up, not two independently-maintained descriptions of "delay.mix".
+  const cellFxEntries = event.fx ? Object.entries(event.fx) : [];
+  const availableFxParams = FX_PARAMS.filter((param) => !cellFxEntries.some(([id]) => id === param.id));
+
+  function handleCellFxChange(paramId, value) {
+    store.setCellFx(cursor.trackIndex, cursor.rowIndex, paramId, value);
+  }
+
+  function handleCellFxRemove(paramId) {
+    store.setCellFx(cursor.trackIndex, cursor.rowIndex, paramId, null);
+  }
+
+  function handleAddCellFx(paramId) {
+    if (!paramId) return;
+    const param = getFxParam(paramId);
+    store.setCellFx(cursor.trackIndex, cursor.rowIndex, paramId, param?.default ?? 0);
   }
 
   return (
@@ -168,6 +198,44 @@ export default function NoteEditor({ store }) {
           onChange={(e) => handleEffectParamChange(e.target.value)}
         />
       </label>
+
+      <div className="note-editor__section">CELL FX</div>
+
+      {cellFxEntries.map(([paramId, value]) => {
+        const param = getFxParam(paramId);
+        if (!param) return null;
+        return (
+          <label className="note-editor__field note-editor__field--fx" key={paramId}>
+            {param.label}
+            <input
+              type="range"
+              min={param.min}
+              max={param.max}
+              step={param.step}
+              value={value}
+              onChange={(e) => handleCellFxChange(paramId, Number(e.target.value))}
+            />
+            <span className="note-editor__fx-value">{formatFxValue(value, param)}</span>
+            <button type="button" className="note-editor__fx-remove" onClick={() => handleCellFxRemove(paramId)} title="Remove">
+              ×
+            </button>
+          </label>
+        );
+      })}
+
+      {availableFxParams.length > 0 && (
+        <label className="note-editor__field">
+          + ADD FX
+          <select value="" onChange={(e) => handleAddCellFx(e.target.value)}>
+            <option value="">(select)</option>
+            {availableFxParams.map((param) => (
+              <option key={param.id} value={param.id}>
+                {param.group} — {param.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
     </div>
   );
 }

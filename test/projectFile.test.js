@@ -72,6 +72,18 @@ describe("serializeProject / deserializeProject", () => {
     expect(restored.song.patterns[0].tracks[1].length).toBe(64); // untouched track, already had it
   });
 
+  it("defaults trackChannel.fx / song.masterFx on a project saved before the FX feature existed", async () => {
+    const song = createSong();
+    delete song.trackChannels[0].fx; // simulate a v2 file saved before trackChannel.fx existed
+    delete song.masterFx; // simulate a v2 file saved before song.masterFx existed
+    const serialized = serializeProject({ song, instruments: [], ui: {} });
+
+    const restored = await deserializeProject(serialized, { loadSampleBytes: async () => null });
+
+    expect(restored.song.trackChannels[0].fx).toEqual({});
+    expect(restored.song.masterFx).toEqual({});
+  });
+
   it("rejects an unsupported format version", async () => {
     await expect(deserializeProject({ formatVersion: 999, instruments: [] }, { loadSampleBytes: async () => null })).rejects.toThrow();
   });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createSong } from "../src/model/song.js";
 import { trackLocalStep } from "../src/model/pattern.js";
-import { isEmptyEvent } from "../src/model/event.js";
+import { isEmptyEvent, cloneEvent } from "../src/model/event.js";
 import { getEvent, getSelectedPattern, getPattern, isAnyTrackSoloed, getPatternQueueEntries } from "../src/model/query.js";
 import {
   setEventField,
@@ -9,6 +9,9 @@ import {
   setTrackChannelMuted,
   setTrackChannelSolo,
   setTrackChannelVolume,
+  setTrackFxParam,
+  setMasterFxParam,
+  setCellFxParam,
   selectPattern,
   setPatternRowCount,
   setTrackLength,
@@ -78,6 +81,78 @@ describe("mutations", () => {
     const song = createSong();
     selectPattern(song, 999); // out of range — only one pattern exists by default
     expect(song.selectedPatternId).toBe(song.patterns[0].id);
+  });
+});
+
+describe("FX mutations", () => {
+  it("setTrackFxParam sets one entry on the track's own fx bag, leaving every other track untouched", () => {
+    const song = createSong();
+    setTrackFxParam(song, 0, "filter.cutoff", 1200);
+    expect(song.trackChannels[0].fx).toEqual({ "filter.cutoff": 1200 });
+  });
+
+  it("setTrackFxParam with value null removes the entry", () => {
+    const song = createSong();
+    setTrackFxParam(song, 0, "filter.cutoff", 1200);
+    setTrackFxParam(song, 0, "filter.cutoff", null);
+    expect(song.trackChannels[0].fx).toEqual({});
+  });
+
+  it("setMasterFxParam sets an entry on song.masterFx, never on any trackChannel", () => {
+    const song = createSong();
+    setMasterFxParam(song, "reverb.mix", 0.4);
+    expect(song.masterFx).toEqual({ "reverb.mix": 0.4 });
+    expect(song.trackChannels.every((c) => Object.keys(c.fx).length === 0)).toBe(true);
+  });
+
+  it("setCellFxParam adds a sparse entry to the cell's fx map without touching other fields", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 60);
+
+    setCellFxParam(song, { patternId, trackIndex: 0, rowIndex: 0 }, "delay.mix", 0.25);
+
+    const event = getEvent(song, patternId, 0, 0);
+    expect(event.note).toBe(60);
+    expect(event.fx).toEqual({ "delay.mix": 0.25 });
+  });
+
+  it("setCellFxParam with value null removes just that key, collapsing back to fx: null once empty", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setCellFxParam(song, { patternId, trackIndex: 0, rowIndex: 0 }, "delay.mix", 0.25);
+    setCellFxParam(song, { patternId, trackIndex: 0, rowIndex: 0 }, "filter.cutoff", 1200);
+
+    setCellFxParam(song, { patternId, trackIndex: 0, rowIndex: 0 }, "delay.mix", null);
+    expect(getEvent(song, patternId, 0, 0).fx).toEqual({ "filter.cutoff": 1200 });
+
+    setCellFxParam(song, { patternId, trackIndex: 0, rowIndex: 0 }, "filter.cutoff", null);
+    expect(getEvent(song, patternId, 0, 0).fx).toBe(null);
+  });
+
+  it("a cell with no fx entries is still an empty cell (isEmptyEvent)", () => {
+    const song = createSong();
+    const event = getEvent(song, song.patterns[0].id, 0, 0);
+    expect(isEmptyEvent(event)).toBe(true);
+  });
+
+  it("a cell with an fx entry set is not an empty cell", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setCellFxParam(song, { patternId, trackIndex: 0, rowIndex: 0 }, "delay.mix", 0.25);
+    expect(isEmptyEvent(getEvent(song, patternId, 0, 0))).toBe(false);
+  });
+
+  it("cloneEvent copies the fx map independently — editing one's fx never leaks into the other", () => {
+    const original = { note: 60, fx: { "delay.mix": 0.25 } };
+    const clone = cloneEvent(original);
+    clone.fx["delay.mix"] = 0.9;
+    expect(original.fx["delay.mix"]).toBe(0.25);
+  });
+
+  it("cloneEvent keeps fx: null as null, not an empty object", () => {
+    const clone = cloneEvent({ note: 60, fx: null });
+    expect(clone.fx).toBe(null);
   });
 });
 

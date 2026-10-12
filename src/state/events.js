@@ -18,3 +18,10 @@ export const PATTERN_LENGTH_CHANGED = "PATTERN_LENGTH_CHANGED";
 // whole pattern's shared grid/rowCount.
 export const TRACK_LENGTH_CHANGED = "TRACK_LENGTH_CHANGED";
 export const PROJECT_NAME_CHANGED = "PROJECT_NAME_CHANGED";
+// A track's insert-bus FX baseline changed (model/trackChannel.js#fx) — fired by both the FX
+// panel (a slider drag) and playback's cell-automation path (see appContext.js's wiring of
+// playbackController's onTrackFxChange).
+export const TRACK_FX_CHANGED = "TRACK_FX_CHANGED";
+// The master bus's own FX baseline changed (model/song.js#masterFx) — the FX panel's MASTER
+// view only.
+export const MASTER_FX_CHANGED = "MASTER_FX_CHANGED";

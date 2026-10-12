@@ -270,6 +270,18 @@ itself ever importing anything MIDI-specific. See
 [`docs/EXTENDING.md`](EXTENDING.md#adding-to-the-external-control-contract) for how to add to
 it, and [Gotcha #5](#5-the-control-contract-is-deliberately-small) for why it's this small.
 
+## FX: track/master buses and cell automation
+
+Every track gets its own insert FX chain (filter/delay/reverb/compressor/saturation/chorus-
+flanger) plus a master-bus chain, via `webdsp`'s existing bus architecture (`MASTER_BUS`,
+`AudioRuntime.createBus()`, `setNodeParameter`) — no engine change needed, it was simply never
+wired into webtracker before (see the "Explicitly out of scope" entry this replaced). A tracker
+cell can hold sparse FX automation (`Event.fx`) that latches onto its own track's bus during
+playback, never the master bus. See [`docs/FX.md`](FX.md) for the full design: the parameter
+catalog (`model/fxParams.js`), the `webdsp`-bridging module (`audio/fx.js`), the
+`trackChannel.fx`/`song.masterFx`/`Event.fx` data model, playback semantics, the FX panel, and
+a known timing caveat (`setNodeParameter` has no timestamp, unlike `schedule()`).
+
 ## Gotchas
 
 These are things that either actually broke during development, or will reliably confuse
@@ -399,16 +411,22 @@ Left out of this MVP on purpose, with the seam each one would extend noted:
 
 - **MIDI I/O** — `input/noteInputSource.js`'s contract and `Event.note`'s numeric
   representation are both already MIDI-shaped; no `midiInputSource.js` exists.
-- **A real effects/automation engine** — the data model and registry exist; nothing is wired
-  to `webdsp`'s DSP parameters.
 - **A Canvas renderer** — `gridView.js` exposes a narrow interface
   (`mount()`/`patchCell()`/node-count probe) a future canvas-based implementation of the same
   interface could satisfy without touching `model/`, `audio/`, or anything else.
-- **Per-track `webdsp` FX buses** (`createBus`/`NodeParam`) — mute/solo/volume exist as
-  compile-time gain/gating, not real engine buses.
 - **Per-track polymetric playback length/independent playheads** — implemented; see §8 above
   (`model/pattern.js#trackLocalStep`, `model/mutations.js#setTrackLength`,
   `ui/chrome/Mixer.jsx`'s LEN control).
+- **Send/aux buses, a routing matrix** — there are only insert FX (one bus per track) and
+  master FX (`MASTER_BUS`) — see "FX: track/master buses and cell automation" below. Nothing
+  in that model hard-codes "exactly one bus per track" in a way that would block adding sends
+  later; it just isn't built.
+- **Tracker FX columns and Push/MIDI parameter mappings consuming `model/fxParams.js`** — the
+  single parameter-definition registry exists and the FX panel/cell editor already consume it,
+  but nothing beyond those two UIs reads it yet (no grid column, no `control/contract.js`
+  entries). Mute/solo/volume remain compile-time gain/gating (`audio/compile.js#compileRow`),
+  not real buses — only FX (filter/delay/reverb/compressor/saturation/chorus-flanger) routes
+  through the new per-track buses.
 - **Undo/redo, block selection, copy/paste, velocity curves/automation, sample waveform
   trimming.**
 

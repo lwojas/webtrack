@@ -594,6 +594,133 @@ textarea {
   color: var(--surface);
 }
 
+/* --- lower panel: Mixer and FxPanel share this one slot (ui/chrome/MixerFxPanel.jsx) --- */
+
+.lower-panel {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+/* Reuses .app__tabs/.app__tab's own look (the top-level Tracker/Patterns switch) so this reads
+   as the same kind of control, just a size down — see DESIGN.md's "Tabular Alignment". */
+.lower-panel__tabs .app__tab {
+  padding: var(--space-xs) var(--space-md);
+  font-size: var(--text-micro);
+}
+
+/* --- FX panel: operates on either the selected track's insert bus or MASTER_BUS
+   (ui/chrome/FxPanel.jsx) — one module card per DSP node, grouped the same way
+   model/fxParams.js's FX_PARAMS groups them. --- */
+
+.fx-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-sm);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  max-height: 220px;
+}
+
+.fx-panel__header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.fx-panel__target {
+  display: flex;
+  gap: 1px;
+}
+
+.fx-panel__target-btn {
+  padding: var(--space-xs) var(--space-md);
+  background: var(--surface-1);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font-size: var(--text-micro);
+  letter-spacing: 0.04em;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.fx-panel__target-btn:hover {
+  background: var(--surface-3);
+  color: var(--cyan);
+}
+
+.fx-panel__target-btn--active {
+  background: var(--cyan);
+  color: var(--surface);
+  border-color: var(--cyan);
+}
+
+.fx-panel__label {
+  color: var(--cyan);
+  font-size: var(--text-label);
+  letter-spacing: 0.02em;
+}
+
+.fx-panel__modules {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  gap: var(--space-sm);
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.fx-module {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  width: 180px;
+  padding: var(--space-sm) var(--space-xs);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+}
+
+.fx-module__header {
+  color: var(--text-dim);
+  font-size: var(--text-micro);
+  letter-spacing: 0.04em;
+  margin-bottom: var(--space-xs);
+  padding-bottom: var(--space-xs);
+  border-bottom: 1px solid var(--border);
+}
+
+.fx-module__field {
+  display: grid;
+  grid-template-columns: 8ch 1fr 5ch;
+  align-items: center;
+  gap: var(--space-xs);
+  color: var(--text-dim);
+  font-size: var(--text-micro);
+}
+
+.fx-module__field-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fx-module__field input[type="range"] {
+  width: 100%;
+  min-width: 0;
+}
+
+.fx-module__value {
+  color: var(--text);
+  text-align: right;
+  font-size: var(--text-micro);
+}
+
 /* --- side column: instrument panel + note editor --- */
 
 .instrument-panel {
@@ -740,6 +867,53 @@ textarea {
 
 .note-editor__field input[type="range"] {
   width: 7ch;
+}
+
+.note-editor__section {
+  color: var(--text-dim);
+  font-size: var(--text-micro);
+  letter-spacing: 0.04em;
+  margin-top: var(--space-sm);
+  padding-top: var(--space-sm);
+  padding-bottom: var(--space-xs);
+  border-top: 1px solid var(--border);
+}
+
+/* One row per sparse Event.fx entry (ui/chrome/NoteEditor.jsx) — needs its own slider + value
+   readout + remove button, wider than .note-editor__field's default two-column layout. */
+.note-editor__field--fx {
+  gap: var(--space-xs);
+}
+
+.note-editor__field--fx input[type="range"] {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+}
+
+.note-editor__fx-value {
+  color: var(--text);
+  font-size: var(--text-micro);
+  width: 4ch;
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.note-editor__fx-remove {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  line-height: 1;
+  background: var(--surface-1);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.note-editor__fx-remove:hover {
+  color: var(--crimson);
+  border-color: var(--crimson);
 }
 
 /* --- pattern manager: deliberately simple pool + queue view (see

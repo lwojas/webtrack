@@ -1,6 +1,7 @@
-import { initRuntime } from "./runtime.js";
+import { initRuntime, ensureTrackBuses } from "./runtime.js";
 import { createLookaheadPlayer } from "./lookaheadPlayer.js";
-import { compileRow } from "./compile.js";
+import { compileRow, compileRowFx } from "./compile.js";
+import { setTrackFxParam } from "./fx.js";
 import { STEPS_PER_BEAT } from "../model/timing.js";
 import { getPatternQueueEntries } from "../model/query.js";
 
@@ -17,6 +18,12 @@ export function createPlaybackController({
   getBpm,
   onTransportChange,
   onPatternSwitchPending,
+  // Called whenever a cell's FX automation latches in during playback (audio/compile.js's
+  // compileRowFx, via lookaheadPlayer.js's tick()) — appContext.js wires this to the store
+  // mutation that keeps trackChannel.fx (and the FX panel, if it's open on that track) in sync
+  // with whatever's actually sounding. The real engine call (runtime.setNodeParameter) happens
+  // unconditionally below, whether or not a caller even supplies this.
+  onTrackFxChange,
 }) {
   let player = null;
 
@@ -47,13 +54,25 @@ export function createPlaybackController({
 
   async function play() {
     const runtime = await initRuntime();
+    // Allocated once, up front — every tick needs trackBusIds synchronously (to route note
+    // voices into the right bus, audio/compile.js#compileRow), so it can't be resolved lazily
+    // per-call the way audio/fx.js's own setTrackFxParam resolves it for a one-off FX panel
+    // tweak. Both end up sharing the exact same array either way (audio/runtime.js's own
+    // module-level cache), so a track's bus id is never allocated twice.
+    const trackBusIds = await ensureTrackBuses(getSong().trackCount);
     if (!player) {
       player = createLookaheadPlayer({
         runtime,
         compileRow,
+        compileRowFx,
+        trackBusIds,
         getStepDurationSeconds,
         onPatternSwitched: () => onPatternSwitchPending?.(false),
         getNextQueueEntry: (currentIndex) => resolveQueueEntry(currentIndex + 1),
+        onTrackFxChange: (trackIndex, paramId, value) => {
+          setTrackFxParam(trackIndex, paramId, value);
+          onTrackFxChange?.(trackIndex, paramId, value);
+        },
       });
     }
     const { pattern, queueIndex } = initialQueueEntry();

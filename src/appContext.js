@@ -7,6 +7,7 @@
 import { createStore } from "./state/store.js";
 import { createPlaybackController } from "./audio/playbackController.js";
 import { initRuntime } from "./audio/runtime.js";
+import { setTrackFxParam, setMasterFxParam } from "./audio/fx.js";
 import { loadSample } from "./audio/instrumentLoader.js";
 import { createDemoSong, createDemoInstruments } from "./demo/demoSong.js";
 import { getSelectedPattern } from "./model/query.js";
@@ -24,6 +25,22 @@ export function createAppContext() {
   const store = createStore({ song, instruments });
   const renderStats = createRenderStats();
 
+  // Keeps the model (trackChannel.fx/song.masterFx, so the FX panel reflects it live) in sync
+  // with whichever of its two callers actually changed a parameter: the FX panel's own sliders
+  // call these directly; playbackController's onTrackFxChange (cell automation during
+  // playback) calls the track variant via the same wiring TRACK_CHANGED/pattern-selection
+  // already uses below. Either way, the real engine call (audio/fx.js) and the model update
+  // happen together, never one without the other.
+  function applyTrackFxParam(trackIndex, paramId, value) {
+    store.setTrackFxParam(trackIndex, paramId, value);
+    setTrackFxParam(trackIndex, paramId, value);
+  }
+
+  function applyMasterFxParam(paramId, value) {
+    store.setMasterFxParam(paramId, value);
+    setMasterFxParam(paramId, value);
+  }
+
   const playbackController = createPlaybackController({
     getSong: () => store.getState().song,
     getTrackChannels: () => store.getState().song.trackChannels,
@@ -31,6 +48,10 @@ export function createAppContext() {
     getBpm: () => store.getState().song.bpm,
     onTransportChange: ({ playing }) => store.setTransport(playing),
     onPatternSwitchPending: (pending) => store.setPatternSwitchPending(pending),
+    // Cell FX automation already calls audio/fx.js's setTrackFxParam itself (see
+    // playbackController.js) for the real engine call — this callback only needs to keep the
+    // model in sync, not repeat that call.
+    onTrackFxChange: (trackIndex, paramId, value) => store.setTrackFxParam(trackIndex, paramId, value),
   });
 
   // Selecting a pattern always repaints the grid (the edit view) immediately — see
@@ -114,6 +135,15 @@ export function createAppContext() {
   // integration — the mistake that let webseq's equivalent grow unspecified (§9).
   const controlRegistry = createControlRegistry({ store, playbackController });
 
+  // The FX panel's one entry point for actually changing a parameter (ui/chrome/FxPanel.jsx) —
+  // bundles the model update and the real engine call the same way applyTrackFxParam/
+  // applyMasterFxParam already do for cell automation above, so the panel never has to touch
+  // audio/fx.js or state/store.js's two FX methods separately.
+  const fxController = {
+    setTrackFxParam: applyTrackFxParam,
+    setMasterFxParam: applyMasterFxParam,
+  };
+
   return {
     store,
     playbackController,
@@ -122,6 +152,7 @@ export function createAppContext() {
     ensureDemoInstrumentsLoaded,
     renderStats,
     controlRegistry,
+    fxController,
     saveProject,
     loadProjectFromFile,
   };

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import TrackerGridHost from "./ui/grid/TrackerGridHost.jsx";
 import TransportBar from "./ui/chrome/TransportBar.jsx";
-import Mixer from "./ui/chrome/Mixer.jsx";
+import MixerFxPanel from "./ui/chrome/MixerFxPanel.jsx";
 import InstrumentPanel from "./ui/chrome/InstrumentPanel.jsx";
 import NoteEditor from "./ui/chrome/NoteEditor.jsx";
 import PatternManager from "./ui/chrome/PatternManager.jsx";
@@ -23,6 +23,7 @@ export default function App() {
     editController,
     ensureDemoInstrumentsLoaded,
     renderStats,
+    fxController,
     saveProject,
     loadProjectFromFile,
   } = useMemo(() => createAppContext(), []);
@@ -89,7 +90,7 @@ export default function App() {
         <div className="app__body">
           <div className="app__tracker">
             <TrackerGridHost store={store} playbackController={playbackController} renderStats={renderStats} />
-            <Mixer store={store} />
+            <MixerFxPanel store={store} fxController={fxController} />
           </div>
           <div className="app__side">
             <InstrumentPanel store={store} />
