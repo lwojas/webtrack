@@ -6,7 +6,14 @@ import { isEmptyEvent } from "../../model/event.js";
 // every cell's DOM refs in a 2D array. patchCell() is the single write path for all cell
 // content — a pattern switch repaints via repaintPattern() calling patchCell() for every
 // cell, never a rebuild, so there's zero node allocation/garbage after mount().
-export function createGridView({ trackCount, rowCount, onCellPatched, onCellClick, onLengthChange } = {}) {
+export function createGridView({
+  trackCount,
+  rowCount,
+  onCellPatched,
+  onCellMouseDown,
+  onCellMouseEnter,
+  onLengthChange,
+} = {}) {
   let container = null;
   let cellRefs = null; // cellRefs[trackIndex][rowIndex] = { cellEl, noteEl, insEl, volEl, fxEl }
   let rowEls = null; // rowEls[rowIndex]
@@ -110,16 +117,26 @@ export function createGridView({ trackCount, rowCount, onCellPatched, onCellClic
 
   // Event delegation: one listener for the whole grid rather than one per cell/field, in
   // keeping with this project's minimal-DOM/minimal-listener approach (see
-  // docs/ARCHITECTURE.md's rendering-architecture section).
-  function handleClick(e) {
-    if (!onCellClick) return;
+  // docs/ARCHITECTURE.md's rendering-architecture section). mousedown (not click) starts both
+  // an ordinary single-cell selection and a drag-select — TrackerGridHost.jsx owns the "is a
+  // drag in progress" flag and decides what mouseover does with it; this module only reports
+  // raw cell coordinates, same separation as onCellPatched/onLengthChange below.
+  function handleMouseDown(e) {
+    if (!onCellMouseDown) return;
     const cellEl = e.target.closest(".tracker-cell");
     if (!cellEl) return;
     const trackIndex = Number(cellEl.dataset.track);
     const rowIndex = Number(cellEl.dataset.row);
     const fieldEl = e.target.closest("[data-field]");
     const field = fieldEl ? fieldEl.dataset.field : "note";
-    onCellClick(trackIndex, rowIndex, field);
+    onCellMouseDown(trackIndex, rowIndex, field, e.shiftKey);
+  }
+
+  function handleMouseOver(e) {
+    if (!onCellMouseEnter) return;
+    const cellEl = e.target.closest(".tracker-cell");
+    if (!cellEl) return;
+    onCellMouseEnter(Number(cellEl.dataset.track), Number(cellEl.dataset.row));
   }
 
   function mount(targetEl) {
@@ -144,7 +161,8 @@ export function createGridView({ trackCount, rowCount, onCellPatched, onCellClic
       container.appendChild(rowEl);
     }
 
-    container.addEventListener("click", handleClick);
+    container.addEventListener("mousedown", handleMouseDown);
+    container.addEventListener("mouseover", handleMouseOver);
     targetEl.appendChild(container);
 
     // Each header cell's width is measured off the real rendered data column (same "measure
@@ -159,7 +177,8 @@ export function createGridView({ trackCount, rowCount, onCellPatched, onCellClic
   }
 
   function unmount() {
-    container?.removeEventListener("click", handleClick);
+    container?.removeEventListener("mousedown", handleMouseDown);
+    container?.removeEventListener("mouseover", handleMouseOver);
     headerRowEl?.removeEventListener("input", handleHeaderInput);
     container?.remove();
     container = null;

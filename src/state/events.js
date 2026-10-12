@@ -25,3 +25,8 @@ export const TRACK_FX_CHANGED = "TRACK_FX_CHANGED";
 // The master bus's own FX baseline changed (model/song.js#masterFx) — the FX panel's MASTER
 // view only.
 export const MASTER_FX_CHANGED = "MASTER_FX_CHANGED";
+// The clipboard (state.clipboard — a copied selection block, src/model/selectionOps.js) was
+// set. Selection *rect* changes (mouse drag, shift+click, shift+arrow) keep reusing
+// CURSOR_MOVED rather than a dedicated event, since the rect is derived from cursor + anchor,
+// not stored separately — this one exists because copying doesn't move the cursor at all.
+export const CLIPBOARD_CHANGED = "CLIPBOARD_CHANGED";

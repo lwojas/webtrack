@@ -4,6 +4,7 @@ import TransportBar from "./ui/chrome/TransportBar.jsx";
 import MixerFxPanel from "./ui/chrome/MixerFxPanel.jsx";
 import InstrumentPanel from "./ui/chrome/InstrumentPanel.jsx";
 import NoteEditor from "./ui/chrome/NoteEditor.jsx";
+import SelectionToolbar from "./ui/chrome/SelectionToolbar.jsx";
 import PatternManager from "./ui/chrome/PatternManager.jsx";
 import PerfPanel from "./ui/debug/PerfPanel.jsx";
 import { createAppContext } from "./appContext.js";
@@ -95,6 +96,7 @@ export default function App() {
           <div className="app__side">
             <InstrumentPanel store={store} />
             <NoteEditor store={store} />
+            <SelectionToolbar store={store} />
           </div>
         </div>
       ) : (

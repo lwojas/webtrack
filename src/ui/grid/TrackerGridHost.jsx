@@ -28,6 +28,14 @@ export default function TrackerGridHost({ store, playbackController, renderStats
     let mountedTrackCount = null;
     let mountedRowCount = null;
     let activeFieldEl = null;
+    // Mouse drag-select state: set on mousedown over a cell, cleared on mouseup anywhere (the
+    // button can be released outside the grid entirely) — gridView.js only reports raw hover,
+    // this effect decides whether a hover during one actually extends the selection.
+    let isDragging = false;
+    // Cells currently carrying the selection highlight class, so each CURSOR_MOVED only
+    // toggles the cells whose selected-state actually changed instead of rescanning/repainting
+    // the whole grid (same "patch, don't rebuild" approach as gridView.js#patchCell).
+    let highlightedCells = [];
 
     function repaintActivePattern() {
       const state = store.getState();
@@ -52,6 +60,30 @@ export default function TrackerGridHost({ store, playbackController, renderStats
       gridView.patchCell(trackIndex, rowIndex, pattern.tracks[trackIndex].events[rowIndex]);
     }
 
+    // Highlights every cell inside the current selection rect (state/store.js#getSelectionRect)
+    // with .tracker-cell--selected, diffed against whatever was highlighted last time rather
+    // than cleared-and-reapplied wholesale, so a selection that's just 1 cell (the overwhelming
+    // common case — no shift-extension in play) touches exactly one element's classList, not
+    // every cell in the grid.
+    function updateSelectionHighlight() {
+      const rect = store.getSelectionRect();
+      const nextCells = [];
+      for (let t = rect.trackStart; t <= rect.trackEnd; t++) {
+        for (let r = rect.rowStart; r <= rect.rowEnd; r++) {
+          nextCells.push({ t, r, el: gridView.getCellElement(t, r) });
+        }
+      }
+      const nextKeys = new Set(nextCells.map(({ t, r }) => `${t}.${r}`));
+      highlightedCells.forEach(({ t, r, el }) => {
+        if (!nextKeys.has(`${t}.${r}`)) el?.classList.remove("tracker-cell--selected");
+      });
+      const prevKeys = new Set(highlightedCells.map(({ t, r }) => `${t}.${r}`));
+      nextCells.forEach(({ t, r, el }) => {
+        if (!prevKeys.has(`${t}.${r}`)) el?.classList.add("tracker-cell--selected");
+      });
+      highlightedCells = nextCells;
+    }
+
     function updateCursor() {
       const { trackIndex, rowIndex, field } = store.getState().cursor;
       cursorLayer.setPosition(gridView.getCellElement(trackIndex, rowIndex));
@@ -59,10 +91,26 @@ export default function TrackerGridHost({ store, playbackController, renderStats
       activeFieldEl?.classList.remove("tracker-field--active");
       activeFieldEl = gridView.getFieldElement(trackIndex, rowIndex, field);
       activeFieldEl?.classList.add("tracker-field--active");
+
+      updateSelectionHighlight();
     }
 
-    function handleCellClick(trackIndex, rowIndex, field) {
-      store.selectCell(trackIndex, rowIndex, field);
+    // mousedown starts (or restarts) a selection and begins a drag; mouseover while dragging
+    // extends it to whatever cell the pointer is currently over (store.js#extendSelectionTo).
+    // The drag ends on mouseup anywhere in the window, not just over the grid — the button can
+    // be released after the pointer's left the grid entirely.
+    function handleCellMouseDown(trackIndex, rowIndex, field, shiftKey) {
+      isDragging = true;
+      store.selectCell(trackIndex, rowIndex, field, { extend: shiftKey });
+    }
+
+    function handleCellMouseEnter(trackIndex, rowIndex) {
+      if (!isDragging) return;
+      store.extendSelectionTo(trackIndex, rowIndex);
+    }
+
+    function handleWindowMouseUp() {
+      isDragging = false;
     }
 
     function teardownGrid() {
@@ -71,6 +119,7 @@ export default function TrackerGridHost({ store, playbackController, renderStats
       playheadLayer?.unmount();
       gridView?.unmount();
       activeFieldEl = null;
+      highlightedCells = [];
     }
 
     function buildGrid() {
@@ -84,7 +133,8 @@ export default function TrackerGridHost({ store, playbackController, renderStats
         trackCount,
         rowCount: pattern.rowCount,
         onCellPatched: renderStats?.recordCellPatch,
-        onCellClick: handleCellClick,
+        onCellMouseDown: handleCellMouseDown,
+        onCellMouseEnter: handleCellMouseEnter,
         onLengthChange: handleLengthChange,
       });
       gridView.mount(containerRef.current);
@@ -121,6 +171,7 @@ export default function TrackerGridHost({ store, playbackController, renderStats
     }
 
     buildGrid();
+    window.addEventListener("mouseup", handleWindowMouseUp);
 
     const unsubscribers = [
       store.subscribe(events.CELL_CHANGED, patchOneCell),
@@ -131,6 +182,7 @@ export default function TrackerGridHost({ store, playbackController, renderStats
     ];
 
     return () => {
+      window.removeEventListener("mouseup", handleWindowMouseUp);
       unsubscribers.forEach((unsubscribe) => unsubscribe());
       teardownGrid();
     };

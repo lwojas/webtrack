@@ -179,6 +179,9 @@ textarea {
 
 .tracker-grid {
   position: relative;
+  /* Dragging to select spans several cells' text nodes — without this, the browser's own
+     native text selection fights visually with .tracker-cell--selected's highlight below. */
+  user-select: none;
 }
 
 .tracker-row {
@@ -296,6 +299,18 @@ textarea {
 .tracker-cell__fx {
   width: 3ch;
   color: var(--amber);
+}
+
+/* The selection toolbar's target range (ui/chrome/SelectionToolbar.jsx; applied/diffed by
+   ui/grid/TrackerGridHost.jsx#updateSelectionHighlight) — a flat tint so it reads clearly
+   under .tracker-cell--empty's own background without fighting .tracker-cursor's outline on
+   whichever cell is also the focus corner. */
+.tracker-cell--selected {
+  background: rgba(0, 240, 255, 0.12);
+}
+
+.tracker-cell--selected:hover {
+  background: rgba(0, 240, 255, 0.18);
 }
 
 /* Mouse/keyboard field-level selection — see ui/grid/TrackerGridHost.jsx's updateCursor().
@@ -670,6 +685,10 @@ textarea {
   flex: 1;
   min-height: 0;
   display: flex;
+  /* Without this, flex's default (stretch) forces every module to the row's full height —
+     a 3-param module (Delay) ends up as tall as a 6-param one (Compressor) with dead space
+     below its last slider. Each card should only be as tall as its own params. */
+  align-items: flex-start;
   gap: var(--space-sm);
   overflow-x: auto;
   overflow-y: hidden;
@@ -680,7 +699,12 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
-  width: 180px;
+  /* Sized for .fx-module__field's own column widths below (9ch label + 7ch value + gaps),
+     not a round number — the catalog's longest label ("Resonance"/"Threshold"/"Asymmetry",
+     9 characters) and longest formatted value ("20000Hz"/"-24.0dB", 7 characters) both need
+     that room, or they overflow their grid cell and get painted over by the next module's
+     opaque background (model/fxParams.js's FX_PARAMS has the full label/unit list). */
+  width: 196px;
   padding: var(--space-sm) var(--space-xs);
   background: var(--surface-1);
   border: 1px solid var(--border);
@@ -772,7 +796,12 @@ textarea {
 
 .fx-module__field {
   display: grid;
-  grid-template-columns: 8ch 1fr 5ch;
+  /* 9ch fits every FX_PARAMS label (longest: "Resonance"/"Threshold"/"Asymmetry", 9 chars);
+     7ch fits every formatFxValue() output at this scale (longest: "20000Hz"/"-24.0dB",
+     7 chars). Both were previously 8ch/5ch, sized for a smaller set of visible params —
+     with every FX module showing at once (model/trackChannel.js#fxChain), the narrower
+     columns clipped/occluded real values (see .fx-module's own doc comment). */
+  grid-template-columns: 9ch 1fr 7ch;
   align-items: center;
   gap: var(--space-xs);
   color: var(--text-dim);
@@ -964,6 +993,57 @@ textarea {
   flex: 1;
   width: auto;
   min-width: 0;
+}
+
+/* --- selection toolbar: Phase 1 selection-editing actions (ui/chrome/SelectionToolbar.jsx) ---
+   A permanent part of the layout directly under the note editor, not a floating/positioned
+   overlay — same card treatment as .note-editor/.instrument-panel above so it reads as one
+   family of side-column panels rather than a bolted-on control. */
+.selection-toolbar {
+  flex-shrink: 0;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  padding: var(--space-sm);
+}
+
+.selection-toolbar__label {
+  display: block;
+  color: var(--text-dim);
+  font-size: var(--text-micro);
+  letter-spacing: 0.04em;
+  margin-bottom: var(--space-sm);
+}
+
+.selection-toolbar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xs);
+}
+
+/* Same chip styling as .transport-bar__chip — reusing it outright would couple this panel's
+   markup to the transport bar's, so it's duplicated here rather than shared. */
+.selection-toolbar__button {
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--surface-1);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font-size: var(--text-micro);
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.selection-toolbar__button:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--cyan);
+  border-color: var(--border-active);
+}
+
+.selection-toolbar__button:disabled {
+  color: var(--border-active);
+  cursor: default;
 }
 
 .note-editor__fx-value {
@@ -1245,13 +1325,19 @@ textarea {
 
   .app__side {
     width: auto;
+    /* The base rule's flex-shrink: 0 (pinning .app__side to its fixed 220px desktop width)
+       would otherwise persist here too and win out over flex-wrap below: with three
+       min-width:160px children it needs to shrink to the row's available width before
+       wrapping can kick in, not grow to fit all three unwrapped and overflow past it. */
+    flex-shrink: 1;
     flex-direction: row;
     flex-wrap: wrap;
     overflow: visible;
   }
 
   .instrument-panel,
-  .note-editor {
+  .note-editor,
+  .selection-toolbar {
     flex: 1;
     min-width: 160px;
   }

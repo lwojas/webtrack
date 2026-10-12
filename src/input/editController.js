@@ -1,5 +1,4 @@
 import { getSelectedPattern } from "../model/query.js";
-import { cloneEvent } from "../model/event.js";
 import { triggerPreview } from "../audio/preview.js";
 import { isTypingTarget } from "./isTypingTarget.js";
 
@@ -10,11 +9,15 @@ const HEX_DIGIT_PATTERN = /^[0-9a-f]$/i;
 const HEX_FIELDS = new Set(["instrument", "velocity"]);
 const FIELD_MAX = { instrument: 255, velocity: 127 };
 
-// Copy/paste operates on a whole event (same granularity as Backspace/Delete's clearCell),
-// not a single field — "duplicate this note around the pattern" is the use case, not
-// "duplicate just this velocity." Only fires when focus isn't in a text input/select (so the
-// BPM field, project name, and the note editor's own inputs keep ordinary OS copy/paste), and
-// only for the plain Ctrl/Cmd+C / Ctrl/Cmd+V chord.
+// Copy/paste/clear operate on the current selection (state/store.js's getSelectionRect/
+// copySelection/pasteSelection/clearSelection — same whole-event granularity as before, just
+// generalized from a single cell to a rect), not a single field — "duplicate this block
+// around the pattern" is the use case, not "duplicate just this velocity." Copy/paste only
+// fires when focus isn't in a text input/select (so the BPM field, project name, and the note
+// editor's own inputs keep ordinary OS copy/paste), and only for the plain Ctrl/Cmd+C /
+// Ctrl/Cmd+V chord. The clipboard itself lives on the store (not in here) so the selection
+// toolbar's Copy/Paste/Repeat/Fill buttons (ui/chrome/SelectionToolbar.jsx) share the exact
+// same clipboard these shortcuts do, rather than keeping two independent copies of it.
 export function createEditController({ store, noteSource }) {
   // A 2-digit hex entry buffer, scoped to whichever (track, row, field) it was last typed
   // into — resets whenever the cursor moves, matching the tracker convention of live preview
@@ -22,11 +25,6 @@ export function createEditController({ store, noteSource }) {
   // confirm keystroke.
   let digitBuffer = "";
   let digitBufferKey = null;
-
-  // Holds a clone of the last-copied event, independent of whatever's currently in that
-  // source cell — see model/mutations.js#pasteEvent, which clones it again on every paste so
-  // pasting the same clipboard into several cells never lets an edit to one leak into another.
-  let clipboardEvent = null;
 
   function bufferKeyFor(cursor) {
     return `${cursor.trackIndex}.${cursor.rowIndex}.${cursor.field}`;
@@ -54,20 +52,6 @@ export function createEditController({ store, noteSource }) {
     if (digitBuffer.length >= 2) resetDigitBuffer();
   }
 
-  function handleCopy() {
-    const { song, cursor } = store.getState();
-    const pattern = getSelectedPattern(song);
-    const event = pattern?.tracks[cursor.trackIndex]?.events[cursor.rowIndex];
-    if (!event) return;
-    clipboardEvent = cloneEvent(event);
-  }
-
-  function handlePaste() {
-    if (!clipboardEvent) return;
-    const { cursor } = store.getState();
-    store.pasteCell(cursor.trackIndex, cursor.rowIndex, clipboardEvent);
-  }
-
   function handleKeyDown(e) {
     // Every shortcut below (cursor navigation, clear, hex digit entry, copy/paste) targets
     // the grid, never the focused control — skip all of it while the project name, BPM, or
@@ -81,43 +65,52 @@ export function createEditController({ store, noteSource }) {
       const key = e.key.toLowerCase();
       if (key === "c") {
         e.preventDefault();
-        handleCopy();
+        store.copySelection();
         return;
       }
       if (key === "v") {
         e.preventDefault();
-        handlePaste();
+        store.pasteSelection();
         return;
       }
     }
 
+    // Shift+Arrow grows/shrinks the selection (store.js#extendSelection) instead of moving the
+    // cursor outright — plain Arrow keeps its existing behavior (including ArrowLeft/Right's
+    // field-cycling/track-wrap), since Shift+Arrow had no behavior of its own before this.
+    // Selection only ever spans whole (track, row) cells, never fields, so the shift-held path
+    // never touches/cycles field the way plain ArrowLeft/Right does.
     if (e.key === "ArrowUp") {
       e.preventDefault();
-      store.moveCursor({ row: -1 });
+      if (e.shiftKey) store.extendSelection({ row: -1 });
+      else store.moveCursor({ row: -1 });
       resetDigitBuffer();
       return;
     }
     if (e.key === "ArrowDown") {
       e.preventDefault();
-      store.moveCursor({ row: 1 });
+      if (e.shiftKey) store.extendSelection({ row: 1 });
+      else store.moveCursor({ row: 1 });
       resetDigitBuffer();
       return;
     }
     if (e.key === "ArrowLeft") {
       e.preventDefault();
-      store.moveCursor({ field: -1 });
+      if (e.shiftKey) store.extendSelection({ track: -1 });
+      else store.moveCursor({ field: -1 });
       resetDigitBuffer();
       return;
     }
     if (e.key === "ArrowRight") {
       e.preventDefault();
-      store.moveCursor({ field: 1 });
+      if (e.shiftKey) store.extendSelection({ track: 1 });
+      else store.moveCursor({ field: 1 });
       resetDigitBuffer();
       return;
     }
     if (e.key === "Backspace" || e.key === "Delete") {
       e.preventDefault();
-      store.clearCell(cursor.trackIndex, cursor.rowIndex);
+      store.clearSelection();
       resetDigitBuffer();
       return;
     }
