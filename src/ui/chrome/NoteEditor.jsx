@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import { useStore } from "../../state/useStore.js";
 import * as events from "../../state/events.js";
 import { getSelectedPattern } from "../../model/query.js";
@@ -5,6 +6,108 @@ import { EFFECT_COMMANDS } from "../../model/effects.js";
 import { FX_PARAMS, getFxParam, formatFxValue } from "../../model/fxParams.js";
 import { formatBarBeat } from "../../model/timing.js";
 import { noteNumberToName, parseNoteName, toHex } from "../../model/notes.js";
+
+// Mirrors the local-draft-state + commit-on-blur/Enter, revert-on-Escape pattern
+// ui/chrome/PatternManager.jsx's pattern-rename field already uses: typing updates only this
+// local state, so the field never fights the user by snapping back to a reformatted value
+// (noteNumberToName's "---"/toHex's zero-padding) mid-keystroke the way a fully store-value
+// -controlled input did. `parse` returns:
+//   - a value (including null, for "clear this field") to commit, or
+//   - `undefined` to mean "not parseable yet" — left uncommitted so a still-incomplete edit
+//     (e.g. "D" on the way to "D#4") never overwrites the model, and gets reverted on blur.
+// Returns spreadable <input> props rather than JSX so NoteField/HexField below only need to
+// supply their field-specific format/parse and tag on the right `type`/`maxLength`.
+function useDraftField({ value, format, parse, onCommit }) {
+  const [draft, setDraft] = useState(() => format(value));
+  const focusedRef = useRef(false);
+  // Enter/Escape both call the DOM input's .blur() to leave the field once they've already
+  // decided what the draft should be — but blur() dispatches its event synchronously, before
+  // React has flushed the setDraft() call just above it, so the resulting onBlur would
+  // otherwise read the *pre-revert* `draft` from its still-stale closure and re-commit it,
+  // undoing the Escape. This flag tells that blur to no-op instead, since Enter/Escape already
+  // did the one commit-or-revert this blur would have done.
+  const suppressBlurRef = useRef(false);
+
+  // Keeps the field in sync with cursor moves and with edits landing on this same cell from
+  // elsewhere (the grid's own keyboard entry) — but only while this input isn't the thing the
+  // user is actively typing into, so an in-progress edit is never clobbered by its own commit
+  // echoing back through `value`, or by an unrelated external change.
+  useEffect(() => {
+    if (!focusedRef.current) setDraft(format(value));
+  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps -- format/parse are stable per field
+
+  function commit(text) {
+    const parsed = parse(text);
+    if (parsed === undefined) return false;
+    onCommit(parsed);
+    setDraft(format(parsed));
+    return true;
+  }
+
+  return {
+    value: draft,
+    onChange: (e) => setDraft(e.target.value),
+    onFocus: () => {
+      focusedRef.current = true;
+    },
+    onBlur: () => {
+      focusedRef.current = false;
+      if (suppressBlurRef.current) {
+        suppressBlurRef.current = false;
+        return;
+      }
+      if (!commit(draft)) setDraft(format(value));
+    },
+    onKeyDown: (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        if (!commit(draft)) setDraft(format(value));
+        suppressBlurRef.current = true;
+        e.currentTarget.blur();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        setDraft(format(value));
+        suppressBlurRef.current = true;
+        e.currentTarget.blur();
+      }
+    },
+  };
+}
+
+// A draft field's `parse` contract (see useDraftField above), applied to model/notes.js's
+// existing parseNoteName rather than a second note parser: "" / "---" explicitly clears the
+// cell, a syntactically valid name (any parseNoteName understands — same "C4"/"C#4"/"D4"
+// representation the grid and the rest of the app use) commits, and anything else (a
+// still-incomplete name like "D" on the way to "D#4") is left uncommitted via `undefined`.
+export function parseNoteDraft(text) {
+  const trimmed = text.trim();
+  if (trimmed === "" || trimmed === "---") return null;
+  return parseNoteName(trimmed) ?? undefined;
+}
+
+function NoteField({ value, onCommit }) {
+  const inputProps = useDraftField({ value, format: noteNumberToName, parse: parseNoteDraft, onCommit });
+  return <input type="text" placeholder="---" {...inputProps} />;
+}
+
+// Shared by every hex-typed field (instrument/velocity/FX param) — same draft/commit mechanics
+// as NoteField, just with toHex's formatting and a clamped hex parse instead of note parsing.
+export function parseHexInput(text, max) {
+  const trimmed = text.trim();
+  if (trimmed === "") return null;
+  if (!/^[0-9a-f]+$/i.test(trimmed)) return undefined;
+  return Math.max(0, Math.min(max, Number.parseInt(trimmed, 16)));
+}
+
+function HexField({ value, max, onCommit }) {
+  const inputProps = useDraftField({
+    value,
+    format: (v) => toHex(v, 2),
+    parse: (text) => parseHexInput(text, max),
+    onCommit,
+  });
+  return <input type="text" maxLength={2} placeholder="--" {...inputProps} />;
+}
 
 // The complete editing surface for the event under the grid's cursor — every field
 // model/event.js defines (note, instrument, velocity, length, pan, effect command/param) is
@@ -60,20 +163,6 @@ export default function NoteEditor({ store }) {
     store.setCell(cursor.trackIndex, cursor.rowIndex, field, value);
   }
 
-  function handleNoteChange(text) {
-    setField("note", parseNoteName(text));
-  }
-
-  function handleHexFieldChange(field, max) {
-    return (text) => {
-      if (text.trim() === "") {
-        setField(field, null);
-        return;
-      }
-      setField(field, Math.max(0, Math.min(max, Number.parseInt(text, 16) || 0)));
-    };
-  }
-
   function handleLengthChange(text) {
     if (text.trim() === "") {
       setField("length", null);
@@ -89,11 +178,6 @@ export default function NoteEditor({ store }) {
 
   function handleEffectCommandChange(id) {
     setField("effectCommand", id === "" ? null : id);
-  }
-
-  function handleEffectParamChange(text) {
-    const value = Math.max(0, Math.min(255, Number.parseInt(text, 16) || 0));
-    setField("effectParam", value);
   }
 
   // Cell FX automation (model/event.js#fx) — a sparse subset of FX_PARAMS, shared with
@@ -146,34 +230,17 @@ export default function NoteEditor({ store }) {
 
       <label className="note-editor__field">
         NOTE
-        <input
-          type="text"
-          placeholder="---"
-          value={noteNumberToName(event.note)}
-          onChange={(e) => handleNoteChange(e.target.value)}
-        />
+        <NoteField value={event.note} onCommit={(value) => setField("note", value)} />
       </label>
 
       <label className="note-editor__field">
         INSTRUMENT
-        <input
-          type="text"
-          maxLength={2}
-          placeholder="--"
-          value={toHex(event.instrument, 2)}
-          onChange={(e) => handleHexFieldChange("instrument", 255)(e.target.value)}
-        />
+        <HexField value={event.instrument} max={255} onCommit={(value) => setField("instrument", value)} />
       </label>
 
       <label className="note-editor__field">
         VELOCITY
-        <input
-          type="text"
-          maxLength={2}
-          placeholder="--"
-          value={toHex(event.velocity, 2)}
-          onChange={(e) => handleHexFieldChange("velocity", 127)(e.target.value)}
-        />
+        <HexField value={event.velocity} max={127} onCommit={(value) => setField("velocity", value)} />
       </label>
 
       <label className="note-editor__field">
@@ -214,12 +281,7 @@ export default function NoteEditor({ store }) {
 
       <label className="note-editor__field">
         FX PARAM
-        <input
-          type="text"
-          maxLength={2}
-          value={toHex(event.effectParam, 2)}
-          onChange={(e) => handleEffectParamChange(e.target.value)}
-        />
+        <HexField value={event.effectParam} max={255} onCommit={(value) => setField("effectParam", value)} />
       </label>
 
       <div className="note-editor__section">CELL FX</div>
