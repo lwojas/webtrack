@@ -4,6 +4,7 @@
 import { createEmptyEvent, cloneEvent } from "./event.js";
 import { createPattern } from "./pattern.js";
 import { getEvent, getPattern, getTrackChannel } from "./query.js";
+import { getFxParamsForType, getFxTypeForParam } from "./fxParams.js";
 
 export function setEventField(song, { patternId, trackIndex, rowIndex }, field, value) {
   const event = getEvent(song, patternId, trackIndex, rowIndex);
@@ -70,25 +71,108 @@ export function setMasterFxParam(song, paramId, value) {
   song.masterFx[paramId] = value;
 }
 
+// Shared by setCellFxParam's own null-removal below and removeTrackFx's chain-removal purge
+// further down — deletes one key from a cell's sparse fx map, collapsing back to `fx: null`
+// once the map is empty (never left as `{}` — see createEmptyEvent/isEmptyEvent).
+function removeFxEntry(event, paramId) {
+  if (!event.fx || !(paramId in event.fx)) return;
+  delete event.fx[paramId];
+  if (Object.keys(event.fx).length === 0) event.fx = null;
+}
+
 // A cell's sparse FX automation map (model/event.js#fx). Unlike setEventField, this doesn't
 // replace a whole field — it adds/updates/removes one entry in the cell's fx map, leaving
 // every other key (and every other field) untouched. value === null removes paramId from the
-// cell entirely (collapsing back to `fx: null` once the map is empty) rather than storing a
-// literal null — a cell with no fx automation should look exactly like one that never had any,
-// not carry around empty-value entries that playback would then have to special-case.
+// cell entirely rather than storing a literal null — a cell with no fx automation should look
+// exactly like one that never had any, not carry around empty-value entries that playback
+// would then have to special-case.
+//
+// A new value is refused outright if paramId's FX isn't currently enabled on this track
+// (model/trackChannel.js#fxChain) — a cell can automate an active FX's parameters, but it can
+// never be the thing that activates one (the brief's rule). bus.gain (whose type is null, see
+// model/fxParams.js) is exempt — it's always on, not part of any chain.
 export function setCellFxParam(song, { patternId, trackIndex, rowIndex }, paramId, value) {
   const event = getEvent(song, patternId, trackIndex, rowIndex);
   if (!event) return;
 
   if (value === null || value === undefined) {
-    if (!event.fx) return;
-    delete event.fx[paramId];
-    if (Object.keys(event.fx).length === 0) event.fx = null;
+    removeFxEntry(event, paramId);
     return;
+  }
+
+  const fxType = getFxTypeForParam(paramId);
+  if (fxType !== null) {
+    const channel = getTrackChannel(song, trackIndex);
+    if (!channel?.fxChain.some((entry) => entry.type === fxType)) return;
   }
 
   if (!event.fx) event.fx = {};
   event.fx[paramId] = value;
+}
+
+// Enables one FX_TYPES id on a track's insert bus (ui/chrome/FxPanel.jsx's "+ ADD FX") — a
+// no-op if it's already active. Never resets trackChannel.fx's stored values: seeds any param
+// that's never been touched to its catalog default, but leaves an already-set value alone, so
+// re-enabling a previously-removed FX picks up where it left off instead of resetting (see
+// model/trackChannel.js's doc comment on the three-layer fxChain/fx model).
+export function addTrackFx(song, trackIndex, type) {
+  const channel = getTrackChannel(song, trackIndex);
+  if (!channel || channel.fxChain.some((entry) => entry.type === type)) return;
+  channel.fxChain.push({ type, bypassed: false });
+  for (const param of getFxParamsForType(type)) {
+    if (!(param.id in channel.fx)) channel.fx[param.id] = param.default;
+  }
+}
+
+// Disables one FX_TYPES id (the FX panel's remove button) — removes it from fxChain and purges
+// every pattern's cell automation on this track that referenced one of its params, so no
+// Event.fx entry can ever point at an FX this track no longer has enabled. Paired with
+// setCellFxParam's own validation above (which refuses *new* writes for an inactive type) —
+// between the two, a cell can never reference a disabled FX, enforced at the model layer
+// rather than as a defensive check threaded through playback.
+export function removeTrackFx(song, trackIndex, type) {
+  const channel = getTrackChannel(song, trackIndex);
+  if (!channel) return;
+  const chainIndex = channel.fxChain.findIndex((entry) => entry.type === type);
+  if (chainIndex === -1) return;
+  channel.fxChain.splice(chainIndex, 1);
+
+  const paramIds = getFxParamsForType(type).map((param) => param.id);
+  song.patterns.forEach((pattern) => {
+    pattern.tracks[trackIndex]?.events.forEach((event) => {
+      paramIds.forEach((paramId) => removeFxEntry(event, paramId));
+    });
+  });
+}
+
+// Mutes/un-mutes one already-enabled FX without removing it from the chain or touching its
+// stored values (model/trackChannel.js's doc comment contrasts this with removeTrackFx above).
+// Flips the flag the FX panel and audio/fx.js's engine push both read; this function alone
+// doesn't touch the audio engine (see appContext.js's fxController for the bundling).
+export function setTrackFxBypass(song, trackIndex, type, bypassed) {
+  const entry = getTrackChannel(song, trackIndex)?.fxChain.find((e) => e.type === type);
+  if (entry) entry.bypassed = bypassed;
+}
+
+// Master-bus equivalents of addTrackFx/removeTrackFx/setTrackFxBypass above (model/song.js's
+// masterFx/masterFxChain) — no cell-automation purge needed on removal, since a tracker cell
+// can never automate the master bus in the first place.
+export function addMasterFx(song, type) {
+  if (song.masterFxChain.some((entry) => entry.type === type)) return;
+  song.masterFxChain.push({ type, bypassed: false });
+  for (const param of getFxParamsForType(type)) {
+    if (!(param.id in song.masterFx)) song.masterFx[param.id] = param.default;
+  }
+}
+
+export function removeMasterFx(song, type) {
+  const index = song.masterFxChain.findIndex((entry) => entry.type === type);
+  if (index !== -1) song.masterFxChain.splice(index, 1);
+}
+
+export function setMasterFxBypass(song, type, bypassed) {
+  const entry = song.masterFxChain.find((e) => e.type === type);
+  if (entry) entry.bypassed = bypassed;
 }
 
 // The tracker edits whichever pattern this points at — only ever repointed to a patternId that

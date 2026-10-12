@@ -9,6 +9,12 @@ import {
   setTrackFxParam as setTrackFxParamModel,
   setMasterFxParam as setMasterFxParamModel,
   setCellFxParam as setCellFxParamModel,
+  addTrackFx as addTrackFxModel,
+  removeTrackFx as removeTrackFxModel,
+  setTrackFxBypass as setTrackFxBypassModel,
+  addMasterFx as addMasterFxModel,
+  removeMasterFx as removeMasterFxModel,
+  setMasterFxBypass as setMasterFxBypassModel,
   setPatternRowCount,
   setTrackLength as setTrackLengthModel,
   setSongName,
@@ -211,6 +217,41 @@ export function createStore({ song, instruments }) {
     emitter.emit(events.MASTER_FX_CHANGED, { paramId });
   }
 
+  // Enable/disable/bypass one FX on a track's insert bus (model/mutations.js#addTrackFx/
+  // removeTrackFx/setTrackFxBypass) — reuses TRACK_FX_CHANGED, the same event a parameter edit
+  // already emits, since the FX panel's useStore selector fingerprints fxChain alongside fx
+  // (ui/chrome/FxPanel.jsx) and should refresh for either kind of change.
+  function addTrackFx(trackIndex, type) {
+    addTrackFxModel(state.song, trackIndex, type);
+    emitter.emit(events.TRACK_FX_CHANGED, { trackIndex, type });
+  }
+
+  function removeTrackFx(trackIndex, type) {
+    removeTrackFxModel(state.song, trackIndex, type);
+    emitter.emit(events.TRACK_FX_CHANGED, { trackIndex, type });
+  }
+
+  function setTrackFxBypass(trackIndex, type, bypassed) {
+    setTrackFxBypassModel(state.song, trackIndex, type, bypassed);
+    emitter.emit(events.TRACK_FX_CHANGED, { trackIndex, type });
+  }
+
+  // Master-bus equivalents (model/song.js#masterFxChain) — the FX panel's MASTER view.
+  function addMasterFx(type) {
+    addMasterFxModel(state.song, type);
+    emitter.emit(events.MASTER_FX_CHANGED, { type });
+  }
+
+  function removeMasterFx(type) {
+    removeMasterFxModel(state.song, type);
+    emitter.emit(events.MASTER_FX_CHANGED, { type });
+  }
+
+  function setMasterFxBypass(type, bypassed) {
+    setMasterFxBypassModel(state.song, type, bypassed);
+    emitter.emit(events.MASTER_FX_CHANGED, { type });
+  }
+
   function setProjectName(name) {
     setSongName(state.song, name);
     emitter.emit(events.PROJECT_NAME_CHANGED, { name });
@@ -365,6 +406,12 @@ export function createStore({ song, instruments }) {
     setCellFx,
     setTrackFxParam,
     setMasterFxParam,
+    addTrackFx,
+    removeTrackFx,
+    setTrackFxBypass,
+    addMasterFx,
+    removeMasterFx,
+    setMasterFxBypass,
     setProjectName,
     moveCursor,
     selectCell,

@@ -12,6 +12,12 @@ import {
   setTrackFxParam,
   setMasterFxParam,
   setCellFxParam,
+  addTrackFx,
+  removeTrackFx,
+  setTrackFxBypass,
+  addMasterFx,
+  removeMasterFx,
+  setMasterFxBypass,
   selectPattern,
   setPatternRowCount,
   setTrackLength,
@@ -105,10 +111,11 @@ describe("FX mutations", () => {
     expect(song.trackChannels.every((c) => Object.keys(c.fx).length === 0)).toBe(true);
   });
 
-  it("setCellFxParam adds a sparse entry to the cell's fx map without touching other fields", () => {
+  it("setCellFxParam adds a sparse entry to the cell's fx map without touching other fields, once that FX is enabled on the track", () => {
     const song = createSong();
     const patternId = song.patterns[0].id;
     setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 60);
+    addTrackFx(song, 0, "delay");
 
     setCellFxParam(song, { patternId, trackIndex: 0, rowIndex: 0 }, "delay.mix", 0.25);
 
@@ -117,9 +124,25 @@ describe("FX mutations", () => {
     expect(event.fx).toEqual({ "delay.mix": 0.25 });
   });
 
+  it("setCellFxParam is a no-op if the track doesn't have that param's FX enabled — a cell can never silently activate a disabled FX", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setCellFxParam(song, { patternId, trackIndex: 0, rowIndex: 0 }, "delay.mix", 0.25);
+    expect(getEvent(song, patternId, 0, 0).fx).toBe(null);
+  });
+
+  it("setCellFxParam is never gated for bus.gain — it isn't part of any FX chain", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setCellFxParam(song, { patternId, trackIndex: 0, rowIndex: 0 }, "bus.gain", 0.5);
+    expect(getEvent(song, patternId, 0, 0).fx).toEqual({ "bus.gain": 0.5 });
+  });
+
   it("setCellFxParam with value null removes just that key, collapsing back to fx: null once empty", () => {
     const song = createSong();
     const patternId = song.patterns[0].id;
+    addTrackFx(song, 0, "delay");
+    addTrackFx(song, 0, "filter");
     setCellFxParam(song, { patternId, trackIndex: 0, rowIndex: 0 }, "delay.mix", 0.25);
     setCellFxParam(song, { patternId, trackIndex: 0, rowIndex: 0 }, "filter.cutoff", 1200);
 
@@ -139,6 +162,7 @@ describe("FX mutations", () => {
   it("a cell with an fx entry set is not an empty cell", () => {
     const song = createSong();
     const patternId = song.patterns[0].id;
+    addTrackFx(song, 0, "delay");
     setCellFxParam(song, { patternId, trackIndex: 0, rowIndex: 0 }, "delay.mix", 0.25);
     expect(isEmptyEvent(getEvent(song, patternId, 0, 0))).toBe(false);
   });
@@ -153,6 +177,73 @@ describe("FX mutations", () => {
   it("cloneEvent keeps fx: null as null, not an empty object", () => {
     const clone = cloneEvent({ note: 60, fx: null });
     expect(clone.fx).toBe(null);
+  });
+});
+
+describe("FX chain mutations", () => {
+  it("addTrackFx enables one FX_TYPES id, seeding its params to their catalog defaults", () => {
+    const song = createSong();
+    addTrackFx(song, 0, "delay");
+    expect(song.trackChannels[0].fxChain).toEqual([{ type: "delay", bypassed: false }]);
+    expect(song.trackChannels[0].fx).toEqual({ "delay.time": 0.25, "delay.feedback": 0.3, "delay.mix": 0 });
+  });
+
+  it("addTrackFx is a no-op if that type is already enabled, and never touches other tracks", () => {
+    const song = createSong();
+    addTrackFx(song, 0, "delay");
+    addTrackFx(song, 0, "delay");
+    expect(song.trackChannels[0].fxChain).toHaveLength(1);
+    expect(song.trackChannels[1].fxChain).toEqual([]);
+  });
+
+  it("removeTrackFx disables an FX and purges matching cell automation across every pattern on that track", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    const otherPattern = addPattern(song, { name: "Pattern 2" });
+    addTrackFx(song, 0, "delay");
+    setCellFxParam(song, { patternId, trackIndex: 0, rowIndex: 0 }, "delay.mix", 0.5);
+    setCellFxParam(song, { patternId: otherPattern.id, trackIndex: 0, rowIndex: 1 }, "delay.mix", 0.7);
+
+    removeTrackFx(song, 0, "delay");
+
+    expect(song.trackChannels[0].fxChain).toEqual([]);
+    expect(getEvent(song, patternId, 0, 0).fx).toBe(null);
+    expect(getEvent(song, otherPattern.id, 0, 1).fx).toBe(null);
+  });
+
+  it("re-enabling a removed FX restores its previously stored parameter values, not the defaults", () => {
+    const song = createSong();
+    addTrackFx(song, 0, "delay");
+    setTrackFxParam(song, 0, "delay.mix", 0.6);
+    removeTrackFx(song, 0, "delay");
+
+    addTrackFx(song, 0, "delay");
+    expect(song.trackChannels[0].fx["delay.mix"]).toBe(0.6);
+  });
+
+  it("setTrackFxBypass flips only the matching chain entry's flag", () => {
+    const song = createSong();
+    addTrackFx(song, 0, "delay");
+    addTrackFx(song, 0, "filter");
+    setTrackFxBypass(song, 0, "delay", true);
+    expect(song.trackChannels[0].fxChain).toEqual([
+      { type: "delay", bypassed: true },
+      { type: "filter", bypassed: false },
+    ]);
+  });
+
+  it("master FX chain mutations mirror the track ones, independently of every trackChannel", () => {
+    const song = createSong();
+    addMasterFx(song, "reverb");
+    expect(song.masterFxChain).toEqual([{ type: "reverb", bypassed: false }]);
+    expect(song.masterFx).toEqual({ "reverb.decay": 0.5, "reverb.damping": 0.5, "reverb.mix": 0 });
+
+    setMasterFxBypass(song, "reverb", true);
+    expect(song.masterFxChain).toEqual([{ type: "reverb", bypassed: true }]);
+
+    removeMasterFx(song, "reverb");
+    expect(song.masterFxChain).toEqual([]);
+    expect(song.trackChannels.every((c) => c.fxChain.length === 0)).toBe(true);
   });
 });
 

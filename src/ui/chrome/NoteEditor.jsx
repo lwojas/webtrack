@@ -39,6 +39,10 @@ export default function NoteEditor({ store }) {
     ].join("|");
   });
 
+  // Keeps CELL FX's "+ ADD FX" list in sync if the current track's enabled FX change (the FX
+  // panel) while this cell is open, not just on a cursor/cell-content change.
+  useStore(store, events.TRACK_FX_CHANGED, (s) => JSON.stringify(s.song.trackChannels[cursor.trackIndex]?.fxChain ?? []));
+
   const state = store.getState();
   const pattern = getSelectedPattern(state.song);
   const event = pattern?.tracks[cursor.trackIndex]?.events[cursor.rowIndex];
@@ -94,9 +98,23 @@ export default function NoteEditor({ store }) {
 
   // Cell FX automation (model/event.js#fx) — a sparse subset of FX_PARAMS, shared with
   // ui/chrome/FxPanel.jsx so a given parameter edits with the exact same range/step/formatting
-  // wherever it shows up, not two independently-maintained descriptions of "delay.mix".
-  const cellFxEntries = event.fx ? Object.entries(event.fx) : [];
-  const availableFxParams = FX_PARAMS.filter((param) => !cellFxEntries.some(([id]) => id === param.id));
+  // wherever it shows up, not two independently-maintained descriptions of "delay.mix". Only
+  // ever shows params belonging to an FX this track actually has enabled
+  // (model/trackChannel.js#fxChain) and marked cellAutomatable (model/fxParams.js) — never the
+  // complete FX_PARAMS catalog. bus.gain (type null) is exempt: it's always on, not part of any
+  // chain. model/mutations.js#setCellFxParam enforces the same rule at the write layer, so the
+  // cellFxEntries filter below is only ever a no-op defensive guard in steady state (it'd only
+  // matter for data from a track whose FX was since removed without going through that path).
+  const trackFxChain = state.song.trackChannels[cursor.trackIndex]?.fxChain ?? [];
+  const isFxTypeActive = (type) => type === null || trackFxChain.some((entry) => entry.type === type);
+
+  const cellFxEntries = (event.fx ? Object.entries(event.fx) : []).filter(([paramId]) => isFxTypeActive(getFxParam(paramId)?.type));
+  const availableFxParams = FX_PARAMS.filter(
+    (param) =>
+      isFxTypeActive(param.type) &&
+      param.cellAutomatable !== false &&
+      !cellFxEntries.some(([id]) => id === param.id),
+  );
 
   function handleCellFxChange(paramId, value) {
     store.setCellFx(cursor.trackIndex, cursor.rowIndex, paramId, value);
@@ -109,7 +127,12 @@ export default function NoteEditor({ store }) {
   function handleAddCellFx(paramId) {
     if (!paramId) return;
     const param = getFxParam(paramId);
-    store.setCellFx(cursor.trackIndex, cursor.rowIndex, paramId, param?.default ?? 0);
+    const trackFx = state.song.trackChannels[cursor.trackIndex]?.fx ?? {};
+    // Seeds at the track's current value for this param, not the catalog default — this FX is
+    // already enabled and (very likely) already parked somewhere other than its neutral value,
+    // so a freshly-added cell entry should start as a no-op continuation of that, not a jump
+    // back to default the moment this row plays.
+    store.setCellFx(cursor.trackIndex, cursor.rowIndex, paramId, trackFx[paramId] ?? param?.default ?? 0);
   }
 
   return (

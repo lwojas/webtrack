@@ -7,7 +7,7 @@
 import { createStore } from "./state/store.js";
 import { createPlaybackController } from "./audio/playbackController.js";
 import { initRuntime } from "./audio/runtime.js";
-import { setTrackFxParam, setMasterFxParam } from "./audio/fx.js";
+import { setTrackFxParam, setMasterFxParam, setTrackFxTypeState, setMasterFxTypeState, isFxBypassed } from "./audio/fx.js";
 import { loadSample } from "./audio/instrumentLoader.js";
 import { createDemoSong, createDemoInstruments } from "./demo/demoSong.js";
 import { getSelectedPattern } from "./model/query.js";
@@ -29,16 +29,47 @@ export function createAppContext() {
   // with whichever of its two callers actually changed a parameter: the FX panel's own sliders
   // call these directly; playbackController's onTrackFxChange (cell automation during
   // playback) calls the track variant via the same wiring TRACK_CHANGED/pattern-selection
-  // already uses below. Either way, the real engine call (audio/fx.js) and the model update
-  // happen together, never one without the other.
+  // already uses below. The real engine call only happens when this parameter's FX is actually
+  // active and not bypassed (audio/fx.js#isFxBypassed) — while bypassed, the model still keeps
+  // the "intended" value (so un-bypassing restores it via applyTrackFxBypass below), but the
+  // engine itself stays at that FX's neutral/bypass values until then.
   function applyTrackFxParam(trackIndex, paramId, value) {
     store.setTrackFxParam(trackIndex, paramId, value);
-    setTrackFxParam(trackIndex, paramId, value);
+    const fxChain = store.getState().song.trackChannels[trackIndex]?.fxChain ?? [];
+    if (!isFxBypassed(fxChain, paramId)) setTrackFxParam(trackIndex, paramId, value);
   }
 
   function applyMasterFxParam(paramId, value) {
     store.setMasterFxParam(paramId, value);
-    setMasterFxParam(paramId, value);
+    if (!isFxBypassed(store.getState().song.masterFxChain, paramId)) setMasterFxParam(paramId, value);
+  }
+
+  // The FX panel's "+ ADD FX"/remove/bypass controls (ui/chrome/FxPanel.jsx) — each bundles the
+  // model mutation (model/mutations.js) with the matching engine push
+  // (audio/fx.js#setTrackFxTypeState), the same pairing applyTrackFxParam/applyMasterFxParam
+  // already do per-parameter above. The model mutation runs first so the engine push's
+  // `fxBag` read (trackChannel.fx/song.masterFx) sees this type's just-seeded default values
+  // on first enable.
+  function applyTrackFx(trackIndex, type, active) {
+    if (active) store.addTrackFx(trackIndex, type);
+    else store.removeTrackFx(trackIndex, type);
+    setTrackFxTypeState(trackIndex, type, active, store.getState().song.trackChannels[trackIndex].fx);
+  }
+
+  function applyTrackFxBypass(trackIndex, type, bypassed) {
+    store.setTrackFxBypass(trackIndex, type, bypassed);
+    setTrackFxTypeState(trackIndex, type, !bypassed, store.getState().song.trackChannels[trackIndex].fx);
+  }
+
+  function applyMasterFx(type, active) {
+    if (active) store.addMasterFx(type);
+    else store.removeMasterFx(type);
+    setMasterFxTypeState(type, active, store.getState().song.masterFx);
+  }
+
+  function applyMasterFxBypass(type, bypassed) {
+    store.setMasterFxBypass(type, bypassed);
+    setMasterFxTypeState(type, !bypassed, store.getState().song.masterFx);
   }
 
   const playbackController = createPlaybackController({
@@ -135,13 +166,18 @@ export function createAppContext() {
   // integration — the mistake that let webseq's equivalent grow unspecified (§9).
   const controlRegistry = createControlRegistry({ store, playbackController });
 
-  // The FX panel's one entry point for actually changing a parameter (ui/chrome/FxPanel.jsx) —
-  // bundles the model update and the real engine call the same way applyTrackFxParam/
-  // applyMasterFxParam already do for cell automation above, so the panel never has to touch
-  // audio/fx.js or state/store.js's two FX methods separately.
+  // The FX panel's (ui/chrome/FxPanel.jsx) one entry point for every FX change — parameter
+  // edits, enabling/disabling an FX, and bypass — so the panel never has to touch audio/fx.js
+  // or state/store.js's FX methods separately.
   const fxController = {
     setTrackFxParam: applyTrackFxParam,
     setMasterFxParam: applyMasterFxParam,
+    addTrackFx: (trackIndex, type) => applyTrackFx(trackIndex, type, true),
+    removeTrackFx: (trackIndex, type) => applyTrackFx(trackIndex, type, false),
+    setTrackFxBypass: applyTrackFxBypass,
+    addMasterFx: (type) => applyMasterFx(type, true),
+    removeMasterFx: (type) => applyMasterFx(type, false),
+    setMasterFxBypass: applyMasterFxBypass,
   };
 
   return {

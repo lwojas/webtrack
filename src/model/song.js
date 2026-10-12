@@ -25,11 +25,13 @@ export function createSong({ name = "Untitled Project", bpm = 120, trackCount = 
     patterns: [firstPattern],
     patternQueue: [firstPattern.id],
     selectedPatternId: firstPattern.id,
-    // The master bus's own FX baseline — { [fxParamId]: value } (model/fxParams.js), set by
-    // the FX panel's MASTER view (ui/chrome/FxPanel.jsx). Separate from every trackChannel's
-    // own `fx` (see model/trackChannel.js) — a tracker cell can never automate this (see
-    // audio/compile.js#compileRowFx, which only ever resolves a *track* index).
+    // The master bus's own FX baseline — same three-layer model as every trackChannel's own
+    // fx/fxChain (see model/trackChannel.js's doc comment): masterFxChain is which FX_TYPES are
+    // enabled on MASTER_BUS, masterFx is their current parameter values. Set by the FX panel's
+    // MASTER view (ui/chrome/FxPanel.jsx). A tracker cell can never automate either of these
+    // (see audio/compile.js#compileRowFx, which only ever resolves a *track* index).
     masterFx: {},
+    masterFxChain: [],
     // Monotonically increasing — never reused, even after a pattern is removed from the
     // queue, so an id always unambiguously identifies the pattern that created it.
     nextPatternId: firstPattern.id + 1,

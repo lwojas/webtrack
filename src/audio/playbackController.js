@@ -1,7 +1,7 @@
 import { initRuntime, ensureTrackBuses } from "./runtime.js";
 import { createLookaheadPlayer } from "./lookaheadPlayer.js";
 import { compileRow, compileRowFx } from "./compile.js";
-import { setTrackFxParam } from "./fx.js";
+import { setTrackFxParam, isFxBypassed } from "./fx.js";
 import { STEPS_PER_BEAT } from "../model/timing.js";
 import { getPatternQueueEntries } from "../model/query.js";
 
@@ -69,8 +69,14 @@ export function createPlaybackController({
         getStepDurationSeconds,
         onPatternSwitched: () => onPatternSwitchPending?.(false),
         getNextQueueEntry: (currentIndex) => resolveQueueEntry(currentIndex + 1),
+        // A cell can only ever hold automation for a param whose FX is already enabled
+        // (model/mutations.js#setCellFxParam's own validation), but it may be enabled-and-
+        // bypassed — same rule applyTrackFxParam (appContext.js) applies to the FX panel's own
+        // sliders: the model still latches the value (via onTrackFxChange below, so the panel
+        // shows it live) but the engine stays at that FX's bypass values until un-bypassed.
         onTrackFxChange: (trackIndex, paramId, value) => {
-          setTrackFxParam(trackIndex, paramId, value);
+          const fxChain = getTrackChannels()[trackIndex]?.fxChain ?? [];
+          if (!isFxBypassed(fxChain, paramId)) setTrackFxParam(trackIndex, paramId, value);
           onTrackFxChange?.(trackIndex, paramId, value);
         },
       });

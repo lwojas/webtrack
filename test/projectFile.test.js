@@ -84,6 +84,30 @@ describe("serializeProject / deserializeProject", () => {
     expect(restored.song.masterFx).toEqual({});
   });
 
+  it("derives fxChain/masterFxChain for a project saved before FX chains existed, from whatever FX it already used", async () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    // Simulate a v2 file saved before fxChain existed at all: a non-default fx bag value (the
+    // old implicit "enabled" signal) on track 0's delay, and a cell automating track 1's
+    // compressor directly, with no fxChain/masterFxChain field anywhere.
+    song.trackChannels[0].fx = { "delay.mix": 0.4 };
+    delete song.trackChannels[0].fxChain;
+    setEventField(song, { patternId, trackIndex: 1, rowIndex: 0 }, "note", 60);
+    song.patterns[0].tracks[1].events[0].fx = { "comp.threshold": -12 };
+    delete song.trackChannels[1].fxChain;
+    delete song.trackChannels[2].fxChain;
+    song.masterFx = { "reverb.mix": 0.3 };
+    delete song.masterFxChain;
+
+    const serialized = serializeProject({ song, instruments: [], ui: {} });
+    const restored = await deserializeProject(serialized, { loadSampleBytes: async () => null });
+
+    expect(restored.song.trackChannels[0].fxChain).toEqual([{ type: "delay", bypassed: false }]);
+    expect(restored.song.trackChannels[1].fxChain).toEqual([{ type: "compressor", bypassed: false }]);
+    expect(restored.song.trackChannels[2].fxChain).toEqual([]);
+    expect(restored.song.masterFxChain).toEqual([{ type: "reverb", bypassed: false }]);
+  });
+
   it("rejects an unsupported format version", async () => {
     await expect(deserializeProject({ formatVersion: 999, instruments: [] }, { loadSampleBytes: async () => null })).rejects.toThrow();
   });

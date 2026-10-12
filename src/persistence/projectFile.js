@@ -7,6 +7,7 @@
 // lives in projectIO.js instead.
 import { createInstrumentSlot } from "../model/instrument.js";
 import { arrayBufferToBase64, base64ToArrayBuffer } from "./base64.js";
+import { FX_TYPES, getFxParam } from "../model/fxParams.js";
 
 export const PROJECT_FORMAT_VERSION = 2;
 
@@ -89,6 +90,57 @@ function ensureFxDefaults(song) {
     if (!channel.fx) channel.fx = {};
   });
   if (!song.masterFx) song.masterFx = {};
+  ensureFxChains(song);
+}
+
+// Which FX_TYPES ids this fx bag has actually touched — any param sitting at a non-default
+// value (model/fxParams.js's FX_PARAMS#default doubles as each node's own bypass/neutral
+// value, so "untouched" and "bypassed" were indistinguishable before fxChain existed).
+function typesTouchedByFxBag(fxBag) {
+  const touched = new Set();
+  for (const paramId in fxBag) {
+    const param = getFxParam(paramId);
+    if (param?.type && fxBag[paramId] !== param.default) touched.add(param.type);
+  }
+  return touched;
+}
+
+// Which FX_TYPES ids a track's cell automation references anywhere in the song, regardless of
+// which pattern — a cell referencing e.g. "delay.mix" only makes sense if that track's delay is
+// (or, pre-fxChain, effectively always was) enabled.
+function typesReferencedByCellAutomation(song, trackIndex) {
+  const touched = new Set();
+  song.patterns.forEach((pattern) => {
+    pattern.tracks[trackIndex]?.events.forEach((event) => {
+      for (const paramId in event.fx) {
+        const type = getFxParam(paramId)?.type;
+        if (type) touched.add(type);
+      }
+    });
+  });
+  return touched;
+}
+
+// trackChannel.fxChain / song.masterFxChain (model/trackChannel.js, model/song.js) didn't exist
+// before every FX was selectively enable/disable-able — a project saved before that feature
+// had every FX effectively "on" (just resting at its neutral value unless the user had moved
+// it, since FX_PARAMS#default *is* each node's neutral value). So rather than defaulting to an
+// empty chain (which would silently disable, and on save or a future removeTrackFx purge,
+// destroy, any FX a saved project already relies on), derive each channel's fxChain from
+// whatever it actually used: any type with a non-default parameter value, or referenced by a
+// cell's Event.fx anywhere in the song, is enabled (not bypassed) — the project sounds and
+// edits identically to how it did before fxChain existed.
+function ensureFxChains(song) {
+  song.trackChannels.forEach((channel, trackIndex) => {
+    if (channel.fxChain) return;
+    const touched = new Set([...typesTouchedByFxBag(channel.fx), ...typesReferencedByCellAutomation(song, trackIndex)]);
+    channel.fxChain = FX_TYPES.filter((type) => touched.has(type.id)).map((type) => ({ type: type.id, bypassed: false }));
+  });
+
+  if (!song.masterFxChain) {
+    const touched = typesTouchedByFxBag(song.masterFx);
+    song.masterFxChain = FX_TYPES.filter((type) => touched.has(type.id)).map((type) => ({ type: type.id, bypassed: false }));
+  }
 }
 
 // song/instruments/ui come straight from state/store.js's state shape.

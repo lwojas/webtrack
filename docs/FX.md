@@ -6,8 +6,7 @@ know the module map and the Song/Event data model.
 
 ## What this is
 
-Every track gets its own insert FX chain (filter, delay, reverb, compressor, saturation,
-chorus/flanger), and so does the master bus. The signal path is:
+Every track gets its own insert FX bus, and so does the master bus. The signal path is:
 
 ```
 track voices -> track's own insert bus (FX chain) -> MASTER_BUS (its own FX chain) -> output
@@ -16,6 +15,13 @@ track voices -> track's own insert bus (FX chain) -> MASTER_BUS (its own FX chai
 There's exactly one bus per track plus the master bus — no sends, no aux buses, no routing
 matrix. A tracker cell can automate its *own* track's bus only; it can never reach the master
 bus.
+
+webdsp's DSP nodes (filter, delay, reverb, compressor, saturation, chorus/flanger) are always
+present on every bus at the engine level — there's no real "instantiate an FX" primitive. What
+webtrack adds on top is the notion of a track (or the master bus) *choosing* which of those six
+to actually use: an **active FX chain**, per track/master, distinct from the catalog of FX the
+DSP merely knows how to provide. A track with nothing in its chain shows an empty FX panel, not
+six disabled modules — see "The model" below for the three-layer shape this is built from.
 
 None of this required an engine change. `webdsp` already shipped `AudioRuntime.createBus()`,
 `MASTER_BUS`, and `setNodeParameter(bus, NodeParam, value)` covering all six DSP nodes above —
@@ -44,9 +50,25 @@ cell editor both render from it, and nothing else hand-maintains a second copy. 
   Chorus-Flanger; Filter/Delay/BusGain aren't range-documented there, so those values are
   reasonable musical defaults, not an engine-mandated scale.
 
-Helpers: `getFxParam(id)`, `getFxParamGroups()` (groups params by node, in declaration order —
-what the FX panel renders one module per), `formatFxValue(value, param)` (shared formatting,
-same precedent as `model/notes.js`'s `toHex`/`noteNumberToName`).
+Each entry also carries a `type` (which `FX_TYPES` entry it belongs to — see below — or `null`
+for `bus.gain`, which isn't one of the six toggleable nodes) and an optional `cellAutomatable:
+false` for the handful of setup/gain-staging params that aren't natural step-automation targets
+(`comp.knee`/`comp.makeup`, `sat.asymmetry`/`sat.outputGain`, `chorus.delay`/`chorus.stereoPhase`
+— still editable from the FX panel, just left out of the cell editor's "+ ADD FX" list).
+
+`FX_TYPES` is the catalog of FX a track/master bus can actually enable or disable — one entry
+per toggleable node (`filter`, `delay`, `reverb`, `compressor`, `saturation`, `chorus`), each
+with a `bypassValues` map: that node's own documented "neutral"/no-op value (`mix: 0` for
+Delay/Reverb/Saturation/Chorus, `ratio: 1` for Compressor, `cutoff: 20000`/`resonance: 0.707` for
+Filter — webdsp's own `NodeParam` doc comments call these out as each node's bypass convention,
+and they're also each param's `default` above). `bus.gain` isn't in `FX_TYPES` — it's the bus's
+own always-present output stage, not a toggleable effect, so it's exempt from chain-gating
+everywhere that's checked.
+
+Helpers: `getFxParam(id)`, `getFxType(id)`, `getFxParamsForType(typeId)` (a type's own params, in
+declaration order — what the FX panel renders one enabled chain module's sliders from),
+`getFxTypeForParam(paramId)`, `formatFxValue(value, param)` (shared formatting, same precedent as
+`model/notes.js`'s `toHex`/`noteNumberToName`).
 
 Currently exposed: Filter (cutoff, resonance), Delay (time, feedback, mix), Reverb (decay,
 damping, mix), Compressor (threshold, ratio, attack, release, knee, makeup), Saturation
@@ -76,25 +98,62 @@ into `compileEvent`, which sets it as the compiled voice's `bus` — this is wha
 a track's notes through its own FX chain instead of straight to `MASTER_BUS`. Without this half
 of the wiring, the FX panel's sliders would move but change nothing audible.
 
-## The model: where a parameter's "current value" lives
+## The model: a track's FX, in three layers
 
-`webdsp` has no getter for `setNodeParameter` — the engine is write-only from the host's side.
-So the model keeps its own canonical copy:
+1. **What the DSP can provide** — `FX_TYPES`/`FX_PARAMS` (above). A fixed catalog, not
+   per-track; unaffected by anything a track does.
+2. **What's actually enabled** — `trackChannel.fxChain` / `song.masterFxChain`: an ordered array
+   of `{ type, bypassed }`, one entry per `FX_TYPES` id this track (or the master bus) currently
+   has turned on. This is the new concept: before it existed, every FX was implicitly "present"
+   everywhere, just resting at its own neutral value if the user never touched it — there was no
+   way to tell "unused" apart from "deliberately bypassed," and the FX panel/cell editor had no
+   way to show only what a track actually uses. `model/mutations.js#addTrackFx`/`removeTrackFx`/
+   `setTrackFxBypass` (and the `*MasterFx*` equivalents) are the only way to change this.
+3. **Current parameter values of what's enabled** — `trackChannel.fx` / `song.masterFx`, `{
+   [paramId]: value }`, same shape as before this feature existed. `webdsp` has no getter for
+   `setNodeParameter` — the engine is write-only from the host's side — so this is the model's
+   own canonical copy of "what value is this bus's parameter at right now." The FX panel's
+   TRACK/MASTER views read/write this; cell automation during playback latches onto it too (see
+   "Playback semantics" below). Not cleared when an FX is removed from `fxChain` — the values
+   just sit there unused, so re-enabling the same FX later picks back up where it left off
+   instead of resetting to defaults.
 
-- `model/trackChannel.js#fx` — `{ [paramId]: value }`, one per track. The FX panel's TRACK view
-  reads/writes this; it's the same mixer-level-persists-across-patterns role `muted`/`solo`/
-  `volume` already play on the same object.
-- `model/song.js#masterFx` — the same shape, for the master bus. The FX panel's MASTER view.
-- `Event.fx` (`model/event.js`) — a cell's own *sparse* automation map, `{ [paramId]: value }`
-  or `null`. Only the parameters actually set at that cell are present; everything else is
-  untouched. `model/mutations.js#setCellFxParam` is the only way to write to it — it adds,
-  updates, or (value `null`) removes one entry, collapsing back to `fx: null` once empty.
+`Event.fx` (`model/event.js`) is a fourth, distinct layer — a cell's own *sparse* automation
+map, `{ [paramId]: value }` or `null`. Only the parameters actually set at that cell are
+present; everything else is untouched. `model/mutations.js#setCellFxParam` is the only way to
+write to it, and it now validates against layer 2: a new entry is refused outright if that
+param's FX type isn't in the track's `fxChain` (`bus.gain`, which has no type, is exempt — it's
+always on). Symmetrically, `removeTrackFx` purges every matching `Event.fx` entry across every
+pattern on that track the moment an FX is disabled. Together, these two mean a cell can never
+reference an FX the track doesn't have enabled — enforced at the model layer, not as a
+defensive check threaded through playback.
 
-Both `trackChannel.fx` and `song.masterFx` are plain, additive fields on objects the project
-format already serializes as JSON — no persistence-format changes were needed (see
-`persistence/projectFile.js#ensureFxDefaults`, which defaults both on load for a project saved
-before this feature existed, same pattern `ensureTrackLengths` already set for per-track
-length).
+### Bypass
+
+Each `fxChain` entry's `bypassed` flag mutes that one FX without removing it from the chain or
+touching its stored values in `fx`/`masterFx` — a temporary "turn this off for now," as opposed
+to `removeTrackFx`'s "this track doesn't use this FX" (which also purges cell automation; bypass
+doesn't). Since `webdsp` has no generic per-node bypass primitive, bypassing one works by pushing
+that `FX_TYPES` entry's `bypassValues` to the engine instead of the stored values, and
+un-bypassing re-pushes whatever's currently stored — `audio/fx.js#setTrackFxTypeState`/
+`setMasterFxTypeState` is the one place both chain add/remove and the bypass toggle reach the
+engine. While a type is bypassed (or simply not enabled), a parameter write for one of its
+params — from the FX panel or from cell automation — only ever updates the model
+(`trackChannel.fx`); the live engine call is skipped until it's un-bypassed, so the "intended"
+value isn't lost, it's just not audible yet (`audio/fx.js#isFxBypassed`, checked by
+`appContext.js`'s `applyTrackFxParam`/`applyMasterFxParam` and by
+`audio/playbackController.js`'s cell-automation wiring).
+
+All of `trackChannel.fx`/`fxChain` and `song.masterFx`/`masterFxChain` are plain, additive
+fields on objects the project format already serializes as JSON — no persistence-format changes
+were needed (see `persistence/projectFile.js#ensureFxDefaults`/`ensureFxChains`, which default
+them on load for a project saved before this feature existed, same pattern `ensureTrackLengths`
+already set for per-track length. A pre-`fxChain` project has no way to say "this FX is
+enabled," so the migration derives it: any `FX_TYPES` id with a non-default value already
+sitting in `fx`/`masterFx`, or referenced by a cell's `Event.fx` anywhere in the song, is
+unioned into that track's/master's `fxChain` — the project sounds and edits identically to how
+it did before `fxChain` existed, just with its already-in-use FX now showing as enabled instead
+of invisibly present).
 
 ## Playback semantics
 
@@ -140,15 +199,31 @@ The lower panel under the tracker grid tabs between **MIXER** and **FX**
   shaping.
 - **MASTER** edits `MASTER_BUS`, labeled plainly as "MASTER BUS."
 
-Each DSP node (Filter, Delay, Reverb, Compressor, Saturation, Chorus/Flanger, Output) gets its
-own module card, grouped from `getFxParamGroups()`.
+Both targets render the same chain-based view (`ui/chrome/FxPanel.jsx`), not a dump of every
+`FX_PARAMS` entry:
+
+- A pinned **Output** module for `bus.gain` — always present, no remove/bypass controls (it
+  isn't a toggleable FX — see "The parameter catalog" above).
+- One module per `fxChain` entry actually enabled on this target, each with a bypass toggle and
+  a remove button in its header, and sliders underneath for just that type's own params
+  (`getFxParamsForType`).
+- A **"+ ADD FX"** dropdown listing whichever `FX_TYPES` aren't already enabled.
+- Nothing else — a track/master with no FX enabled shows only Output and the add control, not
+  six disabled module cards.
 
 ## Editing cell FX
 
 `ui/chrome/NoteEditor.jsx`'s "CELL FX" section lists whatever parameters the selected cell
 already has set, each with its own slider, value readout, and a remove button, plus an "+ ADD
-FX" dropdown (only offering parameters not already present on that cell) to add a new entry.
-Picking one seeds it at that parameter's default.
+FX" dropdown to add a new entry. That dropdown is scoped twice over: only params belonging to an
+FX the current track actually has enabled (`fxChain`), and only those marked `cellAutomatable`
+(not every param of an enabled FX is a good automation target — see "The parameter catalog").
+`bus.gain` is always offered, chain or no chain. Picking one seeds it at that parameter's
+current value (`trackChannel.fx`), the same value already playing, not the catalog default — a
+newly-added cell entry is a continuation of "whatever's already there," never a jump back to a
+neutral baseline. Trying to add automation for an FX the track doesn't have enabled isn't
+possible from this dropdown in the first place, and `model/mutations.js#setCellFxParam` refuses
+it anyway even if called directly.
 
 ## Adding a new FX parameter
 
@@ -156,14 +231,20 @@ If `webdsp` adds a new `NodeParam` (or you want to expose one that already exist
 the catalog yet):
 
 1. Add one entry to `FX_PARAMS` in `model/fxParams.js` — `id`, `nodeParam` (the enum member's
-   *name*, as a string), `group`, `label`, `min`/`max`/`default`/`step`/`unit`.
-2. That's it for the FX panel and the cell editor — both already render from `FX_PARAMS`
-   generically; nothing else needs to change. `audio/fx.js`'s `NODE_PARAM_BY_ID` map is built
-   from `FX_PARAMS` directly, so the new id resolves automatically.
+   *name*, as a string), `type` (an existing `FX_TYPES` id, or `null` if this is a bus.gain-like
+   always-on control), `group`, `label`, `min`/`max`/`default`/`step`/`unit`, and
+   `cellAutomatable: false` if it's a setup/gain-staging param rather than a step-automation
+   target.
+2. That's it for the FX panel and the cell editor — both already render from `FX_PARAMS`/
+   `getFxParamsForType` generically; nothing else needs to change. `audio/fx.js`'s
+   `NODE_PARAM_BY_ID` map is built from `FX_PARAMS` directly, so the new id resolves
+   automatically.
 3. If it's genuinely a new node (not a new parameter on an existing one), confirm `webdsp`'s
    `NodeParam` enum actually has it (`node_modules/webdsp/lib/index.d.ts`) before wiring it up —
    this file only bridges ids that already exist on the engine side; it never invents new DSP
-   behavior.
+   behavior. Add a matching `FX_TYPES` entry too, with that node's own documented neutral/bypass
+   value(s) as `bypassValues`, so it can be enabled/disabled/bypassed the same way the existing
+   six are.
 
 ## Boundaries (what this deliberately doesn't do)
 
@@ -176,4 +257,7 @@ the catalog yet):
   bus/chain — they never own or instantiate a node.
 - **Not wired to tracker FX columns or Push/MIDI yet.** `model/fxParams.js` is written so a
   future grid FX column or `control/contract.js` entry could consume it the same way the FX
-  panel does, but neither exists today — see `ARCHITECTURE.md`'s "Explicitly out of scope."
+  panel does, but neither exists today — see `ARCHITECTURE.md`'s "Explicitly out of scope." The
+  bypass flag in particular is a plain boolean per `(track, type)`, the same shape
+  `trackChannel.muted`/`solo` already have — deliberately easy to wire into `contract.js` later,
+  even though this plan doesn't add an entry for it yet.

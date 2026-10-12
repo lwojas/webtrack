@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { compileEvent, compileRow, compileRowFx, noteDurationSteps } from "../src/audio/compile.js";
 import { createSong } from "../src/model/song.js";
 import { createInstrumentSlot } from "../src/model/instrument.js";
-import { setEventField, setTrackLength, setCellFxParam } from "../src/model/mutations.js";
+import { setEventField, setTrackLength, setCellFxParam, addTrackFx } from "../src/model/mutations.js";
 import { getSelectedPattern } from "../src/model/query.js";
 
 function makeInstruments() {
@@ -225,6 +225,8 @@ describe("compileRowFx", () => {
   it("returns a sparse change per track whose cell at this row has fx set", () => {
     const song = createSong();
     const patternId = song.patterns[0].id;
+    addTrackFx(song, 0, "filter");
+    addTrackFx(song, 2, "delay");
     setCellFxParam(song, { patternId, trackIndex: 0, rowIndex: 0 }, "filter.cutoff", 1200);
     setCellFxParam(song, { patternId, trackIndex: 2, rowIndex: 0 }, "delay.mix", 0.25);
     const pattern = getSelectedPattern(song);
@@ -249,6 +251,7 @@ describe("compileRowFx", () => {
   it("isn't gated by mute/solo — fx automation latches in even on a muted track", () => {
     const song = createSong();
     const patternId = song.patterns[0].id;
+    addTrackFx(song, 0, "filter");
     setCellFxParam(song, { patternId, trackIndex: 0, rowIndex: 0 }, "filter.cutoff", 1200);
     song.trackChannels[0].muted = true;
     const pattern = getSelectedPattern(song);
@@ -260,6 +263,7 @@ describe("compileRowFx", () => {
     const song = createSong();
     const patternId = song.patterns[0].id;
     setTrackLength(song, patternId, 0, 4);
+    addTrackFx(song, 0, "delay");
     setCellFxParam(song, { patternId, trackIndex: 0, rowIndex: 3 }, "delay.mix", 0.5);
     const pattern = getSelectedPattern(song);
 

@@ -15,59 +15,86 @@
 // contract (its enum doc comments give authoritative ranges for Reverb/Compressor/
 // Saturation/Chorus-Flanger already; Filter/Delay/BusGain aren't range-documented there, so
 // the values below are reasonable musical defaults, not an engine-mandated scale).
+//
+// `type` is which FX_TYPES entry this parameter belongs to (null for bus.gain — see below).
+// `cellAutomatable` (default true, so most entries omit it) marks the handful of setup/
+// gain-staging params that aren't natural step-automation targets — those still live on the
+// FX panel, just not in the cell editor's "+ ADD FX" list (ui/chrome/NoteEditor.jsx).
 export const FX_PARAMS = [
-  { id: "filter.cutoff", nodeParam: "FilterCutoff", group: "Filter", label: "Cutoff", min: 20, max: 20000, default: 20000, step: 1, unit: "Hz" },
-  { id: "filter.resonance", nodeParam: "FilterResonance", group: "Filter", label: "Resonance", min: 0.1, max: 20, default: 0.707, step: 0.01, unit: "Q" },
+  { id: "filter.cutoff", nodeParam: "FilterCutoff", type: "filter", group: "Filter", label: "Cutoff", min: 20, max: 20000, default: 20000, step: 1, unit: "Hz" },
+  { id: "filter.resonance", nodeParam: "FilterResonance", type: "filter", group: "Filter", label: "Resonance", min: 0.1, max: 20, default: 0.707, step: 0.01, unit: "Q" },
 
-  { id: "delay.time", nodeParam: "DelayTime", group: "Delay", label: "Time", min: 0, max: 2, default: 0.25, step: 0.001, unit: "s" },
-  { id: "delay.feedback", nodeParam: "DelayFeedback", group: "Delay", label: "Feedback", min: 0, max: 0.95, default: 0.3, step: 0.01, unit: "" },
-  { id: "delay.mix", nodeParam: "DelayMix", group: "Delay", label: "Mix", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
+  { id: "delay.time", nodeParam: "DelayTime", type: "delay", group: "Delay", label: "Time", min: 0, max: 2, default: 0.25, step: 0.001, unit: "s" },
+  { id: "delay.feedback", nodeParam: "DelayFeedback", type: "delay", group: "Delay", label: "Feedback", min: 0, max: 0.95, default: 0.3, step: 0.01, unit: "" },
+  { id: "delay.mix", nodeParam: "DelayMix", type: "delay", group: "Delay", label: "Mix", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
 
-  { id: "reverb.decay", nodeParam: "ReverbDecay", group: "Reverb", label: "Decay", min: 0, max: 0.9999, default: 0.5, step: 0.001, unit: "" },
-  { id: "reverb.damping", nodeParam: "ReverbDamping", group: "Reverb", label: "Damping", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
-  { id: "reverb.mix", nodeParam: "ReverbMix", group: "Reverb", label: "Mix", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
+  { id: "reverb.decay", nodeParam: "ReverbDecay", type: "reverb", group: "Reverb", label: "Decay", min: 0, max: 0.9999, default: 0.5, step: 0.001, unit: "" },
+  { id: "reverb.damping", nodeParam: "ReverbDamping", type: "reverb", group: "Reverb", label: "Damping", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
+  { id: "reverb.mix", nodeParam: "ReverbMix", type: "reverb", group: "Reverb", label: "Mix", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
 
-  { id: "comp.threshold", nodeParam: "CompThreshold", group: "Compressor", label: "Threshold", min: -60, max: 0, default: -24, step: 0.5, unit: "dB" },
-  { id: "comp.ratio", nodeParam: "CompRatio", group: "Compressor", label: "Ratio", min: 1, max: 20, default: 1, step: 0.1, unit: ":1" },
-  { id: "comp.attack", nodeParam: "CompAttack", group: "Compressor", label: "Attack", min: 0.0001, max: 1, default: 0.01, step: 0.0001, unit: "s" },
-  { id: "comp.release", nodeParam: "CompRelease", group: "Compressor", label: "Release", min: 0.001, max: 3, default: 0.1, step: 0.001, unit: "s" },
-  { id: "comp.knee", nodeParam: "CompKnee", group: "Compressor", label: "Knee", min: 0, max: 24, default: 6, step: 0.5, unit: "dB" },
-  { id: "comp.makeup", nodeParam: "CompMakeup", group: "Compressor", label: "Makeup", min: -24, max: 24, default: 0, step: 0.5, unit: "dB" },
+  { id: "comp.threshold", nodeParam: "CompThreshold", type: "compressor", group: "Compressor", label: "Threshold", min: -60, max: 0, default: -24, step: 0.5, unit: "dB" },
+  { id: "comp.ratio", nodeParam: "CompRatio", type: "compressor", group: "Compressor", label: "Ratio", min: 1, max: 20, default: 1, step: 0.1, unit: ":1" },
+  { id: "comp.attack", nodeParam: "CompAttack", type: "compressor", group: "Compressor", label: "Attack", min: 0.0001, max: 1, default: 0.01, step: 0.0001, unit: "s" },
+  { id: "comp.release", nodeParam: "CompRelease", type: "compressor", group: "Compressor", label: "Release", min: 0.001, max: 3, default: 0.1, step: 0.001, unit: "s" },
+  { id: "comp.knee", nodeParam: "CompKnee", type: "compressor", group: "Compressor", label: "Knee", min: 0, max: 24, default: 6, step: 0.5, unit: "dB", cellAutomatable: false },
+  { id: "comp.makeup", nodeParam: "CompMakeup", type: "compressor", group: "Compressor", label: "Makeup", min: -24, max: 24, default: 0, step: 0.5, unit: "dB", cellAutomatable: false },
 
-  { id: "sat.drive", nodeParam: "SatDrive", group: "Saturation", label: "Drive", min: 0, max: 40, default: 0, step: 0.5, unit: "dB" },
-  { id: "sat.asymmetry", nodeParam: "SatAsymmetry", group: "Saturation", label: "Asymmetry", min: -1, max: 1, default: 0, step: 0.01, unit: "" },
-  { id: "sat.outputGain", nodeParam: "SatOutputGain", group: "Saturation", label: "Output", min: -24, max: 24, default: 0, step: 0.5, unit: "dB" },
-  { id: "sat.mix", nodeParam: "SatMix", group: "Saturation", label: "Mix", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
+  { id: "sat.drive", nodeParam: "SatDrive", type: "saturation", group: "Saturation", label: "Drive", min: 0, max: 40, default: 0, step: 0.5, unit: "dB" },
+  { id: "sat.asymmetry", nodeParam: "SatAsymmetry", type: "saturation", group: "Saturation", label: "Asymmetry", min: -1, max: 1, default: 0, step: 0.01, unit: "", cellAutomatable: false },
+  { id: "sat.outputGain", nodeParam: "SatOutputGain", type: "saturation", group: "Saturation", label: "Output", min: -24, max: 24, default: 0, step: 0.5, unit: "dB", cellAutomatable: false },
+  { id: "sat.mix", nodeParam: "SatMix", type: "saturation", group: "Saturation", label: "Mix", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
 
-  { id: "chorus.rate", nodeParam: "ChorusFlangerRate", group: "Chorus/Flanger", label: "Rate", min: 0.01, max: 10, default: 0.5, step: 0.01, unit: "Hz" },
-  { id: "chorus.depth", nodeParam: "ChorusFlangerDepth", group: "Chorus/Flanger", label: "Depth", min: 0, max: 20, default: 5, step: 0.1, unit: "ms" },
-  { id: "chorus.delay", nodeParam: "ChorusFlangerDelay", group: "Chorus/Flanger", label: "Delay", min: 0.1, max: 40, default: 15, step: 0.1, unit: "ms" },
-  { id: "chorus.feedback", nodeParam: "ChorusFlangerFeedback", group: "Chorus/Flanger", label: "Feedback", min: -0.95, max: 0.95, default: 0, step: 0.01, unit: "" },
-  { id: "chorus.stereoPhase", nodeParam: "ChorusFlangerStereoPhase", group: "Chorus/Flanger", label: "Stereo", min: 0, max: 1, default: 0.25, step: 0.01, unit: "" },
-  { id: "chorus.mix", nodeParam: "ChorusFlangerMix", group: "Chorus/Flanger", label: "Mix", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
+  { id: "chorus.rate", nodeParam: "ChorusFlangerRate", type: "chorus", group: "Chorus/Flanger", label: "Rate", min: 0.01, max: 10, default: 0.5, step: 0.01, unit: "Hz" },
+  { id: "chorus.depth", nodeParam: "ChorusFlangerDepth", type: "chorus", group: "Chorus/Flanger", label: "Depth", min: 0, max: 20, default: 5, step: 0.1, unit: "ms" },
+  { id: "chorus.delay", nodeParam: "ChorusFlangerDelay", type: "chorus", group: "Chorus/Flanger", label: "Delay", min: 0.1, max: 40, default: 15, step: 0.1, unit: "ms", cellAutomatable: false },
+  { id: "chorus.feedback", nodeParam: "ChorusFlangerFeedback", type: "chorus", group: "Chorus/Flanger", label: "Feedback", min: -0.95, max: 0.95, default: 0, step: 0.01, unit: "" },
+  { id: "chorus.stereoPhase", nodeParam: "ChorusFlangerStereoPhase", type: "chorus", group: "Chorus/Flanger", label: "Stereo", min: 0, max: 1, default: 0.25, step: 0.01, unit: "", cellAutomatable: false },
+  { id: "chorus.mix", nodeParam: "ChorusFlangerMix", type: "chorus", group: "Chorus/Flanger", label: "Mix", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
 
-  { id: "bus.gain", nodeParam: "BusGain", group: "Output", label: "Bus Gain", min: 0, max: 2, default: 1, step: 0.01, unit: "x" },
+  // Not one of the six toggleable FX nodes below — the bus's own always-present output stage
+  // (see FX_TYPES' doc comment), so it has no `type` and is exempt from chain-gating wherever
+  // that's checked (model/mutations.js#setCellFxParam, ui/chrome/NoteEditor.jsx).
+  { id: "bus.gain", nodeParam: "BusGain", type: null, group: "Output", label: "Bus Gain", min: 0, max: 2, default: 1, step: 0.01, unit: "x" },
+];
+
+// The catalog of FX a track or the master bus can choose to enable/disable — distinct from
+// FX_PARAMS above, which describes every parameter the DSP supports regardless of whether any
+// track actually uses it (see model/trackChannel.js#fxChain's doc comment for the full
+// three-layer model: FX_TYPES → fxChain → fx values).
+//
+// `bypassValues` is what gets sent to the engine while this type is disabled or bypassed on a
+// bus — each one is that node's own documented "neutral"/no-op value (same values as each
+// param's own `default` above; webdsp's NodeParam doc comments call these out explicitly as
+// each node's bypass convention — see docs/FX.md), so disabling an FX never requires a real
+// engine-side bypass primitive, just re-asserting the node's inert state.
+export const FX_TYPES = [
+  { id: "filter", label: "Filter", bypassValues: { "filter.cutoff": 20000, "filter.resonance": 0.707 } },
+  { id: "delay", label: "Delay", bypassValues: { "delay.mix": 0 } },
+  { id: "reverb", label: "Reverb", bypassValues: { "reverb.mix": 0 } },
+  { id: "compressor", label: "Compressor", bypassValues: { "comp.ratio": 1 } },
+  { id: "saturation", label: "Saturation", bypassValues: { "sat.mix": 0 } },
+  { id: "chorus", label: "Chorus/Flanger", bypassValues: { "chorus.mix": 0 } },
 ];
 
 export function getFxParam(id) {
   return FX_PARAMS.find((param) => param.id === id);
 }
 
-// FX_PARAMS grouped by node (Filter/Delay/Reverb/...), in declaration order — what the FX
-// panel renders one module per group from (ui/chrome/FxPanel.jsx).
-export function getFxParamGroups() {
-  const groups = [];
-  const byName = new Map();
-  for (const param of FX_PARAMS) {
-    let group = byName.get(param.group);
-    if (!group) {
-      group = { name: param.group, params: [] };
-      byName.set(param.group, group);
-      groups.push(group);
-    }
-    group.params.push(param);
-  }
-  return groups;
+export function getFxType(id) {
+  return FX_TYPES.find((type) => type.id === id);
+}
+
+// Every FX_PARAMS entry belonging to one FX_TYPES id, in catalog order — what the FX panel
+// renders one enabled chain module's sliders from (ui/chrome/FxPanel.jsx), and what seeds a
+// track's `fx` bag with defaults when that type is first enabled (model/mutations.js#addTrackFx).
+export function getFxParamsForType(typeId) {
+  return FX_PARAMS.filter((param) => param.type === typeId);
+}
+
+// null for bus.gain (see its FX_PARAMS entry above) — callers that gate on "this param's FX
+// type must be active" already treat a null type as exempt.
+export function getFxTypeForParam(paramId) {
+  return getFxParam(paramId)?.type ?? null;
 }
 
 function decimalsForStep(step) {

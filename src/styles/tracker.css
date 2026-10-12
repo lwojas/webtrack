@@ -687,12 +687,87 @@ textarea {
 }
 
 .fx-module__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
   color: var(--text-dim);
   font-size: var(--text-micro);
   letter-spacing: 0.04em;
   margin-bottom: var(--space-xs);
   padding-bottom: var(--space-xs);
   border-bottom: 1px solid var(--border);
+}
+
+.fx-module__title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fx-module__bypass,
+.fx-module__remove {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  line-height: 1;
+  background: var(--surface-1);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font-size: var(--text-label);
+}
+
+.fx-module__bypass:hover {
+  background: var(--surface-3);
+  color: var(--amber);
+  border-color: var(--border-active);
+}
+
+.fx-module__bypass--active {
+  background: var(--amber);
+  color: var(--surface);
+  border-color: var(--amber);
+}
+
+.fx-module__remove:hover {
+  color: var(--crimson);
+  border-color: var(--crimson);
+}
+
+/* The always-on bus.gain module (ui/chrome/FxPanel.jsx) — no bypass/remove controls, so it
+   doesn't visually compete with the actual add/remove-able FX modules next to it. */
+.fx-module--output .fx-module__header {
+  justify-content: space-between;
+}
+
+.fx-panel__empty {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  color: var(--text-dim);
+  font-size: var(--text-micro);
+  letter-spacing: 0.04em;
+  padding: 0 var(--space-xs);
+}
+
+.fx-panel__add {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  color: var(--text-dim);
+  font-size: var(--text-micro);
+  letter-spacing: 0.04em;
+}
+
+.fx-panel__add select {
+  background: var(--surface-1);
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-size: var(--text-micro);
+  padding: var(--space-xs);
 }
 
 .fx-module__field {

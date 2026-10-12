@@ -270,17 +270,23 @@ itself ever importing anything MIDI-specific. See
 [`docs/EXTENDING.md`](EXTENDING.md#adding-to-the-external-control-contract) for how to add to
 it, and [Gotcha #5](#5-the-control-contract-is-deliberately-small) for why it's this small.
 
-## FX: track/master buses and cell automation
+## FX: track/master buses, active FX chains, and cell automation
 
-Every track gets its own insert FX chain (filter/delay/reverb/compressor/saturation/chorus-
-flanger) plus a master-bus chain, via `webdsp`'s existing bus architecture (`MASTER_BUS`,
-`AudioRuntime.createBus()`, `setNodeParameter`) — no engine change needed, it was simply never
-wired into webtracker before (see the "Explicitly out of scope" entry this replaced). A tracker
-cell can hold sparse FX automation (`Event.fx`) that latches onto its own track's bus during
-playback, never the master bus. See [`docs/FX.md`](FX.md) for the full design: the parameter
-catalog (`model/fxParams.js`), the `webdsp`-bridging module (`audio/fx.js`), the
-`trackChannel.fx`/`song.masterFx`/`Event.fx` data model, playback semantics, the FX panel, and
-a known timing caveat (`setNodeParameter` has no timestamp, unlike `schedule()`).
+Every track gets its own insert FX bus plus a master bus, via `webdsp`'s existing bus
+architecture (`MASTER_BUS`, `AudioRuntime.createBus()`, `setNodeParameter`) — no engine change
+needed, it was simply never wired into webtracker before (see the "Explicitly out of scope"
+entry this replaced). `webdsp`'s six DSP nodes (filter/delay/reverb/compressor/saturation/
+chorus-flanger) are always present on every bus at the engine level; webtrack adds its own
+application-level concept of an **active FX chain** per track/master on top (`fxChain` —
+which of those six a track/the master bus actually uses right now, each individually
+bypassable), distinct from the fixed catalog of what the DSP merely knows how to provide
+(`FX_PARAMS`/`FX_TYPES`). A tracker cell can hold sparse FX automation (`Event.fx`) that
+latches onto its own track's bus during playback, never the master bus, and only for a
+parameter whose FX is actually enabled on that track. See [`docs/FX.md`](FX.md) for the full
+design: the parameter/type catalogs (`model/fxParams.js`), the `webdsp`-bridging module
+(`audio/fx.js`), the `fxChain`/`fx`/`masterFxChain`/`masterFx`/`Event.fx` data model and its
+bypass mechanics, playback semantics, the FX panel, and a known timing caveat
+(`setNodeParameter` has no timestamp, unlike `schedule()`).
 
 ## Gotchas
 
