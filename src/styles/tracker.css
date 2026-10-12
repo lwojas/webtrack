@@ -248,6 +248,42 @@ textarea {
   border-color: var(--border-active);
 }
 
+/* Per-track voice-allocation policy (model/trackChannel.js's voiceMode/maxVoices) — its own
+   sticky row directly below LEN (see ui/grid/gridView.js#buildVoiceHeaderRow's doc comment),
+   offset by exactly LEN's own height so the two stack without overlapping, both still pinned
+   to the top of the scrollable grid host while rows scroll past underneath. */
+.tracker-track-voice-header {
+  top: calc(var(--row-height) + var(--space-xs));
+  z-index: 2;
+}
+
+.tracker-track-voice-header__cell {
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.tracker-track-voice-header__mode,
+.tracker-track-voice-header__max {
+  min-width: 0;
+  flex: 1 1 0;
+  background: var(--surface-1);
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-size: var(--text-label);
+}
+
+.tracker-track-voice-header__mode:hover,
+.tracker-track-voice-header__max:hover {
+  border-color: var(--border-active);
+}
+
+.tracker-track-voice-header__max:disabled {
+  color: var(--text-dim);
+  border-color: var(--border);
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .tracker-row__index {
   width: 4ch;
   padding: 0 var(--space-sm);

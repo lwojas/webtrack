@@ -72,6 +72,22 @@ describe("serializeProject / deserializeProject", () => {
     expect(restored.song.patterns[0].tracks[1].length).toBe(64); // untouched track, already had it
   });
 
+  it("defaults trackChannel.voiceMode/maxVoices on a project saved before track voice limits existed", async () => {
+    const song = createSong();
+    delete song.trackChannels[0].voiceMode; // simulate a v2 file saved before this feature existed
+    delete song.trackChannels[0].maxVoices;
+    const serialized = serializeProject({ song, instruments: [], ui: {} });
+
+    const restored = await deserializeProject(serialized, { loadSampleBytes: async () => null });
+
+    // Defaults to poly/DEFAULT_MAX_VOICES — i.e. the same modest ceiling a brand-new track
+    // gets, not unlimited, but every pre-existing track's own setting is left untouched.
+    expect(restored.song.trackChannels[0].voiceMode).toBe("poly");
+    expect(restored.song.trackChannels[0].maxVoices).toBe(4);
+    expect(restored.song.trackChannels[1].voiceMode).toBe("poly");
+    expect(restored.song.trackChannels[1].maxVoices).toBe(4);
+  });
+
   it("defaults trackChannel.fx / song.masterFx on a project saved before the FX feature existed", async () => {
     const song = createSong();
     delete song.trackChannels[0].fx; // simulate a v2 file saved before trackChannel.fx existed

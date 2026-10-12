@@ -17,6 +17,7 @@
 // patternStartStep jumps to that boundary's stepCounter, so every track's local phase restarts
 // at 0 for the new pattern instance, instead of carrying over wherever it happened to be.
 import { trackLocalStep } from "../model/pattern.js";
+import { voiceTracker } from "./voiceTracker.js";
 
 const LOOKAHEAD_SECONDS = 0.15;
 const TICK_INTERVAL_MS = 25;
@@ -35,7 +36,13 @@ export function createLookaheadPlayer({
   onPatternSwitched,
   getNextQueueEntry,
   onTrackFxChange,
-}) {
+  // Overridable for tests; production wiring shares the one app-wide voiceTracker instance
+  // with audio/preview.js's manual-audition path (see voiceTracker.js's own doc comment on why
+  // that has to be a shared instance, not one scoped to this player).
+  reserveVoiceSlot = voiceTracker.reserveVoiceSlot,
+  registerVoice = voiceTracker.registerVoice,
+  resetVoiceTracking = voiceTracker.reset,
+} = {}) {
   let pattern = null;
   let pendingPattern = null; // { pattern, queueIndex } | null — a manually requested switch
   let queueIndex = 0;
@@ -89,7 +96,20 @@ export function createLookaheadPlayer({
       // transport, that should restart at 0 on every new pattern instance.
       const patternRelativeStep = stepCounter - patternStartStep;
       const events = compileRow(pattern, trackChannels, instruments, patternRelativeStep, stepTime, duration, trackBusIds);
-      if (events.length > 0) runtime.schedule(events);
+      if (events.length > 0) {
+        // Voice-limit enforcement (model/trackChannel.js's voiceMode/maxVoices, via
+        // audio/voiceTracker.js) happens here, right before scheduling — release()ing whatever
+        // the track's policy says must give way for this row's new triggers, in the same tick
+        // that starts them. trackIndex rode along on each compiled event (audio/compile.js)
+        // purely for this correlation and is stripped below — webdsp's ScheduledEvent has no
+        // such field.
+        events.forEach((event) => {
+          const toRelease = reserveVoiceSlot(event.trackIndex, trackChannels[event.trackIndex]);
+          toRelease.forEach((handle) => runtime.release(handle));
+        });
+        const handles = runtime.schedule(events.map(({ trackIndex, ...scheduledEvent }) => scheduledEvent)) ?? [];
+        events.forEach((event, index) => registerVoice(event.trackIndex, handles[index]));
+      }
 
       // Cell FX automation rides the same tick/lookahead cadence as note scheduling above —
       // see audio/fx.js's doc comment on webdsp's setNodeParameter having no timestamp of its
@@ -116,6 +136,9 @@ export function createLookaheadPlayer({
     patternStartStep = 0;
     startTime = startAt ?? runtime.getCurrentTime() + 0.05;
     playing = true;
+    // A fresh session's voice handles have nothing to do with whatever a previous one was
+    // tracking (see voiceTracker.js#reset's own doc comment).
+    resetVoiceTracking();
 
     // Arm the interval only after the first tick — the same ordering webdsp's own
     // LookaheadPlayer uses, to avoid a late-arming interval line resurrecting a player that

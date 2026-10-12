@@ -10,6 +10,7 @@ function createFakeRuntime(initialTime = 0) {
   return {
     getCurrentTime: () => time,
     schedule: vi.fn(),
+    release: vi.fn(),
     cancelScheduled: vi.fn(),
     advance(seconds) {
       time += seconds;
@@ -193,6 +194,101 @@ describe("createLookaheadPlayer — one shared transport, independent per-track 
     expect(player.getTrackPlayheadRow(0)).toBe(-1); // stopped
     player.start({ initialPattern: pattern, initialTrackChannels: [], initialInstruments: [], startAt: 0 });
     expect(player.getTrackPlayheadRow(5)).toBe(-1); // no such track
+
+    player.stop();
+  });
+});
+
+// Track voice-limit enforcement (model/trackChannel.js's voiceMode/maxVoices) is decided by
+// audio/voiceTracker.js, unit-tested on its own (test/voiceTracker.test.js) — these tests only
+// cover the *wiring*: that tick() asks it before every schedule() call, actually release()s
+// whatever it says to, strips the trackIndex correlation field back off before the engine ever
+// sees a compiled event, and registers the handle schedule() hands back against the right
+// track. reserveVoiceSlot/registerVoice/resetVoiceTracking are injected fakes here (see
+// createLookaheadPlayer's own doc comment on why those are overridable) so none of this touches
+// the real app-wide voiceTracker singleton.
+describe("createLookaheadPlayer — voice-limit wiring (audio/voiceTracker.js)", () => {
+  it("reserves a slot per compiled event, release()s what's returned, then registers the resulting handle against its own track", () => {
+    const runtime = createFakeRuntime();
+    runtime.schedule = vi.fn(() => [101, 202]);
+    const pattern = makePattern({ rowCount: 16, trackLengths: [4, 4] });
+    const trackChannels = [
+      { voiceMode: "poly", maxVoices: 4 },
+      { voiceMode: "mono", maxVoices: 4 },
+    ];
+    const compileRow = vi.fn(() => [
+      { sampleId: 1, trackIndex: 0 },
+      { sampleId: 2, trackIndex: 1 },
+    ]);
+    const reserveCalls = [];
+    const reserveVoiceSlot = vi.fn((trackIndex, channel) => {
+      reserveCalls.push({ trackIndex, channel });
+      return trackIndex === 1 ? [999] : [];
+    });
+    const registerCalls = [];
+    const registerVoice = vi.fn((trackIndex, handle) => registerCalls.push({ trackIndex, handle }));
+
+    const player = createLookaheadPlayer({
+      runtime,
+      compileRow,
+      getStepDurationSeconds: () => 1,
+      reserveVoiceSlot,
+      registerVoice,
+      resetVoiceTracking: vi.fn(),
+    });
+
+    player.start({ initialPattern: pattern, initialTrackChannels: trackChannels, initialInstruments: [], startAt: 0 });
+
+    expect(reserveCalls).toEqual([
+      { trackIndex: 0, channel: trackChannels[0] },
+      { trackIndex: 1, channel: trackChannels[1] },
+    ]);
+    expect(runtime.release).toHaveBeenCalledTimes(1);
+    expect(runtime.release).toHaveBeenCalledWith(999);
+
+    // trackIndex only exists for this correlation — webdsp's ScheduledEvent has no such field.
+    expect(runtime.schedule).toHaveBeenCalledWith([{ sampleId: 1 }, { sampleId: 2 }]);
+
+    expect(registerCalls).toEqual([
+      { trackIndex: 0, handle: 101 },
+      { trackIndex: 1, handle: 202 },
+    ]);
+
+    player.stop();
+  });
+
+  it("resets voice tracking on every start()", () => {
+    const runtime = createFakeRuntime();
+    const resetVoiceTracking = vi.fn();
+    const player = createLookaheadPlayer({
+      runtime,
+      compileRow: () => [],
+      getStepDurationSeconds: () => 1,
+      resetVoiceTracking,
+    });
+    const pattern = makePattern({ trackLengths: [4] });
+
+    player.start({ initialPattern: pattern, initialTrackChannels: [], initialInstruments: [], startAt: 0 });
+    expect(resetVoiceTracking).toHaveBeenCalledTimes(1);
+
+    player.stop();
+  });
+
+  it("never reserves a voice slot or calls schedule when a row compiles no events", () => {
+    const runtime = createFakeRuntime();
+    const reserveVoiceSlot = vi.fn();
+    const player = createLookaheadPlayer({
+      runtime,
+      compileRow: () => [],
+      getStepDurationSeconds: () => 1,
+      reserveVoiceSlot,
+    });
+    const pattern = makePattern({ trackLengths: [4] });
+
+    player.start({ initialPattern: pattern, initialTrackChannels: [], initialInstruments: [], startAt: 0 });
+
+    expect(reserveVoiceSlot).not.toHaveBeenCalled();
+    expect(runtime.schedule).not.toHaveBeenCalled();
 
     player.stop();
   });

@@ -8,6 +8,7 @@
 import { createInstrumentSlot } from "../model/instrument.js";
 import { arrayBufferToBase64, base64ToArrayBuffer } from "./base64.js";
 import { FX_TYPES, getFxParam } from "../model/fxParams.js";
+import { DEFAULT_MAX_VOICES } from "../model/trackChannel.js";
 
 export const PROJECT_FORMAT_VERSION = 2;
 
@@ -76,6 +77,20 @@ function ensureTrackLengths(song) {
     pattern.tracks.forEach((track) => {
       if (typeof track.length !== "number") track.length = pattern.rowCount;
     });
+  });
+}
+
+// trackChannel.voiceMode/maxVoices (model/trackChannel.js) are purely additive too, added after
+// format v2 shipped without them — same reasoning as ensureTrackLengths/ensureFxDefaults below:
+// default every track to "poly" at DEFAULT_MAX_VOICES, which is exactly how every track already
+// behaved before this feature existed (unbounded polyphony), just with the same modest ceiling
+// a brand-new track gets today (model/trackChannel.js#createTrackChannel) rather than no ceiling
+// at all — a project saved before this existed gains the same "sane default" protection a new
+// project starts with, instead of silently staying unlimited forever.
+function ensureVoiceDefaults(song) {
+  song.trackChannels.forEach((channel) => {
+    if (!channel.voiceMode) channel.voiceMode = "poly";
+    if (typeof channel.maxVoices !== "number") channel.maxVoices = DEFAULT_MAX_VOICES;
   });
 }
 
@@ -172,6 +187,7 @@ export async function deserializeProject(parsed, { loadSampleBytes }) {
   }
 
   ensureTrackLengths(parsed.song);
+  ensureVoiceDefaults(parsed.song);
   ensureFxDefaults(parsed.song);
 
   const instruments = await Promise.all(

@@ -203,6 +203,22 @@ describe("compileRow", () => {
     expect(compileRow(pattern, song.trackChannels, instruments, 4, 0, 0.25)).toHaveLength(1);
   });
 
+  it("tags each compiled event with the trackIndex that produced it (audio/voiceTracker.js's correlation key)", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 60);
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "instrument", 0);
+    setEventField(song, { patternId, trackIndex: 3, rowIndex: 0 }, "note", 48);
+    setEventField(song, { patternId, trackIndex: 3, rowIndex: 0 }, "instrument", 1);
+
+    const instruments = [createInstrumentSlot({ id: 0, sampleId: 1 }), createInstrumentSlot({ id: 1, sampleId: 2 })];
+    const pattern = getSelectedPattern(song);
+
+    const events = compileRow(pattern, song.trackChannels, instruments, 0, 0, 0.25);
+    expect(events.find((e) => e.sampleId === 1).trackIndex).toBe(0);
+    expect(events.find((e) => e.sampleId === 2).trackIndex).toBe(3);
+  });
+
   it("routes each track's compiled voice into its own trackBusIds entry", () => {
     const song = createSong();
     const patternId = song.patterns[0].id;

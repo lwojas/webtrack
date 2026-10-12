@@ -5,6 +5,7 @@ import { createEmptyEvent, cloneEvent } from "./event.js";
 import { createPattern } from "./pattern.js";
 import { getEvent, getPattern, getTrackChannel } from "./query.js";
 import { getFxParamsForType, getFxTypeForParam } from "./fxParams.js";
+import { VOICE_MODES } from "./trackChannel.js";
 
 export function setEventField(song, { patternId, trackIndex, rowIndex }, field, value) {
   const event = getEvent(song, patternId, trackIndex, rowIndex);
@@ -44,6 +45,25 @@ export function setTrackChannelSolo(song, trackIndex, solo) {
 export function setTrackChannelVolume(song, trackIndex, volume) {
   const channel = getTrackChannel(song, trackIndex);
   if (channel) channel.volume = volume;
+}
+
+// A track's voice-allocation policy (model/trackChannel.js's doc comment) — enforced by
+// audio/voiceTracker.js, not here; this just stores the setting. Rejects an unknown mode
+// outright rather than storing garbage the engine would have to treat as poly by default.
+export function setTrackChannelVoiceMode(song, trackIndex, voiceMode) {
+  if (!VOICE_MODES.includes(voiceMode)) return;
+  const channel = getTrackChannel(song, trackIndex);
+  if (channel) channel.voiceMode = voiceMode;
+}
+
+// Clamped to a sane minimum of 1 (a track with maxVoices = 0 could never sound at all) but not
+// to any particular maximum from the UI's own dropdown — a project could carry a value the
+// current UI doesn't offer (a future bigger option, or hand-edited JSON) without this clobbering
+// it, matching setTrackLength's own "clamp the nonsense, trust the rest" approach below.
+export function setTrackChannelMaxVoices(song, trackIndex, maxVoices) {
+  const channel = getTrackChannel(song, trackIndex);
+  if (!channel) return;
+  channel.maxVoices = Math.max(1, Math.round(maxVoices));
 }
 
 // A track's insert-bus FX baseline (model/trackChannel.js#fx) — called by both the FX panel

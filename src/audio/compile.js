@@ -71,7 +71,12 @@ export function compileRow(pattern, trackChannels, instruments, transportStep, t
     const durationSteps = noteDurationSteps(track, localStep);
     const bus = trackBusIds?.[trackIndex];
     const compiled = compileEvent(event, trackChannel, instruments, time, durationSteps * stepDurationSeconds, bus);
-    if (compiled) events.push(compiled);
+    // trackIndex rides along on the compiled event itself (not webdsp's ScheduledEvent shape —
+    // audio/lookaheadPlayer.js strips it again before actually calling runtime.schedule()) so
+    // whichever VoiceHandle the engine hands back for this event can be attributed back to the
+    // track that triggered it — audio/voiceTracker.js's whole per-track voice-limit bookkeeping
+    // depends on that correlation, and this is the one place that already knows it.
+    if (compiled) events.push({ ...compiled, trackIndex });
   });
 
   return events;

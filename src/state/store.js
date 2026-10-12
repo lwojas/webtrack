@@ -4,6 +4,8 @@ import {
   setTrackChannelMuted as setTrackChannelMutedModel,
   setTrackChannelSolo as setTrackChannelSoloModel,
   setTrackChannelVolume as setTrackChannelVolumeModel,
+  setTrackChannelVoiceMode as setTrackChannelVoiceModeModel,
+  setTrackChannelMaxVoices as setTrackChannelMaxVoicesModel,
   setTrackFxParam as setTrackFxParamModel,
   setMasterFxParam as setMasterFxParamModel,
   setCellFxParam as setCellFxParamModel,
@@ -448,6 +450,19 @@ export function createStore({ song, instruments }) {
     emitter.emit(events.TRACK_CHANNEL_CHANGED, { trackIndex });
   }
 
+  // Track voice-allocation policy (model/trackChannel.js's voiceMode/maxVoices, enforced by
+  // audio/voiceTracker.js) — reuses TRACK_CHANNEL_CHANGED, the same event mute/solo/volume
+  // already emit, since it's the same kind of per-track mixer-level setting.
+  function setTrackChannelVoiceMode(trackIndex, voiceMode) {
+    setTrackChannelVoiceModeModel(state.song, trackIndex, voiceMode);
+    emitter.emit(events.TRACK_CHANNEL_CHANGED, { trackIndex });
+  }
+
+  function setTrackChannelMaxVoices(trackIndex, maxVoices) {
+    setTrackChannelMaxVoicesModel(state.song, trackIndex, maxVoices);
+    emitter.emit(events.TRACK_CHANNEL_CHANGED, { trackIndex });
+  }
+
   // sampleId comes from audio/instrumentLoader.js's loadSample() result — store.js stays
   // free of any webdsp import either way (appContext.js/InstrumentPanel.jsx call the loader,
   // then hand this just the resulting id), matching the audio/↔state/ layering rule.
@@ -546,6 +561,8 @@ export function createStore({ song, instruments }) {
     setTrackChannelMuted,
     setTrackChannelSolo,
     setTrackChannelVolume,
+    setTrackChannelVoiceMode,
+    setTrackChannelMaxVoices,
     setInstrumentSample,
     addInstrumentSlot,
     setPatternSwitchPending,

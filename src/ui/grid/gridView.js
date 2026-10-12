@@ -1,6 +1,7 @@
 import { formatCell } from "./rowFormatting.js";
 import { rowToBarBeat } from "../../model/timing.js";
 import { isEmptyEvent } from "../../model/event.js";
+import { VOICE_MODES, MAX_VOICES_OPTIONS } from "../../model/trackChannel.js";
 
 // Builds the 64-row × 8-track grid exactly once via createElement (ECS-156 plan §4), caching
 // every cell's DOM refs in a 2D array. patchCell() is the single write path for all cell
@@ -13,12 +14,16 @@ export function createGridView({
   onCellMouseDown,
   onCellMouseEnter,
   onLengthChange,
+  onVoiceModeChange,
+  onMaxVoicesChange,
 } = {}) {
   let container = null;
   let cellRefs = null; // cellRefs[trackIndex][rowIndex] = { cellEl, noteEl, insEl, volEl, fxEl }
   let rowEls = null; // rowEls[rowIndex]
   let headerRowEl = null;
   let headerRefs = null; // headerRefs[trackIndex] = { cellEl, lengthEl }
+  let voiceHeaderRowEl = null;
+  let voiceHeaderRefs = null; // voiceHeaderRefs[trackIndex] = { cellEl, modeEl, maxEl }
 
   function buildCell(trackIndex, rowIndex) {
     const cellEl = document.createElement("div");
@@ -115,6 +120,71 @@ export function createGridView({
     onLengthChange(Number(cellEl.dataset.track), value);
   }
 
+  // A track's voice-allocation policy (model/trackChannel.js's voiceMode/maxVoices) sits in its
+  // own row right below LEN rather than crowded into the same one — both are per-column, "about
+  // this track" controls that belong above the column they govern, same reasoning as
+  // buildHeaderCell's own doc comment above, just two separate settings rather than one.
+  function buildVoiceHeaderCell(trackIndex) {
+    const cellEl = document.createElement("div");
+    cellEl.className = "tracker-track-header__cell tracker-track-voice-header__cell";
+    cellEl.dataset.track = String(trackIndex);
+
+    const modeEl = document.createElement("select");
+    modeEl.className = "tracker-track-voice-header__mode";
+    modeEl.dataset.field = "voiceMode";
+    VOICE_MODES.forEach((mode) => {
+      const option = document.createElement("option");
+      option.value = mode;
+      option.textContent = mode === "poly" ? "Poly" : "Mono";
+      modeEl.appendChild(option);
+    });
+
+    const maxEl = document.createElement("select");
+    maxEl.className = "tracker-track-voice-header__max";
+    maxEl.dataset.field = "maxVoices";
+    MAX_VOICES_OPTIONS.forEach((value) => {
+      const option = document.createElement("option");
+      option.value = String(value);
+      option.textContent = String(value);
+      maxEl.appendChild(option);
+    });
+
+    cellEl.append(modeEl, maxEl);
+    return { cellEl, modeEl, maxEl };
+  }
+
+  function buildVoiceHeaderRow() {
+    const rowEl = document.createElement("div");
+    rowEl.className = "tracker-track-header tracker-track-voice-header";
+
+    const indexEl = document.createElement("span");
+    indexEl.className = "tracker-track-header__index";
+    // Same 4ch-wide label column LEN uses (.tracker-track-header__index) — "VOI" rather than
+    // "VOICE" so it fits without overflowing/clipping, matching LEN's own 3-letter label.
+    indexEl.textContent = "VOI";
+    rowEl.appendChild(indexEl);
+
+    const refsForHeader = [];
+    for (let t = 0; t < trackCount; t++) {
+      const refs = buildVoiceHeaderCell(t);
+      rowEl.appendChild(refs.cellEl);
+      refsForHeader.push(refs);
+    }
+
+    return { rowEl, refsForHeader };
+  }
+
+  // Same delegation shape as handleHeaderInput above, but for both <select>s' "change" (not
+  // "input" — a select doesn't fire that) in the voice header row.
+  function handleVoiceHeaderChange(e) {
+    const cellEl = e.target.closest(".tracker-track-voice-header__cell");
+    if (!cellEl) return;
+    const trackIndex = Number(cellEl.dataset.track);
+    const field = e.target.dataset.field;
+    if (field === "voiceMode") onVoiceModeChange?.(trackIndex, e.target.value);
+    else if (field === "maxVoices") onMaxVoicesChange?.(trackIndex, Number(e.target.value));
+  }
+
   // Event delegation: one listener for the whole grid rather than one per cell/field, in
   // keeping with this project's minimal-DOM/minimal-listener approach (see
   // docs/ARCHITECTURE.md's rendering-architecture section). mousedown (not click) starts both
@@ -149,6 +219,12 @@ export function createGridView({
     headerRowEl.addEventListener("input", handleHeaderInput);
     container.appendChild(headerRowEl);
 
+    const { rowEl: voiceHeaderEl, refsForHeader: refsForVoiceHeader } = buildVoiceHeaderRow();
+    voiceHeaderRowEl = voiceHeaderEl;
+    voiceHeaderRefs = refsForVoiceHeader;
+    voiceHeaderRowEl.addEventListener("change", handleVoiceHeaderChange);
+    container.appendChild(voiceHeaderRowEl);
+
     rowEls = new Array(rowCount);
     cellRefs = Array.from({ length: trackCount }, () => new Array(rowCount));
 
@@ -174,18 +250,25 @@ export function createGridView({
       const rect = getColumnRect(t);
       if (rect) cellEl.style.width = `${rect.width}px`;
     });
+    voiceHeaderRefs.forEach(({ cellEl }, t) => {
+      const rect = getColumnRect(t);
+      if (rect) cellEl.style.width = `${rect.width}px`;
+    });
   }
 
   function unmount() {
     container?.removeEventListener("mousedown", handleMouseDown);
     container?.removeEventListener("mouseover", handleMouseOver);
     headerRowEl?.removeEventListener("input", handleHeaderInput);
+    voiceHeaderRowEl?.removeEventListener("change", handleVoiceHeaderChange);
     container?.remove();
     container = null;
     cellRefs = null;
     rowEls = null;
     headerRowEl = null;
     headerRefs = null;
+    voiceHeaderRowEl = null;
+    voiceHeaderRefs = null;
   }
 
   // Refreshes one track's header input to the given pattern's data — called whenever the
@@ -197,6 +280,24 @@ export function createGridView({
     refs.lengthEl.max = String(maxLength);
     refs.lengthEl.value = String(length);
     refs.lengthEl.title = `Playback length: ${length} steps (of ${maxLength})`;
+  }
+
+  // Refreshes one track's voice controls — called on mount and whenever that track's channel
+  // changes (state/events.js#TRACK_CHANNEL_CHANGED), same as mute/solo/volume already do
+  // elsewhere; this is the grid's own copy of that same trackChannel data, not a second source
+  // of truth. maxEl stays disabled (not hidden) while mono — the stored value is still there,
+  // just not the thing currently governing playback, matching model/trackChannel.js's doc
+  // comment on why mono doesn't force maxVoices to 1 in the data itself.
+  function setHeaderVoiceSettings(trackIndex, { voiceMode, maxVoices }) {
+    const refs = voiceHeaderRefs?.[trackIndex];
+    if (!refs) return;
+    refs.modeEl.value = voiceMode;
+    refs.maxEl.value = String(maxVoices);
+    refs.maxEl.disabled = voiceMode === "mono";
+    refs.maxEl.title =
+      voiceMode === "mono"
+        ? "Mono — only one voice at a time; Max voices is ignored until this track is Poly again"
+        : `Max simultaneous voices on this track: ${maxVoices}`;
   }
 
   function patchCell(trackIndex, rowIndex, event) {
@@ -260,6 +361,7 @@ export function createGridView({
     patchCell,
     repaintPattern,
     setHeaderLength,
+    setHeaderVoiceSettings,
     getContainerElement,
     getRowElement,
     getCellElement,

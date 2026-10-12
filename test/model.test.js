@@ -9,6 +9,8 @@ import {
   setTrackChannelMuted,
   setTrackChannelSolo,
   setTrackChannelVolume,
+  setTrackChannelVoiceMode,
+  setTrackChannelMaxVoices,
   setTrackFxParam,
   setMasterFxParam,
   setCellFxParam,
@@ -46,6 +48,14 @@ describe("createSong", () => {
     song.patterns[0].tracks.forEach((track) => expect(track.length).toBe(64));
   });
 
+  it("every track channel defaults to poly with a modest voice ceiling, not unlimited", () => {
+    const song = createSong();
+    song.trackChannels.forEach((channel) => {
+      expect(channel.voiceMode).toBe("poly");
+      expect(channel.maxVoices).toBe(4);
+    });
+  });
+
   it("starts every cell empty", () => {
     const song = createSong();
     const event = getEvent(song, song.patterns[0].id, 0, 0);
@@ -81,6 +91,34 @@ describe("mutations", () => {
 
     selectPattern(song, song.patterns[0].id); // no-op, only one pattern exists by default
     expect(song.trackChannels[1].muted).toBe(true);
+  });
+
+  it("setTrackChannelVoiceMode stores poly/mono and rejects anything else", () => {
+    const song = createSong();
+    setTrackChannelVoiceMode(song, 0, "mono");
+    expect(song.trackChannels[0].voiceMode).toBe("mono");
+
+    setTrackChannelVoiceMode(song, 0, "nonsense");
+    expect(song.trackChannels[0].voiceMode).toBe("mono"); // unchanged — invalid mode refused
+  });
+
+  it("setTrackChannelMaxVoices rounds and clamps to a minimum of 1, but not to any particular maximum", () => {
+    const song = createSong();
+    setTrackChannelMaxVoices(song, 0, 2.6);
+    expect(song.trackChannels[0].maxVoices).toBe(3);
+
+    setTrackChannelMaxVoices(song, 0, 0);
+    expect(song.trackChannels[0].maxVoices).toBe(1);
+
+    setTrackChannelMaxVoices(song, 0, 32);
+    expect(song.trackChannels[0].maxVoices).toBe(32);
+  });
+
+  it("switching a track to mono doesn't touch its stored maxVoices", () => {
+    const song = createSong();
+    setTrackChannelMaxVoices(song, 0, 8);
+    setTrackChannelVoiceMode(song, 0, "mono");
+    expect(song.trackChannels[0].maxVoices).toBe(8);
   });
 
   it("selectPattern only accepts a patternId that exists", () => {

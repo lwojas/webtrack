@@ -54,6 +54,22 @@ export default function TrackerGridHost({ store, playbackController, renderStats
       store.setTrackLength(trackIndex, value);
     }
 
+    // trackChannels (and their voiceMode/maxVoices) are song-level, not per-pattern — unlike
+    // LEN's track.length, a pattern switch never changes them, so this only needs to run once
+    // at mount and again on TRACK_CHANNEL_CHANGED, not on every handlePossibleResize.
+    function syncVoiceHeaders() {
+      const state = store.getState();
+      state.song.trackChannels.forEach((channel, trackIndex) => gridView.setHeaderVoiceSettings(trackIndex, channel));
+    }
+
+    function handleVoiceModeChange(trackIndex, voiceMode) {
+      store.setTrackChannelVoiceMode(trackIndex, voiceMode);
+    }
+
+    function handleMaxVoicesChange(trackIndex, maxVoices) {
+      store.setTrackChannelMaxVoices(trackIndex, maxVoices);
+    }
+
     function patchOneCell({ trackIndex, rowIndex }) {
       const state = store.getState();
       const pattern = getSelectedPattern(state.song);
@@ -136,6 +152,8 @@ export default function TrackerGridHost({ store, playbackController, renderStats
         onCellMouseDown: handleCellMouseDown,
         onCellMouseEnter: handleCellMouseEnter,
         onLengthChange: handleLengthChange,
+        onVoiceModeChange: handleVoiceModeChange,
+        onMaxVoicesChange: handleMaxVoicesChange,
       });
       gridView.mount(containerRef.current);
       renderStats?.setNodeCount(gridView.getNodeCount());
@@ -156,6 +174,7 @@ export default function TrackerGridHost({ store, playbackController, renderStats
       cursorLayer.mount(gridView.getContainerElement());
 
       repaintActivePattern();
+      syncVoiceHeaders();
       updateCursor();
     }
 
@@ -178,6 +197,7 @@ export default function TrackerGridHost({ store, playbackController, renderStats
       store.subscribe(events.PATTERN_SELECTED, handlePossibleResize),
       store.subscribe(events.PATTERN_LENGTH_CHANGED, handlePossibleResize),
       store.subscribe(events.TRACK_LENGTH_CHANGED, patchHeaderLength),
+      store.subscribe(events.TRACK_CHANNEL_CHANGED, syncVoiceHeaders),
       store.subscribe(events.CURSOR_MOVED, updateCursor),
     ];
 

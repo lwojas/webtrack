@@ -1,6 +1,21 @@
 // A per-song mixer-level channel strip: mute/solo/volume persist across pattern switches on
 // the same track, unlike the events themselves, which are per-pattern (see pattern.js).
 //
+// voiceMode/maxVoices (ui/grid/gridView.js's voice header row, below the LEN row) are this
+// track's own voice-allocation policy, persisted the same way as mute/solo/volume — a track's
+// voice budget shouldn't reset just because playback switched patterns. The engine enforces
+// them, not the tracker/UI (see audio/voiceTracker.js):
+//   - "poly": up to maxVoices voices may sound at once on this track; triggering past that
+//     steals the oldest one (FIFO) rather than dropping the new trigger.
+//   - "mono": every previously active voice on this track is released as soon as a new one
+//     triggers, so the track is always monophonic regardless of maxVoices, which is kept
+//     around (not forced to 1) so it's still there if the track switches back to poly.
+export const VOICE_MODES = ["poly", "mono"];
+// Kept small and musically meaningful rather than exposing the engine's full voice range —
+// see model/trackChannel.js's own call site in ui/grid/gridView.js for the dropdown this backs.
+export const MAX_VOICES_OPTIONS = [1, 2, 4, 8, 16];
+export const DEFAULT_MAX_VOICES = 4;
+//
 // FX is a three-layer model (model/fxParams.js has the full doc comment on the catalog side):
 //   1. FX_TYPES/FX_PARAMS — every FX the DSP knows how to provide. Catalog, not per-track.
 //   2. `fxChain` — which of those FX_TYPES are actually *enabled* on this track right now, in
@@ -20,7 +35,17 @@
 // latches onto whichever of these *current* values playback is already using, validated against
 // fxChain at write time (model/mutations.js#setCellFxParam) so a cell can never reference an FX
 // this track doesn't have enabled.
-export function createTrackChannel({ index, name, muted = false, solo = false, volume = 1.0, fx = {}, fxChain = [] } = {}) {
+export function createTrackChannel({
+  index,
+  name,
+  muted = false,
+  solo = false,
+  volume = 1.0,
+  fx = {},
+  fxChain = [],
+  voiceMode = "poly",
+  maxVoices = DEFAULT_MAX_VOICES,
+} = {}) {
   return {
     index,
     name: name ?? `TRK ${index + 1}`,
@@ -29,5 +54,7 @@ export function createTrackChannel({ index, name, muted = false, solo = false, v
     volume,
     fx,
     fxChain,
+    voiceMode,
+    maxVoices,
   };
 }
