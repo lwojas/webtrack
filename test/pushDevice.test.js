@@ -49,6 +49,16 @@ describe("createPushDevice — connects only to the Push's User Port, never the 
     expect(liveOut.send).not.toHaveBeenCalled();
   });
 
+  it("matches a manufacturer-suffixed name variant, e.g. 'Ableton Push User Port (Akai)'", async () => {
+    const userIn = createFakePort("Ableton Push User Port (Akai)");
+    const userOut = createFakePort("Ableton Push User Port (Akai)");
+    const access = createFakeMidiAccess({ inputs: [userIn], outputs: [userOut] });
+    const device = createPushDevice({ requestMIDIAccess: () => Promise.resolve(access) });
+
+    device.attach();
+    await vi.waitFor(() => expect(device.isConnected()).toBe(true));
+  });
+
   it("reports not connected when no matching port exists yet", () => {
     const device = createPushDevice({ requestMIDIAccess: () => Promise.resolve(createFakeMidiAccess({})) });
     expect(device.isConnected()).toBe(false);
