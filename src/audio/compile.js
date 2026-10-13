@@ -34,8 +34,13 @@ export function compileEvent(event, trackChannel, instruments, time, durationSec
   const instrument = instruments[event.instrument];
   if (!instrument || instrument.sampleId === null) return null;
 
+  // instrument.gain is deliberately not folded in here — it's pushed straight to webdsp's own
+  // per-sample gain stage (SampleParam.Gain, see audio/instrumentGain.js) whenever it changes
+  // or a sample loads, so the engine applies it once at the sample level rather than this
+  // compiling it into every triggered event's gain by hand. Folding it in here too would
+  // double-count it.
   const velocity = event.velocity ?? 127;
-  const gain = (velocity / 127) * trackChannel.volume * instrument.gain;
+  const gain = (velocity / 127) * trackChannel.volume;
   const pitch = event.note - instrument.rootNote;
 
   const compiled = { sampleId: instrument.sampleId, gain, pitch };

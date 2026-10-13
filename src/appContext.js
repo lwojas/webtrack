@@ -9,6 +9,7 @@ import { createPlaybackController } from "./audio/playbackController.js";
 import { initRuntime } from "./audio/runtime.js";
 import { setTrackFxParam, setMasterFxParam, setTrackFxTypeState, setMasterFxTypeState, isFxBypassed } from "./audio/fx.js";
 import { loadSample } from "./audio/instrumentLoader.js";
+import { setInstrumentGain } from "./audio/instrumentGain.js";
 import { createDemoSong, createDemoInstruments } from "./demo/demoSong.js";
 import { getSelectedPattern } from "./model/query.js";
 import { createKeyboardNoteSource } from "./input/keyboardNoteMap.js";
@@ -72,6 +73,27 @@ export function createAppContext() {
     setMasterFxTypeState(type, !bypassed, store.getState().song.masterFx);
   }
 
+  // Instrument gain (ui/chrome/InstrumentPanel.jsx's editor): updates the model, then pushes
+  // the live webdsp call — but only if this slot already has a sample loaded (a slot without
+  // one has no sampleId to address yet; the value is still saved on the instrument and gets
+  // pushed the moment a sample loads, see applyInstrumentSample below).
+  function applyInstrumentGain(index, gain) {
+    store.setInstrumentGain(index, gain);
+    const instrument = store.getState().instruments[index];
+    if (instrument?.sampleId != null) setInstrumentGain(instrument.sampleId, gain);
+  }
+
+  // The one place a sample gets assigned into an instrument slot (a file picked in
+  // InstrumentPanel.jsx, or the bundled demo kit below) — bundles the model update with
+  // pushing that slot's already-set gain to the engine for the *new* sampleId, so a
+  // previously-customized instrument gain survives loading a different sample into the same
+  // slot instead of silently reverting to the engine's unity default.
+  function applyInstrumentSample(index, sampleId, name, sampleAsset) {
+    store.setInstrumentSample(index, sampleId, name, sampleAsset);
+    const instrument = store.getState().instruments[index];
+    setInstrumentGain(sampleId, instrument.gain);
+  }
+
   const playbackController = createPlaybackController({
     getSong: () => store.getState().song,
     getTrackChannels: () => store.getState().song.trackChannels,
@@ -113,7 +135,7 @@ export function createAppContext() {
     const arrayBuffer = await response.arrayBuffer();
     const storedBuffer = arrayBuffer.slice(0);
     const sample = await loadSample(arrayBuffer, name);
-    store.setInstrumentSample(index, sample.id, name, {
+    applyInstrumentSample(index, sample.id, name, {
       buffer: storedBuffer,
       mimeType: "audio/wav",
       fileName: url.split("/").pop(),
@@ -164,6 +186,12 @@ export function createAppContext() {
       loadSampleBytes: async (buffer, name) => (await loadSample(buffer, name)).id,
     });
     store.loadProject({ song, instruments, ui });
+    // The engine has no persistence of its own — every sample above just loaded fresh at the
+    // runtime's unity default, so a project's saved (possibly non-default) instrument gains
+    // need one explicit push each, the same way applyInstrumentSample does for a single slot.
+    for (const instrument of instruments) {
+      if (instrument.sampleId != null) setInstrumentGain(instrument.sampleId, instrument.gain);
+    }
   }
 
   // Not consumed by anything in this app yet — no midi-core dependency is added for MVP (see
@@ -186,6 +214,14 @@ export function createAppContext() {
     setMasterFxBypass: applyMasterFxBypass,
   };
 
+  // InstrumentPanel.jsx's one entry point for instrument edits that need to reach the engine
+  // (gain) or need the model+sample bookkeeping bundled together (assigning a sample) — the
+  // same role fxController plays for the FX panel.
+  const instrumentController = {
+    setGain: applyInstrumentGain,
+    setSample: applyInstrumentSample,
+  };
+
   return {
     store,
     playbackController,
@@ -195,6 +231,7 @@ export function createAppContext() {
     renderStats,
     controlRegistry,
     fxController,
+    instrumentController,
     saveProject,
     loadProjectFromFile,
   };

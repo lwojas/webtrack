@@ -25,6 +25,7 @@ export default function App() {
     ensureDemoInstrumentsLoaded,
     renderStats,
     fxController,
+    instrumentController,
     saveProject,
     loadProjectFromFile,
   } = useMemo(() => createAppContext(), []);
@@ -94,7 +95,7 @@ export default function App() {
             <MixerFxPanel store={store} fxController={fxController} />
           </div>
           <div className="app__side">
-            <InstrumentPanel store={store} />
+            <InstrumentPanel store={store} instrumentController={instrumentController} />
             <NoteEditor store={store} />
             <SelectionToolbar store={store} />
           </div>

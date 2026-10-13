@@ -953,6 +953,27 @@ textarea {
   border-color: var(--border-active);
 }
 
+/* The selected instrument's own editor (ui/chrome/InstrumentPanel.jsx#InstrumentEditor) —
+   reuses .fx-module__field/-label/-value (above) for its Gain slider, the same row shape the
+   FX panel's own pinned Output module uses, so the two read as one visual language even though
+   instrument gain addresses a different webdsp primitive (SampleParam.Gain, not a bus
+   NodeParam — see audio/instrumentGain.js). */
+.instrument-editor {
+  margin-top: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--border);
+}
+
+.instrument-editor__header {
+  color: var(--text-dim);
+  font-size: var(--text-micro);
+  letter-spacing: 0.04em;
+  margin-bottom: var(--space-xs);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* --- note editor: the complete per-event editing surface (see ui/chrome/NoteEditor.jsx) --- */
 
 .note-editor {

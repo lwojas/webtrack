@@ -475,6 +475,16 @@ export function createStore({ song, instruments }) {
     emitter.emit(events.INSTRUMENTS_CHANGED, { index });
   }
 
+  // Instrument gain (model/instrument.js#gain) — the model-side half of the pair; the live
+  // runtime.setSampleParameter() call that actually makes it audible is
+  // appContext.js#applyInstrumentGain, the same split applyTrackFxParam already uses for FX.
+  function setInstrumentGain(index, gain) {
+    const instrument = state.instruments[index];
+    if (!instrument) return;
+    instrument.gain = gain;
+    emitter.emit(events.INSTRUMENTS_CHANGED, { index });
+  }
+
   function addInstrumentSlot() {
     state.instruments.push(createInstrumentSlot({ id: state.instruments.length }));
     emitter.emit(events.INSTRUMENTS_CHANGED, { index: state.instruments.length - 1 });
@@ -564,6 +574,7 @@ export function createStore({ song, instruments }) {
     setTrackChannelVoiceMode,
     setTrackChannelMaxVoices,
     setInstrumentSample,
+    setInstrumentGain,
     addInstrumentSlot,
     setPatternSwitchPending,
     loadProject,

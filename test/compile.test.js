@@ -36,13 +36,16 @@ describe("compileEvent", () => {
     expect(compileEvent(event, song.trackChannels[0], emptyInstruments)).toBe(null);
   });
 
-  it("maps note-relative-to-rootNote into a semitone pitch offset and scales gain by velocity/volume/instrument gain", () => {
+  it("maps note-relative-to-rootNote into a semitone pitch offset and scales gain by velocity/volume", () => {
     const song = createSong();
     const patternId = song.patterns[0].id;
     setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 67); // 7 semitones above rootNote 60
     setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "instrument", 0);
     setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "velocity", 64);
     song.trackChannels[0].volume = 0.5;
+    // instrument.gain (2, deliberately not 1) must NOT show up in compiled.gain — it's pushed
+    // straight to webdsp's own per-sample gain stage instead (audio/instrumentGain.js), not
+    // folded into this compile-time number (see audio/compile.js's doc comment).
     const instruments = [createInstrumentSlot({ id: 0, sampleId: 1, rootNote: 60, gain: 2 })];
     const event = getSelectedPattern(song).tracks[0].events[0];
 
@@ -50,7 +53,7 @@ describe("compileEvent", () => {
 
     expect(compiled.sampleId).toBe(1);
     expect(compiled.pitch).toBe(7);
-    expect(compiled.gain).toBeCloseTo((64 / 127) * 0.5 * 2);
+    expect(compiled.gain).toBeCloseTo((64 / 127) * 0.5);
     expect(compiled.time).toBe(1.25);
     expect(compiled.duration).toBe(0.5);
   });

@@ -123,7 +123,10 @@ Three things worth noting:
 - **`Instrument` is not part of `Song`.** Instrument slots (and the samples loaded into them)
   are store-level (`store.instruments`), not musical data — an `Event.instrument` is just an
   index into that array. This keeps instrument/sample assignment independent of which pattern
-  you're looking at.
+  you're looking at. `Instrument.gain` is model state like every other field here, but it also
+  has a live counterpart inside the current `AudioRuntime` session (`webdsp`'s
+  `SampleParam.Gain`, keyed by `sampleId`) — see "Instrument/track gain staging" below for how
+  the two stay in sync.
 - **There is no `Bank` abstraction.** An earlier version of this model put patterns under
   `Bank { patterns: Pattern[], activePatternIndex }`, which conflated pattern identity,
   sequencing, and selection with an unrelated "which instrument/track set" concept — one that
@@ -194,7 +197,11 @@ session, these bytes are what `src/persistence/projectFile.js` actually embeds o
 2. The player's `tick()` (every 25ms) compiles and schedules any row whose time falls within
    ~150ms of `runtime.getCurrentTime()`. It's `compileRow()` (`audio/compile.js`) that turns
    one pattern row into `webdsp` `ScheduledEvent`s — mute/solo gating and gain (velocity ×
-   track volume × instrument gain) happen here, at compile time, not via a `webdsp` bus.
+   track volume) happen here, at compile time, not via a `webdsp` bus. Instrument gain is
+   deliberately *not* folded into that compile-time number — it's pushed straight to `webdsp`'s
+   own per-sample gain stage (`SampleParam.Gain`) instead, applied once at the sample level
+   rather than recomputed into every triggered event. See "Instrument/track gain staging"
+   below.
 3. The **UI playhead never touches the scheduler.** `playheadLayer.js` runs its own rAF loop
    reading `lookaheadPlayer.getPlayheadRow()`, itself purely `floor((getCurrentTime() -
    startTime) / stepDuration) % rowCount`. A slow render thread only degrades the playhead's
@@ -269,6 +276,38 @@ transport state, pattern selection, and per-track mute/solo/volume, without the 
 itself ever importing anything MIDI-specific. See
 [`docs/EXTENDING.md`](EXTENDING.md#adding-to-the-external-control-contract) for how to add to
 it, and [Gotcha #5](#5-the-control-contract-is-deliberately-small) for why it's this small.
+
+## Instrument/track gain staging
+
+Three distinct level controls exist today, each owned at a different layer, deliberately kept
+separate rather than collapsed into one "volume" concept:
+
+- **Instrument/sample gain** (`Instrument.gain`, edited via `ui/chrome/InstrumentPanel.jsx`'s
+  instrument editor) — a signal/input stage, pushed to `webdsp`'s own persistent per-sample
+  gain (`SampleParam.Gain`) via `audio/instrumentGain.js#setInstrumentGain()` whenever it
+  changes (the editor) or a sample loads into a slot (`appContext.js#applyInstrumentSample`,
+  `#loadProjectFromFile`). Applied by the engine itself, upstream of a voice's own filter and
+  of the bus/track chain — see `webdsp`'s `ARCHITECTURE.md`, "Gain staging". This replaced an
+  earlier compile-time multiply (`audio/compile.js` used to fold `instrument.gain` into every
+  triggered event's `gain` alongside velocity/track volume) — now that `webdsp` has a real
+  primitive for it, folding it in at compile time too would double-count it, so `compileRow()`
+  no longer reads `instrument.gain` at all.
+- **Track gain** — `webdsp`'s `NodeParam.BusGain`, a track bus's own output stage (applied
+  after that track's FX chain, before summing into the mix). This already existed and was
+  already wired in — see "FX: track/master buses..." below, where it shows up as the FX
+  panel's pinned **Output** module (`bus.gain`). No separate "track gain" control needed
+  adding: `NodeParam.BusGain` *is* the track-gain primitive the architecture calls for, reused
+  rather than duplicated.
+- **Track mixer volume** (`TrackChannel.volume`, `ui/chrome/Mixer.jsx`) — the pre-existing
+  compile-time multiplier (`audio/compile.js`'s `gain = (velocity/127) * trackChannel.volume`),
+  unchanged by any of this. Kept conceptually separate from track gain above: one is a musical
+  mixer control the model/compile step owns, the other is a real DSP-stage parameter the
+  engine owns: two different layers, not two names for the same knob.
+
+Not part of this: **per-cell volume** (a future per-event level, mapping naturally to MIDI
+velocity later) stays entirely a tracker/event-level concern — `webdsp`'s `TriggerParams.gain`/
+`VoiceParam.Gain` already exists for exactly this and is left free for it; nothing above
+assumes event-level gain must be represented as instrument or track gain.
 
 ## FX: track/master buses, active FX chains, and cell automation
 
