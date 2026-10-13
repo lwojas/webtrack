@@ -37,6 +37,20 @@ export function createRenderStats() {
   return { recordCellPatch, recordFrameTime, setNodeCount, getStats, reset };
 }
 
+// playheadLayer.js/cursorLayer.js each mount one leaf div (.tracker-playhead per track,
+// .tracker-cursor) directly into the same container this cross-check observes, repositioned via
+// continuous style/transform attribute writes that are deliberately *not* patchCell calls (see
+// each file's own doc comment — they're a separate, by-design overlay mechanism, not cell
+// content). Without excluding them, leaving playback running for even a few seconds floods this
+// cross-check with mutations from the playhead alone (one MutationRecord per track per row
+// change, i.e. continuously while playing), permanently past the threshold and drowning out any
+// real signal the check exists to catch.
+const OVERLAY_LAYER_SELECTOR = ".tracker-playhead, .tracker-cursor";
+
+function isOverlayMutation(mutation) {
+  return mutation.target instanceof Element && mutation.target.matches(OVERLAY_LAYER_SELECTOR);
+}
+
 // Dev-only safety net: cross-checks real DOM mutations inside the grid container against
 // renderStats' self-reported patchCell count, catching any future code path that bypasses
 // patchCell (e.g. someone touching innerHTML directly). Each patchCell call writes up to 4
@@ -48,7 +62,7 @@ export function attachMutationCrossCheck(containerEl, renderStats) {
 
   let observedMutations = 0;
   const observer = new MutationObserver((mutations) => {
-    observedMutations += mutations.length;
+    observedMutations += mutations.filter((mutation) => !isOverlayMutation(mutation)).length;
     const reported = renderStats.getStats().cellPatchCount;
     if (observedMutations > reported * 4 + 8) {
       console.warn(
