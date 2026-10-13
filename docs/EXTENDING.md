@@ -135,19 +135,23 @@ and edited from `ui/chrome/Mixer.jsx`'s per-track LEN field.
 
 ### Adding MIDI input
 
-The seam is `input/noteInputSource.js`'s contract: `{ onNoteOn(fn), onNoteOff(fn),
-emitNoteOn(payload), emitNoteOff(payload) }` where `payload = { note, velocity }`, numeric
-MIDI-style values matching `Event.note` exactly.
+Implemented — `input/midiInputSource.js#createMidiNoteSource()` wraps the Web MIDI API
+(`requestMIDIAccess`, overridable for tests the same way `audio/lookaheadPlayer.js`'s
+`reserveVoiceSlot`/`registerVoice` are) and implements `input/noteInputSource.js`'s contract:
+`{ onNoteOn(fn), onNoteOff(fn), emitNoteOn(payload), emitNoteOff(payload), attach() }`, payload
+`{ note, velocity, channel }` — same numeric MIDI-style `note`/`velocity` `Event.note`/
+`Event.velocity` already use, plus `channel` (0-15), which nothing downstream currently reads.
 
-1. Write `input/midiInputSource.js` implementing the same contract shape as
-   `keyboardNoteMap.js` (it can literally call `createNoteInputSource()` from
-   `noteInputSource.js` and just wire the Web MIDI API's `onmidimessage` into
-   `emitNoteOn`/`emitNoteOff` instead of `keydown`/`keyup`).
-2. In `appContext.js`, create it alongside `noteSource` and pass it to a **second**
-   `createEditController({ store, noteSource: midiSource })`, or extend `editController.js` to
-   accept multiple sources — either works; `editController.js` doesn't currently assume
-   there's only one source, it just takes whatever `noteSource` it's given.
-3. No changes needed in `model/`, `audio/`, or `ui/` — this is the whole point of the contract.
+`appContext.js` creates both the keyboard source and this one and passes **both** into a
+single `createEditController({ store, noteSources: [keyboardNoteSource, midiNoteSource] })` —
+not a second `createEditController` instance. `editController.js#attach()` wires the keydown
+listener exactly once and subscribes `onNoteOn` once per source; a second full instance would
+attach a second `"keydown"` listener on the same target and double every cursor move/hex-digit
+entry/copy-paste shortcut, since those aren't gated by which note source triggered them.
+
+Adding a third source (e.g. a future Push Note Mode) is the same shape: implement
+`noteInputSource.js`'s contract, add it to the `noteSources` array in `appContext.js`. No
+changes needed in `model/`, `audio/`, or `ui/` — this was the whole point of the contract.
 
 ### Adding to the external control contract
 

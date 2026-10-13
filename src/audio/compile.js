@@ -26,24 +26,50 @@ export function noteDurationSteps(track, rowIndex) {
 // `bus` (a webdsp BusId, from audio/runtime.js#ensureTrackBuses) routes this voice into its
 // track's own insert-bus FX chain instead of straight to MASTER_BUS — omitted (the
 // AudioRuntime default) for call sites that don't have one yet, e.g. audio/preview.js's
-// audition path, which still just goes straight to the master bus.
+// audition path, which still just goes straight to the master bus. Only meaningful for a
+// "sample" output — a MIDI output has no webdsp bus to route into.
+//
+// Every compiled event carries a `kind` ("sample" | "midi") so callers (audio/compile.js's
+// own compileRow, audio/lookaheadPlayer.js's tick()) can tell which engine it's destined for
+// without re-deriving it from the instrument again. `kind: "midi"` events are not yet routed
+// anywhere — audio/lookaheadPlayer.js still only ever calls runtime.schedule(), and nothing
+// in the UI can set an instrument's output.type to "midi" yet (InstrumentPanel.jsx's output
+// picker and the lookaheadPlayer-side routing both land together — see the MIDI output
+// transport stage of the architecture plan), so this branch is reachable only from a test or
+// a hand-built instrument object today, deliberately, rather than exposing a user-facing
+// control for a path that doesn't fully work yet.
 export function compileEvent(event, trackChannel, instruments, time, durationSeconds, bus) {
   if (event.note === null || event.instrument === null) return null;
   if (trackChannel.muted) return null;
 
   const instrument = instruments[event.instrument];
-  if (!instrument || instrument.sampleId === null) return null;
+  if (!instrument) return null;
+
+  const velocity = event.velocity ?? 127;
+
+  if (instrument.output?.type === "midi") {
+    if (instrument.output.channel === null || instrument.output.channel === undefined) return null;
+    // event.note is sent verbatim — never offset by instrument.rootNote. rootNote exists to
+    // compensate for a *sample's* unknown natural pitch (see below); a MIDI note number is
+    // already the pitch as far as whatever's on the other end of the channel is concerned, so
+    // there is no transposition to apply here, and no `pitch` field in this shape at all.
+    const compiled = { kind: "midi", channel: instrument.output.channel, note: event.note, velocity };
+    if (time !== undefined) compiled.time = time;
+    if (durationSeconds !== undefined) compiled.duration = durationSeconds;
+    return compiled;
+  }
+
+  if (instrument.sampleId === null) return null;
 
   // instrument.gain is deliberately not folded in here — it's pushed straight to webdsp's own
   // per-sample gain stage (SampleParam.Gain, see audio/instrumentGain.js) whenever it changes
   // or a sample loads, so the engine applies it once at the sample level rather than this
   // compiling it into every triggered event's gain by hand. Folding it in here too would
   // double-count it.
-  const velocity = event.velocity ?? 127;
   const gain = (velocity / 127) * trackChannel.volume;
   const pitch = event.note - instrument.rootNote;
 
-  const compiled = { sampleId: instrument.sampleId, gain, pitch };
+  const compiled = { kind: "sample", sampleId: instrument.sampleId, gain, pitch };
   if (time !== undefined) compiled.time = time;
   if (durationSeconds !== undefined) compiled.duration = durationSeconds;
   if (bus !== undefined && bus !== null) compiled.bus = bus;
@@ -60,6 +86,9 @@ export function compileEvent(event, trackChannel, instruments, time, durationSec
 // trackBusIds: BusId[] | undefined, indexed by trackIndex (audio/runtime.js#ensureTrackBuses)
 // — omitted entirely by test callers/audio/preview.js that don't need bus routing; every
 // voice then just falls back to compileEvent's own "no bus means MASTER_BUS" default.
+// Each returned event carries compileEvent's own `kind` tag unchanged — this function doesn't
+// filter or partition by it; whichever caller eventually routes "midi"-kind events to a real
+// MIDI output (rather than runtime.schedule(), as today) does that downstream, not here.
 export function compileRow(pattern, trackChannels, instruments, transportStep, time, stepDurationSeconds, trackBusIds) {
   const soloActive = trackChannels.some((channel) => channel.solo);
   const events = [];

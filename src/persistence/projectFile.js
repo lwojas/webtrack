@@ -63,7 +63,14 @@ function serializeInstrument(instrument) {
   // session (webdsp doesn't persist samples across sessions), so saving it would be
   // meaningless after a reload. deserializeProject() re-loads `sample`'s bytes and gets a
   // fresh sampleId instead (see docs/EXTENDING.md's own persistence note).
-  return { id: instrument.id, name: instrument.name, gain: instrument.gain, rootNote: instrument.rootNote, sample };
+  return {
+    id: instrument.id,
+    name: instrument.name,
+    gain: instrument.gain,
+    rootNote: instrument.rootNote,
+    output: instrument.output,
+    sample,
+  };
 }
 
 // Every pattern track now carries its own playback `length` (model/pattern.js), added after
@@ -200,8 +207,12 @@ export async function deserializeProject(parsed, { loadSampleBytes }) {
 
   const instruments = await Promise.all(
     parsed.instruments.map(async (def) => {
+      // output is purely additive (a project saved before it existed has no def.output at
+      // all) — createInstrumentSlot's own default parameter applies whenever the destructured
+      // value is undefined, same as gain/rootNote already rely on just below, so an old
+      // project loads as "sample" output, exactly how it already behaved.
       if (!def.sample) {
-        return createInstrumentSlot({ id: def.id, name: def.name, gain: def.gain, rootNote: def.rootNote });
+        return createInstrumentSlot({ id: def.id, name: def.name, gain: def.gain, rootNote: def.rootNote, output: def.output });
       }
 
       const buffer = base64ToArrayBuffer(def.sample.dataBase64);
@@ -215,6 +226,7 @@ export async function deserializeProject(parsed, { loadSampleBytes }) {
         name: def.name,
         gain: def.gain,
         rootNote: def.rootNote,
+        output: def.output,
         sampleId,
         sampleAsset: { buffer, mimeType: def.sample.mimeType, fileName: def.sample.fileName },
       });

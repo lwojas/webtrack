@@ -469,8 +469,9 @@ back.
 
 Left out of this MVP on purpose, with the seam each one would extend noted:
 
-- **MIDI I/O** — `input/noteInputSource.js`'s contract and `Event.note`'s numeric
-  representation are both already MIDI-shaped; no `midiInputSource.js` exists.
+- **MIDI output (a track/instrument sending notes to an external device instead of
+  triggering a sample)** — not yet built. `Event.note`'s numeric representation needs no
+  change for this (see below); `Instrument` would need an `output` field.
 - **A Canvas renderer** — `gridView.js` exposes a narrow interface
   (`mount()`/`patchCell()`/node-count probe) a future canvas-based implementation of the same
   interface could satisfy without touching `model/`, `audio/`, or anything else.

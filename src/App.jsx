@@ -20,7 +20,7 @@ export default function App() {
   const {
     store,
     playbackController,
-    noteSource,
+    noteSources,
     editController,
     ensureDemoInstrumentsLoaded,
     renderStats,
@@ -31,7 +31,7 @@ export default function App() {
   } = useMemo(() => createAppContext(), []);
 
   useEffect(() => {
-    const detachNoteSource = noteSource.attach();
+    const detachNoteSources = noteSources.map((noteSource) => noteSource.attach());
     const detachEditController = editController.attach();
     const detachTransportKeys = attachTransportKeys({
       onTogglePlay: async () => {
@@ -58,13 +58,13 @@ export default function App() {
     window.addEventListener("keydown", handleFirstGesture);
 
     return () => {
-      detachNoteSource();
+      detachNoteSources.forEach((detach) => detach());
       detachEditController();
       detachTransportKeys();
       window.removeEventListener("pointerdown", handleFirstGesture);
       window.removeEventListener("keydown", handleFirstGesture);
     };
-  }, [store, playbackController, noteSource, editController, ensureDemoInstrumentsLoaded]);
+  }, [store, playbackController, noteSources, editController, ensureDemoInstrumentsLoaded]);
 
   return (
     <div className="app">

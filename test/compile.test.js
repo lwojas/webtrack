@@ -88,6 +88,87 @@ describe("compileEvent", () => {
     const compiled = compileEvent(event, song.trackChannels[0], makeInstruments());
     expect(compiled).not.toHaveProperty("bus");
   });
+
+  it("tags a compiled sample event with kind: 'sample'", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 60);
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "instrument", 0);
+    const event = getSelectedPattern(song).tracks[0].events[0];
+    const compiled = compileEvent(event, song.trackChannels[0], makeInstruments());
+    expect(compiled.kind).toBe("sample");
+  });
+});
+
+describe("compileEvent — MIDI output", () => {
+  function makeMidiInstruments(channel = 3) {
+    return [createInstrumentSlot({ id: 0, name: "Synth", rootNote: 72, output: { type: "midi", channel } })];
+  }
+
+  it("sends the event's note verbatim, ignoring the instrument's rootNote entirely", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 60);
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "instrument", 0);
+    const event = getSelectedPattern(song).tracks[0].events[0];
+
+    // rootNote is 72 here specifically to prove it's never read: a sample-output instrument
+    // with the same rootNote would transpose this note by -12 semitones (see the "maps
+    // note-relative-to-rootNote" test above); a MIDI-output instrument must not.
+    const compiled = compileEvent(event, song.trackChannels[0], makeMidiInstruments());
+
+    expect(compiled).toEqual({ kind: "midi", channel: 3, note: 60, velocity: 127 });
+    expect(compiled).not.toHaveProperty("pitch");
+  });
+
+  it("carries the event's velocity straight through as MIDI velocity (no gain/volume scaling)", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 60);
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "instrument", 0);
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "velocity", 90);
+    song.trackChannels[0].volume = 0.3; // a sample output would fold this into gain — MIDI must not
+    const event = getSelectedPattern(song).tracks[0].events[0];
+
+    const compiled = compileEvent(event, song.trackChannels[0], makeMidiInstruments());
+
+    expect(compiled.velocity).toBe(90);
+  });
+
+  it("includes time/duration when scheduled, omits them for an unscheduled audition", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 60);
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "instrument", 0);
+    const event = getSelectedPattern(song).tracks[0].events[0];
+
+    const scheduled = compileEvent(event, song.trackChannels[0], makeMidiInstruments(), 1.5, 0.25);
+    expect(scheduled.time).toBe(1.5);
+    expect(scheduled.duration).toBe(0.25);
+
+    const auditioned = compileEvent(event, song.trackChannels[0], makeMidiInstruments());
+    expect(auditioned).not.toHaveProperty("time");
+    expect(auditioned).not.toHaveProperty("duration");
+  });
+
+  it("returns null when the MIDI-output instrument has no channel assigned", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 60);
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "instrument", 0);
+    const event = getSelectedPattern(song).tracks[0].events[0];
+    expect(compileEvent(event, song.trackChannels[0], makeMidiInstruments(null))).toBe(null);
+  });
+
+  it("is still gated by a muted track channel, same as sample output", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 60);
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "instrument", 0);
+    song.trackChannels[0].muted = true;
+    const event = getSelectedPattern(song).tracks[0].events[0];
+    expect(compileEvent(event, song.trackChannels[0], makeMidiInstruments())).toBe(null);
+  });
 });
 
 describe("noteDurationSteps", () => {

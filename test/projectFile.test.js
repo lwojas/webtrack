@@ -134,6 +134,25 @@ describe("serializeProject / deserializeProject", () => {
     expect(restored.song.masterFxChain).toEqual([{ type: "reverb", bypassed: false }]);
   });
 
+  it("round-trips a MIDI-output instrument's output type and channel", async () => {
+    const instruments = [createInstrumentSlot({ id: 0, name: "Synth", output: { type: "midi", channel: 3 } })];
+    const serialized = serializeProject({ song: createSong(), instruments, ui: {} });
+
+    const restored = await deserializeProject(serialized, { loadSampleBytes: async () => null });
+
+    expect(restored.instruments[0].output).toEqual({ type: "midi", channel: 3 });
+  });
+
+  it("defaults output to sample on a project saved before MIDI output existed", async () => {
+    const instruments = [createInstrumentSlot({ id: 0, name: "Kick", sampleId: "x" })];
+    const serialized = serializeProject({ song: createSong(), instruments, ui: {} });
+    delete serialized.instruments[0].output; // simulate a file saved before Instrument.output existed
+
+    const restored = await deserializeProject(serialized, { loadSampleBytes: async () => "fresh-id" });
+
+    expect(restored.instruments[0].output).toEqual({ type: "sample", channel: null });
+  });
+
   it("rejects an unsupported format version", async () => {
     await expect(deserializeProject({ formatVersion: 999, instruments: [] }, { loadSampleBytes: async () => null })).rejects.toThrow();
   });

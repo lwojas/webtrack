@@ -13,6 +13,7 @@ import { setInstrumentGain } from "./audio/instrumentGain.js";
 import { createDemoSong, createDemoInstruments } from "./demo/demoSong.js";
 import { getSelectedPattern } from "./model/query.js";
 import { createKeyboardNoteSource } from "./input/keyboardNoteMap.js";
+import { createMidiNoteSource } from "./input/midiInputSource.js";
 import { createEditController } from "./input/editController.js";
 import { createRenderStats } from "./debug/renderStats.js";
 import { createControlRegistry } from "./control/registry.js";
@@ -124,8 +125,15 @@ export function createAppContext() {
   // recomputes and is a no-op unless mute/solo actually changed what's audible.
   store.subscribe(events.TRACK_CHANNEL_CHANGED, () => playbackController.syncTrackMuting());
 
-  const noteSource = createKeyboardNoteSource({ getOctave: () => store.getState().octave });
-  const editController = createEditController({ store, noteSource });
+  // Live note input: the computer keyboard (always present) and, once a real device is
+  // connected, any Web MIDI input (keyboard, controller) — both implement the same
+  // noteInputSource.js contract, so editController.js's handleNoteOn treats a note from either
+  // identically. See input/editController.js's own doc comment on attach() for why this is one
+  // array passed to a single createEditController, not a second controller instance.
+  const keyboardNoteSource = createKeyboardNoteSource({ getOctave: () => store.getState().octave });
+  const midiNoteSource = createMidiNoteSource();
+  const noteSources = [keyboardNoteSource, midiNoteSource];
+  const editController = createEditController({ store, noteSources });
 
   // Fetches one bundled demo WAV (public/samples/) and loads it into an instrument slot,
   // matching demoSong.js's references, while also keeping a copy of the raw bytes
@@ -226,7 +234,7 @@ export function createAppContext() {
   return {
     store,
     playbackController,
-    noteSource,
+    noteSources,
     editController,
     ensureDemoInstrumentsLoaded,
     renderStats,

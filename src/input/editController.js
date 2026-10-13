@@ -18,7 +18,7 @@ const FIELD_MAX = { instrument: 255, velocity: 127 };
 // Ctrl/Cmd+V chord. The clipboard itself lives on the store (not in here) so the selection
 // toolbar's Copy/Paste/Repeat/Fill buttons (ui/chrome/SelectionToolbar.jsx) share the exact
 // same clipboard these shortcuts do, rather than keeping two independent copies of it.
-export function createEditController({ store, noteSource }) {
+export function createEditController({ store, noteSources }) {
   // A 2-digit hex entry buffer, scoped to whichever (track, row, field) it was last typed
   // into — resets whenever the cursor moves, matching the tracker convention of live preview
   // as each digit lands ("7" shows 07, then "F" completes it to 7F) rather than needing a
@@ -158,12 +158,19 @@ export function createEditController({ store, noteSource }) {
     if (editStep > 0) store.moveCursor({ row: editStep });
   }
 
+  // Every source in noteSources (the computer keyboard, and now any attached MIDI device —
+  // see midiInputSource.js) feeds the same handleNoteOn, so a note entered from either writes
+  // into the model identically; the keydown handler above is wired exactly once regardless of
+  // how many note sources there are, which is also why this takes an array rather than one
+  // source per createEditController instance (docs/EXTENDING.md's other suggested option would
+  // attach a second "keydown" listener on the same target and double every cursor move/hex
+  // digit/copy-paste shortcut).
   function attach(target = window) {
     target.addEventListener("keydown", handleKeyDown);
-    const unsubscribeNoteOn = noteSource.onNoteOn(handleNoteOn);
+    const unsubscribes = noteSources.map((noteSource) => noteSource.onNoteOn(handleNoteOn));
     return () => {
       target.removeEventListener("keydown", handleKeyDown);
-      unsubscribeNoteOn();
+      unsubscribes.forEach((unsubscribe) => unsubscribe());
     };
   }
 
