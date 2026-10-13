@@ -22,6 +22,7 @@ export default function App() {
     playbackController,
     noteSources,
     editController,
+    attachPush,
     ensureDemoInstrumentsLoaded,
     renderStats,
     fxController,
@@ -33,6 +34,7 @@ export default function App() {
   useEffect(() => {
     const detachNoteSources = noteSources.map((noteSource) => noteSource.attach());
     const detachEditController = editController.attach();
+    const detachPush = attachPush();
     const detachTransportKeys = attachTransportKeys({
       onTogglePlay: async () => {
         if (playbackController.isPlaying()) {
@@ -60,11 +62,12 @@ export default function App() {
     return () => {
       detachNoteSources.forEach((detach) => detach());
       detachEditController();
+      detachPush();
       detachTransportKeys();
       window.removeEventListener("pointerdown", handleFirstGesture);
       window.removeEventListener("keydown", handleFirstGesture);
     };
-  }, [store, playbackController, noteSources, editController, ensureDemoInstrumentsLoaded]);
+  }, [store, playbackController, noteSources, editController, attachPush, ensureDemoInstrumentsLoaded]);
 
   return (
     <div className="app">

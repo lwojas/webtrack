@@ -15,6 +15,10 @@ import { getSelectedPattern } from "./model/query.js";
 import { createKeyboardNoteSource } from "./input/keyboardNoteMap.js";
 import { createMidiNoteSource } from "./input/midiInputSource.js";
 import { createEditController } from "./input/editController.js";
+import { createPushDevice } from "./midi/push/pushDevice.js";
+import { createPushModeController } from "./midi/push/modeController.js";
+import { createPushNoteEntryMode } from "./midi/push/noteEntryMode.js";
+import { createPatternGridModeStub } from "./midi/push/patternGridModeStub.js";
 import { createRenderStats } from "./debug/renderStats.js";
 import { createControlRegistry } from "./control/registry.js";
 import { serializeProject, deserializeProject } from "./persistence/projectFile.js";
@@ -132,7 +136,35 @@ export function createAppContext() {
   // array passed to a single createEditController, not a second controller instance.
   const keyboardNoteSource = createKeyboardNoteSource({ getOctave: () => store.getState().octave });
   const midiNoteSource = createMidiNoteSource();
-  const noteSources = [keyboardNoteSource, midiNoteSource];
+
+  // Push Mk1, wired as a controller surface on top of (not instead of) the generic MIDI
+  // keyboard path above — see src/midi/push/modeController.js's own doc comment for the
+  // CC50/51/112/113 mode state machine this drives. pushNoteEntryMode is both a gridContent
+  // entry (receives decoded pad events while pushMode === "note") and, via the same object,
+  // a regular noteSources entry (editController.js never needs to know a note came from a
+  // Push pad instead of a keyboard). "session.tracker" is intentionally not registered yet —
+  // the tracker-grid controller is a later stage; a pad press in that mode is a harmless no-op
+  // until then, the same "door left open, not half-built" shape patternGridModeStub already is
+  // for Pattern view.
+  const pushDevice = createPushDevice();
+  const pushNoteEntryMode = createPushNoteEntryMode();
+  const pushModeController = createPushModeController({
+    device: pushDevice,
+    gridContent: {
+      note: pushNoteEntryMode,
+      "session.pattern": createPatternGridModeStub({ device: pushDevice }),
+    },
+  });
+  function attachPush() {
+    const detachDevice = pushDevice.attach();
+    const detachController = pushModeController.attach();
+    return () => {
+      detachController?.();
+      detachDevice();
+    };
+  }
+
+  const noteSources = [keyboardNoteSource, midiNoteSource, pushNoteEntryMode];
   const editController = createEditController({ store, noteSources });
 
   // Fetches one bundled demo WAV (public/samples/) and loads it into an instrument slot,
@@ -237,6 +269,7 @@ export function createAppContext() {
     playbackController,
     noteSources,
     editController,
+    attachPush,
     ensureDemoInstrumentsLoaded,
     renderStats,
     controlRegistry,
