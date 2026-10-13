@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { padNote, encoderDelta, lcdSysex, LCD_LINE_ID, LCD_LINE_LENGTH } from "../src/midi/push/constants.js";
+import { padNote, padCoordinates, encoderDelta, lcdSysex, LCD_LINE_ID, LCD_LINE_LENGTH } from "../src/midi/push/constants.js";
 import { RAW, PALETTE } from "../src/midi/push/colors.js";
 
 describe("padNote", () => {
@@ -18,6 +18,21 @@ describe("padNote", () => {
 
   it("top-right pad is note 99", () => {
     expect(padNote(7, 7)).toBe(99);
+  });
+});
+
+describe("padCoordinates", () => {
+  it("is the exact inverse of padNote across the whole grid", () => {
+    for (let row = 0; row < 8; row++) {
+      for (let column = 0; column < 8; column++) {
+        expect(padCoordinates(padNote(row, column))).toEqual({ row, column });
+      }
+    }
+  });
+
+  it("returns null for a note outside the 36-99 pad range", () => {
+    expect(padCoordinates(35)).toBe(null);
+    expect(padCoordinates(100)).toBe(null);
   });
 });
 

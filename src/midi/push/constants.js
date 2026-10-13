@@ -23,6 +23,14 @@ export function padNote(rowFromBottom, column) {
   return 36 + rowFromBottom * 8 + column;
 }
 
+// Inverse of padNote — a received pad Note On/Off back to grid coordinates, or null for a note
+// outside the 8x8 grid's range (36-99).
+export function padCoordinates(note) {
+  if (note < 36 || note > 99) return null;
+  const offset = note - 36;
+  return { row: Math.floor(offset / 8), column: offset % 8 };
+}
+
 // --- Mode buttons ---
 // This project's own assignment (see the architecture doc's "Push mode state machine"): CC50/
 // CC51 are the physical "Note"/"Session" buttons, CC112/CC113 the physical "Track"/"Clip"
