@@ -1,17 +1,31 @@
 import { getRuntime } from "./runtime.js";
 import { compileEvent } from "./compile.js";
 import { voiceTracker } from "./voiceTracker.js";
+import { midiOutput } from "./midiOutput.js";
 
 // Immediate, unscheduled audition of a note while editing — bypasses the lookahead scheduler
-// entirely (no `time`/`duration`, so compileEvent omits them and this becomes a plain
-// runtime.trigger() call). Still goes through the same shared voiceTracker instance
-// audio/lookaheadPlayer.js's scheduled playback uses (see that module's own doc comment on why
-// it's shared) — a track's voice-limit/mono policy (model/trackChannel.js) holds for a manually
-// auditioned note exactly as it does for one played back from the pattern.
+// entirely (no `time`/`duration`, so compileEvent omits them). compileEvent is called before
+// touching the audio runtime at all, so auditioning a MIDI-output instrument (see
+// audio/midiOutput.js) never needs webdsp's AudioRuntime initialized in the first place —
+// only the sample branch below does.
+//
+// For a sample instrument, this is a plain runtime.trigger() call, still going through the
+// same shared voiceTracker instance audio/lookaheadPlayer.js's scheduled playback uses (see
+// that module's own doc comment on why it's shared) — a track's voice-limit/mono policy
+// (model/trackChannel.js) holds for a manually auditioned note exactly as it does for one
+// played back from the pattern. A MIDI-output instrument has no equivalent voice-tracking
+// (audio/midiOutput.js's own doc comment) and returns null — there's no handle to release
+// later, same as a sample audition's own voice isn't explicitly released on key-up either.
 export async function triggerPreview(event, trackChannel, instruments) {
-  const runtime = await getRuntime();
   const compiled = compileEvent(event, trackChannel, instruments);
   if (!compiled) return null;
+
+  if (compiled.kind === "midi") {
+    midiOutput.sendImmediateNoteOn(compiled.channel, compiled.note, compiled.velocity);
+    return null;
+  }
+
+  const runtime = await getRuntime();
   const toRelease = voiceTracker.reserveVoiceSlot(trackChannel.index, trackChannel);
   toRelease.forEach((handle) => runtime.release(handle));
   const handle = runtime.trigger(compiled);

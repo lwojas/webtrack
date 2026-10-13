@@ -17,7 +17,11 @@ const GAIN_STEP = 0.01;
 function InstrumentSlotRow({ store, instrumentController, index }) {
   const name = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.name ?? "");
   const hasSample = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.sampleId != null);
+  const isMidiOutput = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.output?.type === "midi");
   const selected = useStore(store, events.CURSOR_MOVED, (s) => s.selectedInstrumentIndex === index);
+  // A MIDI-output slot is "configured" without ever needing a sample — see InstrumentEditor's
+  // output picker below, which is what actually sets this.
+  const isConfigured = isMidiOutput || hasSample;
 
   async function handleFileChange(e) {
     const file = e.target.files?.[0];
@@ -41,8 +45,8 @@ function InstrumentSlotRow({ store, instrumentController, index }) {
       <button className="instrument-slot__select" onClick={() => store.selectInstrument(index)} title="Select for note entry">
         {toHex(index)}
       </button>
-      <span className={`instrument-slot__name${hasSample ? "" : " instrument-slot__name--empty"}`}>
-        {hasSample ? name : "(empty)"}
+      <span className={`instrument-slot__name${isConfigured ? "" : " instrument-slot__name--empty"}`}>
+        {isConfigured ? `${name}${isMidiOutput ? " · MIDI" : ""}` : "(empty)"}
       </span>
       <label className="instrument-slot__load">
         LOAD
@@ -58,33 +62,93 @@ function InstrumentSlotRow({ store, instrumentController, index }) {
 // not a second, independent selection. Lives here (not a separate top-level component) because
 // it's conceptually part of the instrument panel, the same way FxPanel's pinned Output module
 // is part of the FX panel rather than its own thing.
+// MIDI channel is stored 0-15 (the wire value — see model/instrument.js, audio/compile.js)
+// but shown 1-16, the convention most MIDI gear/DAWs display to a human.
+const MIDI_CHANNEL_MIN = 0;
+const MIDI_CHANNEL_MAX = 15;
+
 function InstrumentEditor({ store, instrumentController }) {
   const index = useStore(store, events.CURSOR_MOVED, (s) => s.selectedInstrumentIndex);
   const name = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.name ?? "");
+  const exists = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index] != null);
   const hasSample = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.sampleId != null);
   const gain = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.gain ?? 1);
+  const outputType = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.output?.type ?? "sample");
+  const outputChannel = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.output?.channel ?? null);
 
-  if (!hasSample) return null;
+  if (!exists) return null;
+
+  // Switching to "midi" needs a channel right away (compileEvent treats a missing channel as
+  // "nothing to send" — see audio/compile.js) — default to the last one used, or channel 1.
+  // Switching back to "sample" clears it (model/instrument.js's own default shape), since a
+  // sample instrument's channel is never read anywhere.
+  function setOutputType(type) {
+    instrumentController.setOutput(
+      index,
+      type === "midi" ? { type: "midi", channel: outputChannel ?? MIDI_CHANNEL_MIN } : { type: "sample", channel: null },
+    );
+  }
+
+  function setChannel(displayValue) {
+    const channel = Math.min(MIDI_CHANNEL_MAX, Math.max(MIDI_CHANNEL_MIN, displayValue - 1));
+    instrumentController.setOutput(index, { type: "midi", channel });
+  }
 
   return (
     <div className="instrument-editor">
       <div className="instrument-editor__header">
-        {toHex(index)} — {name}
+        {toHex(index)} — {name || "(empty)"}
       </div>
-      <label className="fx-module__field">
-        <span className="fx-module__field-label" title="Gain">
-          Gain
-        </span>
-        <input
-          type="range"
-          min={GAIN_MIN}
-          max={GAIN_MAX}
-          step={GAIN_STEP}
-          value={gain}
-          onChange={(e) => instrumentController.setGain(index, Number(e.target.value))}
-        />
-        <span className="fx-module__value">{gain.toFixed(2)}x</span>
-      </label>
+
+      <div className="fx-panel__target">
+        <button
+          type="button"
+          className={`fx-panel__target-btn${outputType === "sample" ? " fx-panel__target-btn--active" : ""}`}
+          onClick={() => setOutputType("sample")}
+        >
+          SAMPLE
+        </button>
+        <button
+          type="button"
+          className={`fx-panel__target-btn${outputType === "midi" ? " fx-panel__target-btn--active" : ""}`}
+          onClick={() => setOutputType("midi")}
+        >
+          MIDI
+        </button>
+      </div>
+
+      {outputType === "midi" ? (
+        <label className="fx-module__field">
+          <span className="fx-module__field-label" title="MIDI Channel">
+            Channel
+          </span>
+          <input
+            type="number"
+            min={1}
+            max={16}
+            value={(outputChannel ?? MIDI_CHANNEL_MIN) + 1}
+            onChange={(e) => setChannel(Number(e.target.value))}
+          />
+          <span className="fx-module__value" />
+        </label>
+      ) : (
+        hasSample && (
+          <label className="fx-module__field">
+            <span className="fx-module__field-label" title="Gain">
+              Gain
+            </span>
+            <input
+              type="range"
+              min={GAIN_MIN}
+              max={GAIN_MAX}
+              step={GAIN_STEP}
+              value={gain}
+              onChange={(e) => instrumentController.setGain(index, Number(e.target.value))}
+            />
+            <span className="fx-module__value">{gain.toFixed(2)}x</span>
+          </label>
+        )
+      )}
     </div>
   );
 }

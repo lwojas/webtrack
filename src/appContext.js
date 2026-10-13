@@ -229,6 +229,7 @@ export function createAppContext() {
   const instrumentController = {
     setGain: applyInstrumentGain,
     setSample: applyInstrumentSample,
+    setOutput: store.setInstrumentOutput,
   };
 
   return {

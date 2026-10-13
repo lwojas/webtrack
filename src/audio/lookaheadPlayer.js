@@ -19,6 +19,7 @@
 import { trackLocalStep } from "../model/pattern.js";
 import { swingDelaySeconds } from "../model/timing.js";
 import { voiceTracker } from "./voiceTracker.js";
+import { midiOutput } from "./midiOutput.js";
 
 const LOOKAHEAD_SECONDS = 0.15;
 const TICK_INTERVAL_MS = 25;
@@ -49,6 +50,11 @@ export function createLookaheadPlayer({
   reserveVoiceSlot = voiceTracker.reserveVoiceSlot,
   registerVoice = voiceTracker.registerVoice,
   resetVoiceTracking = voiceTracker.reset,
+  // Same "shared app-wide singleton, overridable for tests" shape as the voiceTracker
+  // functions above — audio/midiOutput.js's own doc comment explains why `kind: "midi"`
+  // events need no equivalent voice-tracking of their own.
+  scheduleMidiEvents = midiOutput.scheduleNoteEvents,
+  cancelMidiScheduled = midiOutput.cancelScheduled,
 } = {}) {
   let pattern = null;
   let pendingPattern = null; // { pattern, queueIndex } | null — a manually requested switch
@@ -109,20 +115,28 @@ export function createLookaheadPlayer({
       // transport, that should restart at 0 on every new pattern instance.
       const patternRelativeStep = stepCounter - patternStartStep;
       const events = compileRow(pattern, trackChannels, instruments, patternRelativeStep, scheduledTime, duration, trackBusIds);
-      if (events.length > 0) {
+      // compileEvent's own `kind` tag (audio/compile.js) splits this row's events between
+      // webdsp (sample voices, with all the voice-limit bookkeeping below) and MIDI output
+      // (self-contained — see audio/midiOutput.js's doc comment on why it needs none of that).
+      const sampleEvents = events.filter((event) => event.kind !== "midi");
+      const midiEvents = events.filter((event) => event.kind === "midi");
+
+      if (sampleEvents.length > 0) {
         // Voice-limit enforcement (model/trackChannel.js's voiceMode/maxVoices, via
         // audio/voiceTracker.js) happens here, right before scheduling — release()ing whatever
         // the track's policy says must give way for this row's new triggers, in the same tick
         // that starts them. trackIndex rode along on each compiled event (audio/compile.js)
         // purely for this correlation and is stripped below — webdsp's ScheduledEvent has no
         // such field.
-        events.forEach((event) => {
+        sampleEvents.forEach((event) => {
           const toRelease = reserveVoiceSlot(event.trackIndex, trackChannels[event.trackIndex]);
           toRelease.forEach((handle) => runtime.release(handle));
         });
-        const handles = runtime.schedule(events.map(({ trackIndex, ...scheduledEvent }) => scheduledEvent)) ?? [];
-        events.forEach((event, index) => registerVoice(event.trackIndex, handles[index]));
+        const handles = runtime.schedule(sampleEvents.map(({ trackIndex, kind, ...scheduledEvent }) => scheduledEvent)) ?? [];
+        sampleEvents.forEach((event, index) => registerVoice(event.trackIndex, handles[index]));
       }
+
+      if (midiEvents.length > 0) scheduleMidiEvents(midiEvents, runtime.getCurrentTime());
 
       // Cell FX automation rides the same tick/lookahead cadence as note scheduling above —
       // see audio/fx.js's doc comment on webdsp's setNodeParameter having no timestamp of its
@@ -167,6 +181,9 @@ export function createLookaheadPlayer({
     }
     playing = false;
     runtime.cancelScheduled();
+    // Web MIDI's own send() has no cancel (see audio/midiOutput.js's doc comment) — this is
+    // the one place that actually works, since MIDI output scheduling never used it.
+    cancelMidiScheduled();
   }
 
   function isPlaying() {

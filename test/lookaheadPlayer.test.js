@@ -352,3 +352,84 @@ describe("createLookaheadPlayer — voice-limit wiring (audio/voiceTracker.js)",
     player.stop();
   });
 });
+
+// compileRow's `kind: "midi"` events (audio/compile.js) route to scheduleMidiEvents instead of
+// runtime.schedule() — audio/midiOutput.js's own scheduling/timing is unit-tested separately
+// (test/midiOutput.test.js); these tests only cover tick()'s routing/partitioning and that
+// stop() cancels both webdsp's and MIDI output's pending work.
+describe("createLookaheadPlayer — MIDI output routing (audio/midiOutput.js)", () => {
+  it("routes kind: midi events to scheduleMidiEvents, never to runtime.schedule", () => {
+    // Default fake runtime (time 0) + startAt 0 + 1s steps keeps tick()'s lookahead loop to
+    // exactly one iteration (the same shape every other single-row test in this file relies
+    // on), so compileRow/scheduleMidiEvents are each asserted on a single, unambiguous call.
+    const runtime = createFakeRuntime();
+    runtime.schedule = vi.fn(() => []);
+    const compileRow = vi.fn(() => [{ kind: "midi", channel: 2, note: 60, velocity: 100, time: 0, duration: 0.25, trackIndex: 0 }]);
+    const scheduleMidiEvents = vi.fn();
+
+    const player = createLookaheadPlayer({ runtime, compileRow, getStepDurationSeconds: () => 1, scheduleMidiEvents });
+    const pattern = makePattern({ trackLengths: [4] });
+
+    player.start({ initialPattern: pattern, initialTrackChannels: [{}], initialInstruments: [], startAt: 0 });
+
+    expect(runtime.schedule).not.toHaveBeenCalled();
+    expect(scheduleMidiEvents).toHaveBeenCalledTimes(1);
+    expect(scheduleMidiEvents).toHaveBeenCalledWith(
+      [{ kind: "midi", channel: 2, note: 60, velocity: 100, time: 0, duration: 0.25, trackIndex: 0 }],
+      0,
+    );
+
+    player.stop();
+  });
+
+  it("partitions a mixed row — sample events go to runtime.schedule, midi events to scheduleMidiEvents", () => {
+    const runtime = createFakeRuntime();
+    runtime.schedule = vi.fn(() => [101]);
+    const compileRow = vi.fn(() => [
+      { kind: "sample", sampleId: 1, trackIndex: 0 },
+      { kind: "midi", channel: 0, note: 48, velocity: 90, time: 0, duration: 0.1, trackIndex: 1 },
+    ]);
+
+    const scheduleMidiEvents = vi.fn();
+    const player = createLookaheadPlayer({ runtime, compileRow, getStepDurationSeconds: () => 1, scheduleMidiEvents });
+    const pattern = makePattern({ trackLengths: [4, 4] });
+
+    player.start({ initialPattern: pattern, initialTrackChannels: [{}, {}], initialInstruments: [], startAt: 0 });
+
+    // kind is stripped alongside trackIndex before webdsp ever sees a sample event.
+    expect(runtime.schedule).toHaveBeenCalledWith([{ sampleId: 1 }]);
+    expect(scheduleMidiEvents).toHaveBeenCalledTimes(1);
+    expect(scheduleMidiEvents.mock.calls[0][0]).toEqual([
+      { kind: "midi", channel: 0, note: 48, velocity: 90, time: 0, duration: 0.1, trackIndex: 1 },
+    ]);
+
+    player.stop();
+  });
+
+  it("never calls scheduleMidiEvents for a row with no midi-kind events", () => {
+    const runtime = createFakeRuntime();
+    const compileRow = vi.fn(() => [{ kind: "sample", sampleId: 1, trackIndex: 0 }]);
+    const scheduleMidiEvents = vi.fn();
+    const player = createLookaheadPlayer({ runtime, compileRow, getStepDurationSeconds: () => 1, scheduleMidiEvents });
+    const pattern = makePattern({ trackLengths: [4] });
+
+    player.start({ initialPattern: pattern, initialTrackChannels: [{}], initialInstruments: [], startAt: 0 });
+
+    expect(scheduleMidiEvents).not.toHaveBeenCalled();
+
+    player.stop();
+  });
+
+  it("stop() cancels pending MIDI output sends alongside webdsp's own cancelScheduled", () => {
+    const runtime = createFakeRuntime();
+    const cancelMidiScheduled = vi.fn();
+    const player = createLookaheadPlayer({ runtime, compileRow: () => [], getStepDurationSeconds: () => 1, cancelMidiScheduled });
+    const pattern = makePattern({ trackLengths: [4] });
+
+    player.start({ initialPattern: pattern, initialTrackChannels: [], initialInstruments: [], startAt: 0 });
+    player.stop();
+
+    expect(runtime.cancelScheduled).toHaveBeenCalledTimes(1);
+    expect(cancelMidiScheduled).toHaveBeenCalledTimes(1);
+  });
+});

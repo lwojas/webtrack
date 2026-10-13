@@ -490,6 +490,17 @@ export function createStore({ song, instruments }) {
     emitter.emit(events.INSTRUMENTS_CHANGED, { index });
   }
 
+  // Instrument.output (model/instrument.js) — which engine renders this slot's cells.
+  // Unlike setInstrumentGain/setInstrumentSample, there's no live engine call to pair this
+  // with: output type/channel is only ever read at compile time (audio/compile.js), never
+  // pushed into webdsp or Web MIDI ahead of time the way a sample's gain is.
+  function setInstrumentOutput(index, output) {
+    const instrument = state.instruments[index];
+    if (!instrument) return;
+    instrument.output = output;
+    emitter.emit(events.INSTRUMENTS_CHANGED, { index });
+  }
+
   function addInstrumentSlot() {
     state.instruments.push(createInstrumentSlot({ id: state.instruments.length }));
     emitter.emit(events.INSTRUMENTS_CHANGED, { index: state.instruments.length - 1 });
@@ -581,6 +592,7 @@ export function createStore({ song, instruments }) {
     setTrackChannelMaxVoices,
     setInstrumentSample,
     setInstrumentGain,
+    setInstrumentOutput,
     addInstrumentSlot,
     setPatternSwitchPending,
     loadProject,
