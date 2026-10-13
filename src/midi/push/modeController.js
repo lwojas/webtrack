@@ -13,8 +13,16 @@
 // device-mode framework: there are exactly three content providers this project has any use
 // for (tracker grid, a pattern-view stub, note entry) — see docs/ARCHITECTURE.md's own
 // precedent (Gotcha #5) for why speculative generality isn't worth it here either.
-import { CC_MODE_NOTE, CC_MODE_SESSION, CC_MODE_TRACK, CC_MODE_CLIP, PUSH_CHANNEL, padCoordinates } from "./constants.js";
-import { PALETTE } from "./colors.js";
+import {
+  CC_MODE_NOTE,
+  CC_MODE_SESSION,
+  CC_MODE_TRACK,
+  CC_MODE_CLIP,
+  PUSH_CHANNEL,
+  padCoordinates,
+  FEEDBACK_OFF,
+  FEEDBACK_FULL,
+} from "./constants.js";
 
 const STATUS_CC = 0xb0 | PUSH_CHANNEL;
 const STATUS_NOTE_ON = 0x90 | PUSH_CHANNEL;
@@ -43,12 +51,14 @@ export function createPushModeController({ device, gridContent = {} }) {
   // Note/Session light up mutually exclusively per pushMode; Track/Clip light up mutually
   // exclusively per sessionView regardless of whether pushMode is currently "note" — so the
   // device always shows what you'll land on next time you press Session (see the architecture
-  // doc).
+  // doc). These four are monochrome dim/full-feedback buttons, not velocity-color-led (see
+  // colors.js's own doc comment on the bug that came from mixing the two up) — FEEDBACK_FULL/
+  // FEEDBACK_OFF from constants.js, never a RAW/PALETTE color.
   function paintModeButtons() {
-    sendCC(CC_MODE_NOTE, pushMode === "note" ? PALETTE.MODE_BUTTON_ACTIVE : PALETTE.MODE_BUTTON_INACTIVE);
-    sendCC(CC_MODE_SESSION, pushMode === "session" ? PALETTE.MODE_BUTTON_ACTIVE : PALETTE.MODE_BUTTON_INACTIVE);
-    sendCC(CC_MODE_TRACK, sessionView === "tracker" ? PALETTE.MODE_BUTTON_ACTIVE : PALETTE.MODE_BUTTON_INACTIVE);
-    sendCC(CC_MODE_CLIP, sessionView === "pattern" ? PALETTE.MODE_BUTTON_ACTIVE : PALETTE.MODE_BUTTON_INACTIVE);
+    sendCC(CC_MODE_NOTE, pushMode === "note" ? FEEDBACK_FULL : FEEDBACK_OFF);
+    sendCC(CC_MODE_SESSION, pushMode === "session" ? FEEDBACK_FULL : FEEDBACK_OFF);
+    sendCC(CC_MODE_TRACK, sessionView === "tracker" ? FEEDBACK_FULL : FEEDBACK_OFF);
+    sendCC(CC_MODE_CLIP, sessionView === "pattern" ? FEEDBACK_FULL : FEEDBACK_OFF);
   }
 
   function switchTo(nextMode, nextSessionView) {

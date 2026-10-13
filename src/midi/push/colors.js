@@ -16,9 +16,20 @@ export const RAW = {
   AMBER: 29, // unconfirmed on pads in midi-core's own source — provisional, see PALETTE below
 };
 
-// PALETTE is the one semantic layer webtrack's own Push rendering code should ever import —
-// re-theming webtrack's Push look (or swapping a provisional byte once hardware-checked) is a
-// one-place edit here, never a change scattered across mapping/rendering logic.
+// PALETTE is the one semantic layer webtrack's own Push rendering code should ever import, for
+// every control that's actually in the velocity-color-led family (pads, mute strip, select
+// buttons) — re-theming webtrack's Push look (or swapping a provisional byte once
+// hardware-checked) is a one-place edit here, never a change scattered across mapping/
+// rendering logic.
+//
+// This does NOT cover every LED on the device: Note/Session/Track/Clip (and Play/Shift/etc.)
+// are a different hardware feedback family entirely — monochrome dim/full/blink, not color —
+// confirmed the hard way (see this project's git history: an earlier version of
+// modeController.js wired the mode buttons to RAW.GREEN/RAW.DIM_WHITE from here, which looked
+// plausible in code review but never visibly changed anything on the real device, because
+// those bytes (22, 10) are both ≥7 and both just clamp to the monochrome scheme's "full"
+// state). Use constants.js's FEEDBACK_OFF/FEEDBACK_FULL/etc. for that family instead — never
+// a RAW/PALETTE color.
 export const PALETTE = {
   CELL_EMPTY: RAW.OFF,
   CELL_HAS_NOTE: RAW.GREEN,
@@ -29,8 +40,6 @@ export const PALETTE = {
   CELL_PLAYHEAD_HAS_NOTE: RAW.TEAL,
   TRACK_MUTED: RAW.RED,
   TRACK_AUDIBLE: RAW.DIM_WHITE,
-  MODE_BUTTON_ACTIVE: RAW.GREEN,
-  MODE_BUTTON_INACTIVE: RAW.DIM_WHITE,
   // Provisional (built on RAW.AMBER, unconfirmed on pads) — for a future Note Mode's
   // root-note-highlight; re-check against real hardware before relying on it.
   NOTE_KEY_ROOT: RAW.AMBER,

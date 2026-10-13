@@ -1,7 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import { createPushModeController } from "../src/midi/push/modeController.js";
-import { CC_MODE_NOTE, CC_MODE_SESSION, CC_MODE_TRACK, CC_MODE_CLIP, padNote } from "../src/midi/push/constants.js";
-import { PALETTE } from "../src/midi/push/colors.js";
+import {
+  CC_MODE_NOTE,
+  CC_MODE_SESSION,
+  CC_MODE_TRACK,
+  CC_MODE_CLIP,
+  padNote,
+  FEEDBACK_OFF,
+  FEEDBACK_FULL,
+} from "../src/midi/push/constants.js";
 
 // A fake device (src/midi/push/pushDevice.js's own contract: { onMessage, send, isConnected })
 // — the controller only needs onMessage/send, so isConnected is omitted.
@@ -35,10 +42,10 @@ describe("createPushModeController — mode button state machine", () => {
     controller.attach();
 
     expect(controller.getState()).toEqual({ pushMode: "session", sessionView: "tracker" });
-    expect(device.send).toHaveBeenCalledWith([CC_ON, CC_MODE_NOTE, PALETTE.MODE_BUTTON_INACTIVE]);
-    expect(device.send).toHaveBeenCalledWith([CC_ON, CC_MODE_SESSION, PALETTE.MODE_BUTTON_ACTIVE]);
-    expect(device.send).toHaveBeenCalledWith([CC_ON, CC_MODE_TRACK, PALETTE.MODE_BUTTON_ACTIVE]);
-    expect(device.send).toHaveBeenCalledWith([CC_ON, CC_MODE_CLIP, PALETTE.MODE_BUTTON_INACTIVE]);
+    expect(device.send).toHaveBeenCalledWith([CC_ON, CC_MODE_NOTE, FEEDBACK_OFF]);
+    expect(device.send).toHaveBeenCalledWith([CC_ON, CC_MODE_SESSION, FEEDBACK_FULL]);
+    expect(device.send).toHaveBeenCalledWith([CC_ON, CC_MODE_TRACK, FEEDBACK_FULL]);
+    expect(device.send).toHaveBeenCalledWith([CC_ON, CC_MODE_CLIP, FEEDBACK_OFF]);
   });
 
   it("CC50 (Note) switches pushMode to note and repaints", () => {
@@ -50,8 +57,8 @@ describe("createPushModeController — mode button state machine", () => {
     device.fireMessage([CC_ON, CC_MODE_NOTE, 127]);
 
     expect(controller.getState().pushMode).toBe("note");
-    expect(device.send).toHaveBeenCalledWith([CC_ON, CC_MODE_NOTE, PALETTE.MODE_BUTTON_ACTIVE]);
-    expect(device.send).toHaveBeenCalledWith([CC_ON, CC_MODE_SESSION, PALETTE.MODE_BUTTON_INACTIVE]);
+    expect(device.send).toHaveBeenCalledWith([CC_ON, CC_MODE_NOTE, FEEDBACK_FULL]);
+    expect(device.send).toHaveBeenCalledWith([CC_ON, CC_MODE_SESSION, FEEDBACK_OFF]);
   });
 
   it("CC112 (Track) sets sessionView to tracker AND switches into session mode, even from note mode", () => {
