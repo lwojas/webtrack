@@ -87,6 +87,13 @@ function ensureTrackLengths(song) {
 // a brand-new track gets today (model/trackChannel.js#createTrackChannel) rather than no ceiling
 // at all — a project saved before this existed gains the same "sane default" protection a new
 // project starts with, instead of silently staying unlimited forever.
+// song.swing (model/song.js) is purely additive too, added after format v2 shipped without it
+// — same reasoning as ensureTrackLengths above: default it to 0 (neutral/disabled), exactly how
+// every project already played before swing existed.
+function ensureSwingDefault(song) {
+  if (typeof song.swing !== "number") song.swing = 0;
+}
+
 function ensureVoiceDefaults(song) {
   song.trackChannels.forEach((channel) => {
     if (!channel.voiceMode) channel.voiceMode = "poly";
@@ -187,6 +194,7 @@ export async function deserializeProject(parsed, { loadSampleBytes }) {
   }
 
   ensureTrackLengths(parsed.song);
+  ensureSwingDefault(parsed.song);
   ensureVoiceDefaults(parsed.song);
   ensureFxDefaults(parsed.song);
 

@@ -17,6 +17,7 @@
 // patternStartStep jumps to that boundary's stepCounter, so every track's local phase restarts
 // at 0 for the new pattern instance, instead of carrying over wherever it happened to be.
 import { trackLocalStep } from "../model/pattern.js";
+import { swingDelaySeconds } from "../model/timing.js";
 import { voiceTracker } from "./voiceTracker.js";
 
 const LOOKAHEAD_SECONDS = 0.15;
@@ -33,6 +34,12 @@ export function createLookaheadPlayer({
   compileRowFx = () => [],
   trackBusIds,
   getStepDurationSeconds,
+  // Global sequencer swing (model/timing.js#swingDelaySeconds) — a pure scheduling-time
+  // adjustment to when a step's events actually fire, read fresh every tick like getBpm's
+  // duration is, so changing it live takes effect on the next unscheduled step with no
+  // rescheduling. Deliberately optional/defaulted: tests and other callers that don't care
+  // about swing never need to know it exists.
+  getSwing = () => 0,
   onPatternSwitched,
   getNextQueueEntry,
   onTrackFxChange,
@@ -90,12 +97,18 @@ export function createLookaheadPlayer({
         }
       }
 
+      // The logical step time — purely stepCounter * duration, never touched by swing. Swing
+      // only ever adjusts the *scheduled* time derived from it below; the logical position
+      // (rowIndex, patternRelativeStep, the playhead) stays on this untouched grid, per
+      // docs/ARCHITECTURE.md's "logical sequencer position -> ... -> swing adjustment ->
+      // event scheduling" flow.
       const stepTime = startTime + stepCounter * duration;
+      const scheduledTime = stepTime + swingDelaySeconds(stepCounter, duration, getSwing());
       // The pattern-relative position, not the raw stepCounter — compileRow folds it into each
       // track's own loop length (model/pattern.js#trackLocalStep), and it's this, not the raw
       // transport, that should restart at 0 on every new pattern instance.
       const patternRelativeStep = stepCounter - patternStartStep;
-      const events = compileRow(pattern, trackChannels, instruments, patternRelativeStep, stepTime, duration, trackBusIds);
+      const events = compileRow(pattern, trackChannels, instruments, patternRelativeStep, scheduledTime, duration, trackBusIds);
       if (events.length > 0) {
         // Voice-limit enforcement (model/trackChannel.js's voiceMode/maxVoices, via
         // audio/voiceTracker.js) happens here, right before scheduling — release()ing whatever

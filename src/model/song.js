@@ -14,11 +14,15 @@ import { createTrackChannel } from "./trackChannel.js";
 // (trackChannels below are already global, shared by every pattern), so there was nothing to
 // preserve on that front; if per-bank instrument sets are added later, they'd hang off
 // trackChannels/instruments, not off pattern storage.
-export function createSong({ name = "Untitled Project", bpm = 120, trackCount = 8, rowCount = 64 } = {}) {
+export function createSong({ name = "Untitled Project", bpm = 120, swing = 0, trackCount = 8, rowCount = 64 } = {}) {
   const firstPattern = createPattern({ id: 0, trackCount, rowCount, name: "Pattern 1" });
   return {
     name,
     bpm,
+    // Global sequencer-level timing adjustment (model/timing.js#swingDelaySeconds) — 0 is
+    // neutral/disabled. Deliberately a Song field alongside bpm, not per-pattern/per-track:
+    // it's a transport-clock concept (see audio/lookaheadPlayer.js), not musical/pattern data.
+    swing,
     trackCount,
     rowCount,
     trackChannels: Array.from({ length: trackCount }, (_, i) => createTrackChannel({ index: i })),

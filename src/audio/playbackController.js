@@ -17,6 +17,7 @@ export function createPlaybackController({
   getTrackChannels,
   getInstruments,
   getBpm,
+  getSwing,
   onTransportChange,
   onPatternSwitchPending,
   // Called whenever a cell's FX automation latches in during playback (audio/compile.js's
@@ -68,6 +69,7 @@ export function createPlaybackController({
         compileRowFx,
         trackBusIds,
         getStepDurationSeconds,
+        getSwing,
         onPatternSwitched: () => onPatternSwitchPending?.(false),
         getNextQueueEntry: (currentIndex) => resolveQueueEntry(currentIndex + 1),
         // A cell can only ever hold automation for a param whose FX is already enabled

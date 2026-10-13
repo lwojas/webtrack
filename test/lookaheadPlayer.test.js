@@ -186,6 +186,65 @@ describe("createLookaheadPlayer — one shared transport, independent per-track 
     player.stop();
   });
 
+  it("swing delays the scheduled time of odd steps but never changes which row/step is compiled", () => {
+    vi.useFakeTimers();
+    const runtime = createFakeRuntime();
+    const times = [];
+    const steps = [];
+    const compileRow = vi.fn((_pattern, _trackChannels, _instruments, transportStep, time) => {
+      steps.push(transportStep);
+      times.push(time);
+      return [];
+    });
+    const player = createLookaheadPlayer({
+      runtime,
+      compileRow,
+      getStepDurationSeconds: () => 1,
+      getSwing: () => 100, // maximum: odd steps delayed by 1/3 of a step
+    });
+    const pattern = makePattern({ rowCount: 16, trackLengths: [4] });
+
+    player.start({ initialPattern: pattern, initialTrackChannels: [], initialInstruments: [], startAt: 0 });
+    for (let i = 0; i < 4; i++) {
+      runtime.advance(1);
+      vi.advanceTimersByTime(25);
+    }
+
+    // The logical/compiled step sequence is untouched by swing.
+    expect(steps).toEqual([0, 1, 2, 3, 4]);
+    // Even steps land exactly on the logical grid; odd steps are pushed later by 1/3 step.
+    expect(times).toEqual([0, 1 + 1 / 3, 2, 3 + 1 / 3, 4]);
+
+    player.stop();
+  });
+
+  it("swing of 0 schedules every step exactly on the logical grid, same as no swing at all", () => {
+    vi.useFakeTimers();
+    const runtime = createFakeRuntime();
+    const times = [];
+    const compileRow = vi.fn((_pattern, _trackChannels, _instruments, _transportStep, time) => {
+      times.push(time);
+      return [];
+    });
+    const player = createLookaheadPlayer({
+      runtime,
+      compileRow,
+      getStepDurationSeconds: () => 1,
+      getSwing: () => 0,
+    });
+    const pattern = makePattern({ rowCount: 16, trackLengths: [4] });
+
+    player.start({ initialPattern: pattern, initialTrackChannels: [], initialInstruments: [], startAt: 0 });
+    for (let i = 0; i < 4; i++) {
+      runtime.advance(1);
+      vi.advanceTimersByTime(25);
+    }
+
+    expect(times).toEqual([0, 1, 2, 3, 4]);
+
+    player.stop();
+  });
+
   it("getTrackPlayheadRow is -1 for an unknown track index or while stopped", () => {
     const runtime = createFakeRuntime();
     const player = createLookaheadPlayer({ runtime, compileRow: () => [], getStepDurationSeconds: () => 1 });

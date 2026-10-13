@@ -97,7 +97,7 @@ belongs, it almost certainly belongs here, not inside `model/`, `audio/`, or `st
 ## Data model
 
 ```
-Song { bpm, trackCount, rowCount, trackChannels: TrackChannel[8],
+Song { bpm, swing, trackCount, rowCount, trackChannels: TrackChannel[8],
        patterns: Pattern[], patternQueue: PatternId[], selectedPatternId: PatternId, nextPatternId }
 Pattern { id, name, rowCount, tracks: PatternTrack[8] }        // rowCount is per-pattern — 1-8 bars, see model/timing.js
 PatternTrack { events: Event[rowCount], length }   // length is the track's own playback loop length — defaults to rowCount, see §8
@@ -213,6 +213,21 @@ session, these bytes are what `src/persistence/projectFile.js` actually embeds o
 5. **Pitch**: `Event.note` isn't itself a pitch — `compileEvent()` subtracts the instrument's
    `rootNote` (default 60/`C-4`) to get a semitone offset, passed as `webdsp`'s `pitch`
    parameter. Without this, the note column would be cosmetic.
+6. **Swing** (`Song.swing`, 0–100, set via the transport bar's SWING field) is a pure
+   scheduling-time adjustment, never a second clock and never a change to logical position.
+   `lookaheadPlayer.js#tick()` computes the step's logical time (`stepCounter * duration`,
+   exactly as before swing existed — this is what `rowIndex`, `patternRelativeStep`, and the
+   playhead all still read) and only adds a delay on top of that, via
+   `model/timing.js#swingDelaySeconds()`, to get the time actually passed to `compileRow`/
+   `runtime.schedule()`. The delay only ever applies to odd-indexed shared transport steps (the
+   "off" half of each on/off pair) and maxes out at a third of a step at `swing: 100` — the
+   same 2:1/triplet ratio hardware (MPC) and software (Ableton, FL Studio) swing use — so
+   even-indexed (downbeat) steps, and therefore overall beat duration/BPM, are never shifted.
+   Because the parity check is on the raw, never-reset `stepCounter` rather than a
+   pattern/track-relative position, the swing phase can't drift or reset at a pattern boundary
+   or a track's own polymetric wrap. This also leaves a clean seam for a future MIDI output
+   path: whatever emits MIDI events off the same scheduler would read the same swung time this
+   does, rather than needing its own swing math.
 
 ### Loop-boundary-deferred pattern switching
 

@@ -99,6 +99,7 @@ export function createAppContext() {
     getTrackChannels: () => store.getState().song.trackChannels,
     getInstruments: () => store.getState().instruments,
     getBpm: () => store.getState().song.bpm,
+    getSwing: () => store.getState().song.swing,
     onTransportChange: ({ playing }) => store.setTransport(playing),
     onPatternSwitchPending: (pending) => store.setPatternSwitchPending(pending),
     // Cell FX automation already calls audio/fx.js's setTrackFxParam itself (see

@@ -72,6 +72,16 @@ describe("serializeProject / deserializeProject", () => {
     expect(restored.song.patterns[0].tracks[1].length).toBe(64); // untouched track, already had it
   });
 
+  it("defaults song.swing to 0 (neutral) on a project saved before swing existed", async () => {
+    const song = createSong();
+    delete song.swing; // simulate a v2 file saved before swing existed
+    const serialized = serializeProject({ song, instruments: [], ui: {} });
+
+    const restored = await deserializeProject(serialized, { loadSampleBytes: async () => null });
+
+    expect(restored.song.swing).toBe(0);
+  });
+
   it("defaults trackChannel.voiceMode/maxVoices on a project saved before track voice limits existed", async () => {
     const song = createSong();
     delete song.trackChannels[0].voiceMode; // simulate a v2 file saved before this feature existed

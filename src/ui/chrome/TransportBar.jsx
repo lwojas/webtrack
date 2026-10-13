@@ -11,6 +11,7 @@ import { barsForRowCount, MAX_BARS } from "../../model/timing.js";
 export default function TransportBar({ store, playbackController, onSaveProject, onLoadProjectFile }) {
   const playing = useStore(store, events.TRANSPORT_CHANGED, (s) => s.playing);
   const bpm = useStore(store, events.TRANSPORT_CHANGED, (s) => s.song.bpm);
+  const swing = useStore(store, events.TRANSPORT_CHANGED, (s) => s.song.swing);
   const switchPending = useStore(store, events.PATTERN_SWITCH_PENDING, (s) => s.patternSwitchPending);
   const selectedPatternName = useStore(store, events.PATTERN_SELECTED, (s) => getSelectedPattern(s.song).name);
   const sequenceBars = useStore(store, events.PATTERN_LENGTH_CHANGED, (s) =>
@@ -48,6 +49,17 @@ export default function TransportBar({ store, playbackController, onSaveProject,
           max={300}
           value={bpm}
           onChange={(e) => store.setBpm(Number(e.target.value))}
+        />
+      </label>
+
+      <label className="transport-bar__bpm">
+        SWING
+        <input
+          type="number"
+          min={0}
+          max={100}
+          value={swing}
+          onChange={(e) => store.setSwing(Number(e.target.value))}
         />
       </label>
 

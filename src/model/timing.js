@@ -28,3 +28,22 @@ export function formatBarBeat(rowIndex) {
   const { bar, beat } = rowToBarBeat(rowIndex);
   return `${bar}.${beat}`;
 }
+
+export const SWING_MIN = 0;
+export const SWING_MAX = 100;
+
+// Swing is a scheduling-time adjustment, not a change to logical position (see
+// docs/ARCHITECTURE.md's "Audio / timing architecture" — the logical step/row a track is on,
+// and everything derived from it, stays untouched; only the *moment* a step's events actually
+// fire moves). It delays the "off" half of each on/off step pair — the same 2:1-ratio
+// definition hardware (MPC) and software (Ableton, FL Studio) swing use: at swingAmount 0 the
+// pair is split evenly (each half one full step), and at 100 it's split into a full triplet
+// ratio (4/3 step, 2/3 step) — i.e. the off step is pushed as much as a third of a step late.
+// stepIndex is the shared transport step (lookaheadPlayer's stepCounter), not a pattern- or
+// track-relative row — its parity alone decides on/off, so the swing phase never shifts at a
+// pattern boundary or a track's own polymetric wrap, and downbeats (even-indexed steps) are
+// never delayed, which is what keeps overall beat duration/BPM correct.
+export function swingDelaySeconds(stepIndex, stepDurationSeconds, swingAmount) {
+  if (stepIndex % 2 === 0 || !swingAmount) return 0;
+  return stepDurationSeconds * (swingAmount / 300);
+}

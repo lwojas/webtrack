@@ -26,7 +26,7 @@ import {
   renamePattern as renamePatternModel,
 } from "../model/mutations.js";
 import { createInstrumentSlot } from "../model/instrument.js";
-import { rowCountForBars } from "../model/timing.js";
+import { rowCountForBars, SWING_MIN, SWING_MAX } from "../model/timing.js";
 import { getSelectedPattern } from "../model/query.js";
 import { clearRect, captureBlock, tileBlockIntoRect } from "../model/selectionOps.js";
 import * as events from "./events.js";
@@ -178,6 +178,11 @@ export function createStore({ song, instruments }) {
   function setBpm(bpm) {
     state.song.bpm = Math.max(1, bpm);
     emitter.emit(events.TRANSPORT_CHANGED, { bpm: state.song.bpm });
+  }
+
+  function setSwing(swing) {
+    state.song.swing = Math.min(SWING_MAX, Math.max(SWING_MIN, swing));
+    emitter.emit(events.TRANSPORT_CHANGED, { swing: state.song.swing });
   }
 
   function setCell(trackIndex, rowIndex, field, value) {
@@ -520,7 +525,7 @@ export function createStore({ song, instruments }) {
 
     emitter.emit(events.PATTERN_QUEUE_CHANGED, {});
     emitter.emit(events.PATTERN_SELECTED, { patternId: state.song.selectedPatternId });
-    emitter.emit(events.TRANSPORT_CHANGED, { playing: false, bpm: state.song.bpm });
+    emitter.emit(events.TRANSPORT_CHANGED, { playing: false, bpm: state.song.bpm, swing: state.song.swing });
     emitter.emit(events.PROJECT_NAME_CHANGED, { name: state.song.name });
     emitter.emit(events.TRACK_CHANNEL_CHANGED, {});
     emitter.emit(events.TRACK_FX_CHANGED, {});
@@ -542,6 +547,7 @@ export function createStore({ song, instruments }) {
     renamePattern,
     setTransport,
     setBpm,
+    setSwing,
     setCell,
     getSelectionRect,
     clearSelection,
