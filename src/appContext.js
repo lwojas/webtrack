@@ -18,6 +18,7 @@ import { createEditController } from "./input/editController.js";
 import { createPushDevice } from "./midi/push/pushDevice.js";
 import { createPushModeController } from "./midi/push/modeController.js";
 import { createPushNoteEntryMode } from "./midi/push/noteEntryMode.js";
+import { createPushTrackerGridMode } from "./midi/push/trackerGridMode.js";
 import { createPatternGridModeStub } from "./midi/push/patternGridModeStub.js";
 import { createRenderStats } from "./debug/renderStats.js";
 import { createControlRegistry } from "./control/registry.js";
@@ -142,16 +143,16 @@ export function createAppContext() {
   // CC50/51/112/113 mode state machine this drives. pushNoteEntryMode is both a gridContent
   // entry (receives decoded pad events while pushMode === "note") and, via the same object,
   // a regular noteSources entry (editController.js never needs to know a note came from a
-  // Push pad instead of a keyboard). "session.tracker" is intentionally not registered yet —
-  // the tracker-grid controller is a later stage; a pad press in that mode is a harmless no-op
-  // until then, the same "door left open, not half-built" shape patternGridModeStub already is
-  // for Pattern view.
+  // Push pad instead of a keyboard). pushTrackerGridMode needs playbackController (already
+  // constructed above) for its live playhead LEDs.
   const pushDevice = createPushDevice();
   const pushNoteEntryMode = createPushNoteEntryMode();
+  const pushTrackerGridMode = createPushTrackerGridMode({ device: pushDevice, store, playbackController });
   const pushModeController = createPushModeController({
     device: pushDevice,
     gridContent: {
       note: pushNoteEntryMode,
+      "session.tracker": pushTrackerGridMode,
       "session.pattern": createPatternGridModeStub({ device: pushDevice }),
     },
   });

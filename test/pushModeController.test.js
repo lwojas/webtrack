@@ -104,12 +104,38 @@ describe("createPushModeController — mode button state machine", () => {
     expect(controller.getState().pushMode).toBe("session");
   });
 
-  it("an unrelated CC is ignored without throwing", () => {
+  it("pressing Track while already in session.tracker repaints nothing — same mode state, no redundant CC traffic", () => {
+    const device = createFakeDevice();
+    const controller = createPushModeController({ device, gridContent: {} });
+    controller.attach(); // already session.tracker (the default)
+    device.send.mockClear();
+
+    device.fireMessage([CC_ON, CC_MODE_TRACK, 127]);
+
+    expect(device.send).not.toHaveBeenCalled();
+  });
+
+  it("an unrelated CC is ignored without throwing when the active content has no onCC", () => {
     const device = createFakeDevice();
     const controller = createPushModeController({ device, gridContent: {} });
     controller.attach();
     expect(() => device.fireMessage([CC_ON, 71, 1])).not.toThrow(); // encoder 1
     expect(controller.getState()).toEqual({ pushMode: "session", sessionView: "tracker" });
+  });
+
+  it("forwards a non-mode CC to the active content's onCC, never to a different content's", () => {
+    const device = createFakeDevice();
+    const tracker = createFakeContent();
+    tracker.onCC = vi.fn();
+    const note = createFakeContent();
+    note.onCC = vi.fn();
+    const controller = createPushModeController({ device, gridContent: { "session.tracker": tracker, note } });
+    controller.attach();
+
+    device.fireMessage([CC_ON, 102, 127]); // mute strip, track 0
+
+    expect(tracker.onCC).toHaveBeenCalledWith(102, 127);
+    expect(note.onCC).not.toHaveBeenCalled();
   });
 });
 
@@ -122,6 +148,38 @@ describe("createPushModeController — gridContent dispatch", () => {
     expect(tracker.onEnter).toHaveBeenCalledTimes(1);
     expect(tracker.paint).toHaveBeenCalledTimes(1);
     expect(tracker.onExit).not.toHaveBeenCalled();
+  });
+
+  // Regression test for a real bug: React StrictMode double-invokes effects once in dev
+  // (mount, cleanup, mount again — docs/ARCHITECTURE.md's Gotcha #6). attach()'s returned
+  // cleanup used to only unsubscribe the device message listener, never call onExit() on
+  // whatever content attach() had just entered — so the first mount's onEnter() (e.g.
+  // trackerGridMode.js's setInterval-driven playhead sync) leaked forever, orphaned, because
+  // the second mount's onEnter() overwrote the only reference that could have canceled it.
+  it("attach()'s returned cleanup calls onExit on the content that was active, undoing attach()'s own onEnter", () => {
+    const device = createFakeDevice();
+    const tracker = createFakeContent();
+    const controller = createPushModeController({ device, gridContent: { "session.tracker": tracker } });
+
+    const detach = controller.attach();
+    expect(tracker.onEnter).toHaveBeenCalledTimes(1);
+    expect(tracker.onExit).not.toHaveBeenCalled();
+
+    detach();
+    expect(tracker.onExit).toHaveBeenCalledTimes(1);
+  });
+
+  it("a second attach()+detach() cycle (simulating StrictMode's double-invoke) leaves exactly one onEnter uncanceled by its own detach, never two", () => {
+    const device = createFakeDevice();
+    const tracker = createFakeContent();
+    const controller = createPushModeController({ device, gridContent: { "session.tracker": tracker } });
+
+    const detach1 = controller.attach(); // StrictMode's throwaway first mount
+    detach1(); // StrictMode's immediate cleanup
+    controller.attach(); // StrictMode's real, final mount
+
+    expect(tracker.onEnter).toHaveBeenCalledTimes(2);
+    expect(tracker.onExit).toHaveBeenCalledTimes(1); // exactly once — from detach1, not leaked
   });
 
   it("calls onExit on the previous content and onEnter on the next when the key actually changes", () => {

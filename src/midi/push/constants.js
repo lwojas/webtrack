@@ -49,8 +49,19 @@ export const MUTE_CC = [102, 103, 104, 105, 106, 107, 108, 109];
 
 // --- Selection buttons (right-hand side column) ---
 // CC 36-43, descending top to bottom — SELECT_CC[0] is the topmost button, SELECT_CC[7] the
-// bottommost. velocity-color-led, confirmed: 10=resting, 22=selected.
+// bottommost. velocity-color-led, confirmed: 10=resting, 22=selected. Not currently used by
+// webtrack's own tracker-grid controller (see TRACK_SELECT_CC below) — kept as documented
+// hardware data in case a future per-row (rather than per-track) use for it comes up.
 export const SELECT_CC = [43, 42, 41, 40, 39, 38, 37, 36];
+
+// --- Track-select buttons (the row of 8 buttons directly below the LCD, one per column) ---
+// CC 20-27, left to right. webtrack uses these (not SELECT_CC above) for track selection: once
+// the tracker grid's track axis is the *column* axis (see trackerGridMode.js's own doc comment
+// on the row/column rotation), these are the buttons that actually line up with each track's
+// column, the same way the 8 encoders and MUTE_CC already do. velocity-color-led, same family
+// as the mute strip — confirmed against real hardware (not ported from midi-core, which never
+// documented this control at all).
+export const TRACK_SELECT_CC = [20, 21, 22, 23, 24, 25, 26, 27];
 
 // --- Transport / utility buttons ---
 // Monochrome dim/full feedback (FEEDBACK_* below), not the velocity-color scheme the

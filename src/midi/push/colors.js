@@ -40,6 +40,8 @@ export const PALETTE = {
   CELL_PLAYHEAD_HAS_NOTE: RAW.TEAL,
   TRACK_MUTED: RAW.RED,
   TRACK_AUDIBLE: RAW.DIM_WHITE,
+  TRACK_SELECTED: RAW.GREEN,
+  TRACK_UNSELECTED: RAW.DIM_WHITE,
   // Provisional (built on RAW.AMBER, unconfirmed on pads) — for a future Note Mode's
   // root-note-highlight; re-check against real hardware before relying on it.
   NOTE_KEY_ROOT: RAW.AMBER,
