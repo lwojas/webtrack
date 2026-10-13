@@ -135,7 +135,9 @@ and edited from `ui/chrome/Mixer.jsx`'s per-track LEN field.
 
 ### Adding MIDI input
 
-Implemented — `input/midiInputSource.js#createMidiNoteSource()` wraps the Web MIDI API
+Implemented — see [`docs/MIDI.md`](MIDI.md) for the full picture (live input, MIDI-output
+instruments, and the Push Mk1 controller surface); the short version:
+`input/midiInputSource.js#createMidiNoteSource()` wraps the Web MIDI API
 (`requestMIDIAccess`, overridable for tests the same way `audio/lookaheadPlayer.js`'s
 `reserveVoiceSlot`/`registerVoice` are) and implements `input/noteInputSource.js`'s contract:
 `{ onNoteOn(fn), onNoteOff(fn), emitNoteOn(payload), emitNoteOff(payload), attach() }`, payload

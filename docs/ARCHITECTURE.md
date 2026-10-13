@@ -469,9 +469,6 @@ back.
 
 Left out of this MVP on purpose, with the seam each one would extend noted:
 
-- **MIDI output (a track/instrument sending notes to an external device instead of
-  triggering a sample)** — not yet built. `Event.note`'s numeric representation needs no
-  change for this (see below); `Instrument` would need an `output` field.
 - **A Canvas renderer** — `gridView.js` exposes a narrow interface
   (`mount()`/`patchCell()`/node-count probe) a future canvas-based implementation of the same
   interface could satisfy without touching `model/`, `audio/`, or anything else.
@@ -494,4 +491,6 @@ Left out of this MVP on purpose, with the seam each one would extend noted:
 Project persistence, mouse-driven cell/field selection, an explicit per-note length, and
 variable (1–8 bar) sequence length — all previously listed here as out of scope — are now
 implemented; see `src/persistence/`, `ui/grid/gridView.js`'s `onCellClick`, `Event.length`,
-and Gotcha #8 above respectively.
+and Gotcha #8 above respectively. MIDI I/O (live input, MIDI-output instruments, and an
+Ableton Push Mk1 controller surface) is also now implemented — see
+[`docs/MIDI.md`](MIDI.md), which this doc's own `Event.note`/swing seams above anticipated.

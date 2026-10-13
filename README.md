@@ -3,8 +3,9 @@
 A browser-based music tracker built on [`webdsp`](https://github.com/lwojas/webdsp) — plain
 JavaScript (no TypeScript), React for the app chrome, hand-rolled DOM rendering for the dense
 pattern grid. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for how it's built,
-[`docs/EXTENDING.md`](docs/EXTENDING.md) for how to add to it, and
-[`docs/FX.md`](docs/FX.md) for the track/master FX buses and cell automation.
+[`docs/EXTENDING.md`](docs/EXTENDING.md) for how to add to it,
+[`docs/FX.md`](docs/FX.md) for the track/master FX buses and cell automation, and
+[`docs/MIDI.md`](docs/MIDI.md) for MIDI I/O and the Ableton Push Mk1 controller integration.
 
 ## Quick start
 
@@ -131,12 +132,13 @@ with project save/load, mouse-driven selection, an explicit per-note length, var
 length, a bar/beat legend, a redesigned horizontal mixer, a Pattern Manager that replaced the
 original bank-based pattern storage with an explicit pattern pool + queue (see
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#data-model)), per-track polymetric playback
-length, and per-track/master FX buses with sparse cell-level automation (see
-[`docs/FX.md`](docs/FX.md)). What's explicitly **not** built yet — mostly by design, with the
-seams left open rather than closed off — is listed in
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#explicitly-out-of-scope): MIDI I/O, a Canvas
-renderer, send/aux buses, playing the pattern queue in order, tracker FX columns/Push-MIDI
-consumers of the FX parameter catalog, undo/redo.
+length, per-track/master FX buses with sparse cell-level automation (see
+[`docs/FX.md`](docs/FX.md)), and MIDI I/O including an Ableton Push Mk1 controller surface (see
+[`docs/MIDI.md`](docs/MIDI.md)). What's explicitly **not** built yet — mostly by design, with
+the seams left open rather than closed off — is listed in
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#explicitly-out-of-scope): a Canvas renderer,
+send/aux buses, playing the pattern queue in order, tracker FX columns consuming the FX
+parameter catalog, undo/redo.
 
 ## Repository layout
 
@@ -145,7 +147,8 @@ src/
   model/        musical data — Song/Pattern/Track/Row/Event/timing, framework-agnostic
   audio/        webdsp integration — compiling the model into playback
   state/        the pub/sub store both React and vanilla DOM code read from
-  input/        keyboard → musical events, transport keys
+  input/        keyboard/MIDI → musical events, transport keys
+  midi/push/    Ableton Push Mk1 controller surface — see docs/MIDI.md
   ui/grid/      the hand-rolled tracker grid (not React) — mouse + keyboard selection
   ui/chrome/    the React app chrome (transport bar, mixer, instrument panel, note editor, pattern manager)
   ui/debug/     the F3 perf panel
