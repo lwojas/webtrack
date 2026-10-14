@@ -34,6 +34,15 @@ export const FX_PARAMS = [
   // bypass toggle (FX_TYPES' bypassValues below only ever resets cutoff/resonance) — bypassing
   // the filter doesn't change which mode it's in, it just mutes the filter's effect entirely.
   { id: "filter.mode", nodeParam: "FilterMode", type: "filter", group: "Filter", label: "Mode", kind: "boolean", min: 0, max: 1, default: 0, step: 1, unit: "", onLabel: "HIGH", offLabel: "LOW", cellAutomatable: false },
+  // webdsp's NodeParam.FilterSlope (12 = two-pole/default, 24 = four-pole — see
+  // node_modules/webdsp/lib/index.d.ts's own FilterSlope enum) is a second `kind: "boolean"`
+  // filter param, same reasoning as filter.mode above: a discrete two-way choice, not a
+  // continuous range. Unlike filter.mode's 0/1 value space, this one's two values (12/24) are
+  // webdsp's own real engine values, sent straight through — isFxBooleanOn below reads off
+  // param.min/max rather than assuming 0/1, so this didn't need a third value space invented.
+  // Also independent of the filter's bypass values, for the same reason filter.mode is: bypass
+  // mutes the filter's effect, it doesn't change which slope it would otherwise use.
+  { id: "filter.slope", nodeParam: "FilterSlope", type: "filter", group: "Filter", label: "Slope", kind: "boolean", min: 12, max: 24, default: 12, step: 12, unit: "", onLabel: "24dB", offLabel: "12dB", cellAutomatable: false },
 
   { id: "delay.time", nodeParam: "DelayTime", type: "delay", group: "Delay", label: "Time", min: 0, max: 2, default: 0.25, step: 0.001, unit: "s" },
   { id: "delay.feedback", nodeParam: "DelayFeedback", type: "delay", group: "Delay", label: "Feedback", min: 0, max: 0.95, default: 0.3, step: 0.01, unit: "" },
@@ -115,13 +124,25 @@ function decimalsForStep(step) {
   return dot === -1 ? 0 : text.length - dot - 1;
 }
 
+// A `kind: "boolean"` param only ever sits at param.min (off) or param.max (on) — filter.mode's
+// 0/1, filter.slope's 12/24, and whatever the next one turns out to be. Comparing against the
+// midpoint rather than a hardcoded 0.5 is what lets both values mean "off"/"on" without this (or
+// any of its callers: FxPanel.jsx, midi/push/encoderController.js) needing to know which boolean
+// param it's looking at. Falls back to 0/1 when a param defines no min/max at all, matching this
+// function's pre-filter.slope behavior.
+export function isFxBooleanOn(value, param) {
+  const min = param.min ?? 0;
+  const max = param.max ?? 1;
+  return (value ?? param.default) >= (min + max) / 2;
+}
+
 // Shared by the FX panel, the cell editor, and Push's encoder LCD (midi/push/
 // encoderController.js) so a given parameter's value always reads the same way everywhere
 // (model/notes.js's toHex/noteNumberToName is the existing precedent for formatting living in
-// model/, not duplicated per-consumer). A `kind: "boolean"` param (filter.mode above) has no
-// natural numeric string — onLabel/offLabel stand in for it instead.
+// model/, not duplicated per-consumer). A `kind: "boolean"` param (filter.mode, filter.slope)
+// has no natural numeric string — onLabel/offLabel stand in for it instead.
 export function formatFxValue(value, param) {
   if (value === null || value === undefined || !param) return "--";
-  if (param.kind === "boolean") return value >= 0.5 ? param.onLabel ?? "ON" : param.offLabel ?? "OFF";
+  if (param.kind === "boolean") return isFxBooleanOn(value, param) ? param.onLabel ?? "ON" : param.offLabel ?? "OFF";
   return `${Number(value).toFixed(decimalsForStep(param.step))}${param.unit}`;
 }

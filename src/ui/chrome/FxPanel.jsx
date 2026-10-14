@@ -1,26 +1,27 @@
 import { useState } from "react";
 import { useStore } from "../../state/useStore.js";
 import * as events from "../../state/events.js";
-import { FX_TYPES, getFxType, getFxParam, getFxParamsForType, formatFxValue } from "../../model/fxParams.js";
+import { FX_TYPES, getFxType, getFxParam, getFxParamsForType, formatFxValue, isFxBooleanOn } from "../../model/fxParams.js";
 
 // bus.gain (model/fxParams.js) isn't one of FX_TYPES' toggleable nodes — it's the bus's own
 // always-present output stage, so it gets a pinned module below instead of living in the
 // add/remove chain like every other FX.
 const OUTPUT_PARAM = getFxParam("bus.gain");
 
-// A `kind: "boolean"` param (currently just filter.mode — model/fxParams.js) has no continuous
+// A `kind: "boolean"` param (filter.mode, filter.slope — model/fxParams.js) has no continuous
 // range to slide through, so it gets its own on/off button instead of a <input type="range">
 // that would otherwise only ever sit at one of two tick marks. Independent of the module
 // header's own bypass (B) button above — this toggles what the FX *does*, bypass toggles
-// whether it's active at all.
+// whether it's active at all. Toggles between param.min/param.max rather than a hardcoded 0/1,
+// since filter.slope's two values are webdsp's own 12/24, not a normalized flag.
 function FxBooleanField({ param, value, onChange }) {
-  const isOn = (value ?? param.default) >= 0.5;
+  const isOn = isFxBooleanOn(value, param);
   return (
     <label className="fx-module__field">
       <span className="fx-module__field-label" title={param.label}>
         {param.label}
       </span>
-      <button type="button" className={`fx-module__toggle${isOn ? " fx-module__toggle--on" : ""}`} onClick={() => onChange(isOn ? 0 : 1)}>
+      <button type="button" className={`fx-module__toggle${isOn ? " fx-module__toggle--on" : ""}`} onClick={() => onChange(isOn ? param.min : param.max)}>
         {formatFxValue(value ?? param.default, param)}
       </button>
     </label>

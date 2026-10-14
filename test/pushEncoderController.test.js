@@ -140,7 +140,7 @@ describe("createPushEncoderController — FX mode", () => {
 
   it("turning an encoder changes the current FX module's continuous parameter", () => {
     const { store, device, controller } = createTestContext();
-    store.addTrackFx(0, "filter"); // filter.cutoff, filter.resonance, filter.mode, in that order
+    store.addTrackFx(0, "filter"); // filter.cutoff, filter.resonance, filter.mode, filter.slope, in that order
     enterFxMode(device, controller);
     const before = store.getState().song.trackChannels[0].fx["filter.cutoff"];
     expect(before).toBe(20000); // the catalog default, which is also filter.cutoff's max
@@ -163,9 +163,24 @@ describe("createPushEncoderController — FX mode", () => {
     expect(store.getState().song.trackChannels[0].fx["filter.mode"]).toBe(1); // HIGH
   });
 
+  it("turning the boolean filter.slope encoder toggles between webdsp's real 12/24 values, not a normalized 0/1", () => {
+    const { store, device, controller } = createTestContext();
+    store.addTrackFx(0, "filter");
+    enterFxMode(device, controller);
+    expect(store.getState().song.trackChannels[0].fx["filter.slope"]).toBe(12); // 12dB by default
+
+    device.fireMessage([CC_ON, ENCODER_CC[3], 4]); // encoder 3 -> filter.slope, delta 4 meets the threshold
+
+    expect(store.getState().song.trackChannels[0].fx["filter.slope"]).toBe(24);
+
+    device.fireMessage([CC_ON, ENCODER_CC[3], 4]); // turning again flips it back
+
+    expect(store.getState().song.trackChannels[0].fx["filter.slope"]).toBe(12);
+  });
+
   it("an unassigned encoder (beyond the current FX's param count) is a no-op", () => {
     const { store, device, controller } = createTestContext();
-    store.addTrackFx(0, "filter"); // 3 params — encoders 3-7 are unassigned
+    store.addTrackFx(0, "filter"); // 4 params — encoders 4-7 are unassigned
     enterFxMode(device, controller);
 
     expect(() => device.fireMessage([CC_ON, ENCODER_CC[6], 40])).not.toThrow();
@@ -236,7 +251,13 @@ describe("createPushEncoderController — LCD alignment", () => {
     expect(segmentAt(barLine, 2)).toBe("  OFF   ");
     // Neighboring encoders (continuous bars) must not bleed into encoder 2's segment or vice versa.
     expect(segmentAt(barLine, 1)).toMatch(/^\[[=-]+\]$/);
-    expect(segmentAt(barLine, 3)).toBe(" ".repeat(LCD_SEGMENT_WIDTH)); // unassigned — no 4th filter param
+    // encoder 3 is filter.slope — also boolean, so the bar row shows the same literal ON/OFF
+    // (the value row below is where its own 12dB/24dB labels actually show — see formatFxValue).
+    expect(segmentAt(barLine, 3)).toBe("  OFF   ");
+    expect(segmentAt(barLine, 4)).toBe(" ".repeat(LCD_SEGMENT_WIDTH)); // unassigned — no 5th filter param
+
+    const valueLine = sentLcdLine(device, 3);
+    expect(segmentAt(valueLine, 3).trim()).toBe("12dB");
   });
 
   it("a short and a long parameter name both stay confined to their own segment", () => {

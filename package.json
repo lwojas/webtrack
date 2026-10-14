@@ -14,9 +14,9 @@
   "author": "Lech Wojas",
   "license": "ISC",
   "dependencies": {
-    "webdsp": "github:lwojas/webdsp",
     "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "react-dom": "^18.3.1",
+    "webdsp": "github:lwojas/webdsp"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",

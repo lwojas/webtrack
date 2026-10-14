@@ -70,12 +70,17 @@ declaration order — what the FX panel renders one enabled chain module's slide
 `getFxTypeForParam(paramId)`, `formatFxValue(value, param)` (shared formatting, same precedent as
 `model/notes.js`'s `toHex`/`noteNumberToName`).
 
-Currently exposed: Filter (cutoff, resonance), Delay (time, feedback, mix), Reverb (decay,
-damping, mix), Compressor (threshold, ratio, attack, release, knee, makeup), Saturation
+Currently exposed: Filter (cutoff, resonance, mode, slope), Delay (time, feedback, mix), Reverb
+(decay, damping, mix), Compressor (threshold, ratio, attack, release, knee, makeup), Saturation
 (drive, asymmetry, output gain, mix), Chorus/Flanger (rate, depth, delay, feedback, stereo
-phase, mix), and bus output gain. `FilterMode` (the engine's low-pass/high-pass toggle) is
-deliberately left out — every entry here is a plain numeric slider, which keeps cell
-automation simple; a discrete on/off mode isn't a great fit for "sparse automation at a cell."
+phase, mix), and bus output gain. `FilterMode` (the engine's low-pass/high-pass toggle) and
+`FilterSlope` (the engine's 12dB/24dB-per-octave toggle) are both `kind: "boolean"` catalog
+entries (`model/fxParams.js`), not plain numeric sliders like everything else above — a discrete
+on/off choice isn't a great fit for "sparse automation at a cell," so both are `cellAutomatable:
+false` (still editable from the FX panel/Push's FX encoders, just left out of the cell editor's
+"+ ADD FX" list). `isFxBooleanOn(value, param)` reads a boolean param's current on/off state off
+`param.min`/`param.max` rather than assuming a normalized 0/1 — FilterMode's value space really
+is 0/1, but FilterSlope's is webdsp's own 12/24, sent straight through unmodified.
 
 ## Bridging to `webdsp` (`src/audio/fx.js`, `src/audio/runtime.js`)
 

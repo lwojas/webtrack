@@ -23,7 +23,7 @@ import {
   lcdSysex,
 } from "./constants.js";
 import { formatBar, buildEncoderLine, centerColumn } from "./lcd.js";
-import { getFxParamsForType, getFxType, formatFxValue } from "../../model/fxParams.js";
+import { getFxParamsForType, getFxType, formatFxValue, isFxBooleanOn } from "../../model/fxParams.js";
 import { CONTROLS } from "../../control/contract.js";
 import { getSelectedPattern } from "../../model/query.js";
 import { EFFECT_COMMANDS } from "../../model/effects.js";
@@ -42,11 +42,11 @@ const COLUMN_WIDTH = LCD_SEGMENT_WIDTH;
 const VOLUME_CONTROL = CONTROLS.find((c) => c.id === "track.0.volume");
 const VOLUME_RANGE = { min: VOLUME_CONTROL?.min ?? 0, max: VOLUME_CONTROL?.max ?? 1.5 };
 
-// A relative encoder has no absolute position, so a boolean parameter (filter.mode) can't just
-// read "current + delta" the way a continuous one does — it needs to decide when a turn counts
-// as "enough" to flip. Accumulating magnitude per encoder and flipping once it crosses this
-// threshold (then resetting) keeps a small amount of jitter from toggling it on every tiny turn,
-// while still being flippable in a few ticks either direction.
+// A relative encoder has no absolute position, so a boolean parameter (filter.mode, filter.slope)
+// can't just read "current + delta" the way a continuous one does — it needs to decide when a
+// turn counts as "enough" to flip. Accumulating magnitude per encoder and flipping once it crosses
+// this threshold (then resetting) keeps a small amount of jitter from toggling it on every tiny
+// turn, while still being flippable in a few ticks either direction.
 const BOOLEAN_TOGGLE_THRESHOLD = 4;
 
 // Write mode's "cellEdit" encoder mode (docs/MIDI.md) — the same 7 fields
@@ -223,7 +223,7 @@ export function createPushEncoderController({ device, store, fxController }) {
       return {
         isBoolean,
         ratio: isBoolean ? null : (value - param.min) / (param.max - param.min),
-        boolOn: isBoolean ? value >= 0.5 : null,
+        boolOn: isBoolean ? isFxBooleanOn(value, param) : null,
         name: param.label,
         valueText: formatFxValue(value, param),
       };
@@ -327,7 +327,7 @@ export function createPushEncoderController({ device, store, fxController }) {
         return;
       }
       booleanAccumulator.set(param.id, 0);
-      fxController.setTrackFxParam(trackIndex, param.id, current >= 0.5 ? 0 : 1);
+      fxController.setTrackFxParam(trackIndex, param.id, isFxBooleanOn(current, param) ? param.min : param.max);
       return;
     }
 

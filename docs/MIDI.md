@@ -363,9 +363,12 @@ already established):
   (`store.getState().cursor.trackIndex` — the same "current track" `FxPanel.jsx`/`NoteEditor.jsx`
   already use). `CC_ARROW_LEFT`/`CC_ARROW_RIGHT` (44/45 — unclaimed by `trackerGridMode.js`,
   which only consumes Up/Down) page between enabled FX modules, clamped at the ends like
-  `trackerGridMode.js#pageSteps` already is. A `kind: "boolean"` parameter (`filter.mode`, see
-  below) can't read a relative encoder's delta as "current + delta" the way a continuous one
-  does — it accumulates `|delta|` and flips once that crosses a small threshold, then resets.
+  `trackerGridMode.js#pageSteps` already is. A `kind: "boolean"` parameter (`filter.mode`,
+  `filter.slope` — see below) can't read a relative encoder's delta as "current + delta" the way
+  a continuous one does — it accumulates `|delta|` and flips once that crosses a small threshold,
+  then resets, toggling between that param's own `min`/`max` (`model/fxParams.js#isFxBooleanOn`)
+  rather than a hardcoded 0/1 — `filter.slope`'s two values are webdsp's own real 12/24, not a
+  normalized flag like `filter.mode`'s.
 
 Writes exclusively through `store.setTrackChannelVolume`/`fxController.setTrackFxParam` — the
 exact calls `Mixer.jsx`/`FxPanel.jsx` already use, so there's one path from "a parameter
