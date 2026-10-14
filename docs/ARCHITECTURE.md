@@ -322,25 +322,50 @@ separate rather than collapsed into one "volume" concept:
 Not part of this: **per-cell volume** (a future per-event level, mapping naturally to MIDI
 velocity later) stays entirely a tracker/event-level concern — `webdsp`'s `TriggerParams.gain`/
 `VoiceParam.Gain` already exists for exactly this and is left free for it; nothing above
-assumes event-level gain must be represented as instrument or track gain.
+assumes event-level gain must be represented as instrument or track gain. **Pan** is the
+orthogonal, parallel axis to all of this (position, not level) — see the next section's own
+bus-pan/voice-pan split, which mirrors this three-layer gain staging exactly.
 
-## FX: track/master buses, active FX chains, and cell automation
+## FX: track/master buses, stacked FX instances, and cell automation
 
 Every track gets its own insert FX bus plus a master bus, via `webdsp`'s existing bus
-architecture (`MASTER_BUS`, `AudioRuntime.createBus()`, `setNodeParameter`) — no engine change
-needed, it was simply never wired into webtracker before (see the "Explicitly out of scope"
-entry this replaced). `webdsp`'s six DSP nodes (filter/delay/reverb/compressor/saturation/
-chorus-flanger) are always present on every bus at the engine level; webtrack adds its own
-application-level concept of an **active FX chain** per track/master on top (`fxChain` —
-which of those six a track/the master bus actually uses right now, each individually
-bypassable), distinct from the fixed catalog of what the DSP merely knows how to provide
-(`FX_PARAMS`/`FX_TYPES`). A tracker cell can hold sparse FX automation (`Event.fx`) that
-latches onto its own track's bus during playback, never the master bus, and only for a
-parameter whose FX is actually enabled on that track. See [`docs/FX.md`](FX.md) for the full
-design: the parameter/type catalogs (`model/fxParams.js`), the `webdsp`-bridging module
-(`audio/fx.js`), the `fxChain`/`fx`/`masterFxChain`/`masterFx`/`Event.fx` data model and its
-bypass mechanics, playback semantics, the FX panel, and a known timing caveat
-(`setNodeParameter` has no timestamp, unlike `schedule()`).
+architecture (`MASTER_BUS`, `AudioRuntime.createBus()`) — no engine change needed, it was simply
+never wired into webtracker before (see the "Explicitly out of scope" entry this replaced).
+`webdsp` now models each bus's FX as an **ordered chain of independent effect instances**
+(`addEffect`/`removeEffect`/`moveEffect`/`setEffectEnabled`/`setEffectParameter`/
+`getEffectChain`) rather than one fixed slot per DSP kind — any number of instances of the same
+kind (two Filters, say) can coexist, each with its own id, state, and parameters. webtrack's own
+`fxChain` (`model/trackChannel.js`/`model/song.js`) mirrors this directly: an ordered array of
+`{ id, type, bypassed }` entries, one per instance actually added — distinct from the fixed
+catalog of FX kinds the DSP merely knows how to provide (`FX_PARAMS`/`FX_TYPES`, which now also
+include Phaser and Bitcrusher). A tracker cell can hold sparse FX automation (`Event.fx`) that
+latches onto one specific instance on its own track's bus during playback, never the master bus.
+See [`docs/FX.md`](FX.md) for the full design: the parameter/type catalogs (`model/fxParams.js`),
+the `webdsp`-bridging module (`audio/fx.js`), the `fxChain`/`fx`/`masterFxChain`/`masterFx`/
+`Event.fx` per-instance data model, real per-instance enable/disable (bypass), playback
+semantics, the FX panel's stacking/reordering UI, and a known timing caveat (`setNodeParameter`/
+`setEffectParameter` have no timestamp, unlike `schedule()`).
+
+Two bus-level parameters sit outside this chain entirely, since they aren't effects a track
+chooses to add/remove: **BusGain** (`fx["bus.gain"]`, the FX panel's pinned Output module) and
+**BusPan** (`trackChannel.pan`/`song.masterPan` — a track's own channel-strip control in
+`ui/chrome/Mixer.jsx`'s `ChannelStrip`, and the master's equivalent in the same pinned Output
+module). See `node_modules/webdsp`'s `docs/panning.md` for the full pan law (mono vs. stereo
+sources) and how voice pan (below) and bus pan compose. `Event.pan` — a per-note pan offset,
+distinct from both — now compiles straight into webdsp's `TriggerParams.pan`
+(`audio/compile.js#compileEvent`); see Gotcha #7.
+
+### ADSR amplitude envelope
+
+Every instrument carries its own ADSR envelope (`Instrument.envelope` — `model/instrument.js`),
+bridged to webdsp's `AudioRuntime.setSampleEnvelope()` (`audio/instrumentEnvelope.js`, mirroring
+`audio/instrumentGain.js`'s existing gain bridge) and edited in the instrument editor
+(`ui/chrome/InstrumentPanel.jsx`) directly below the Gain slider. It's a property of the
+sample/instrument, never a track or bus (see `node_modules/webdsp`'s `docs/adsr-envelope.md` for
+the full lifecycle/live-edit semantics) — attack/decay/sustain are captured at note-on, release
+is read at note-off, and the defaults (`attack: 0, decay: 0, sustain: 1, release: 0.01`) are a
+literal copy of webdsp's own pre-envelope behavior, so an existing project is unaffected until a
+user actually changes something.
 
 ## Gotchas
 
@@ -428,17 +453,19 @@ why the F3 perf panel's "cell patches" counter reads `1024` on a fresh page load
 `512` you might expect (two `repaintPattern()` passes, 512 cells each) — not a bug, just
 StrictMode doing its job. Production builds (and `npm run build`/`preview`) don't do this.
 
-### 7. `Event.pan` and effect command/param aren't wired to audio
+### 7. `effectCommand`/`effectParam` aren't wired to audio (`Event.pan` now is)
 
 `model/event.js` models `pan`, `effectCommand`, and `effectParam` — editable through
-`ui/chrome/NoteEditor.jsx` (the extended note editor below the instrument panel) and
-`model/effects.js` has a small effect-command registry — but `compile.js` deliberately doesn't
-read `pan` (webdsp has no per-voice pan parameter yet — see its own `ARCHITECTURE.md`,
-"Intentionally deferred") and nothing calls `webdsp`'s `setNodeParameter`/`setVoiceParameter`
-for any effect command. They're stored, properly editable, and displayed (the grid's fx column
-for effectCommand/effectParam; NoteEditor for all three); they just don't yet *do* anything
-to the sound. See [`docs/EXTENDING.md`](EXTENDING.md#wiring-up-a-real-effect) for how to close
-this gap for one specific effect.
+`ui/chrome/NoteEditor.jsx` (the extended note editor below the instrument panel), and
+`model/effects.js` has a small effect-command registry. **`pan` now compiles into webdsp's
+`TriggerParams.pan`** (`audio/compile.js#compileEvent`) — it was only ever left unwired because
+`webdsp` had no per-voice pan parameter; that stopped being true once stereo panning shipped (see
+the "FX: track/master buses, stacked FX instances, and cell automation" section above). But
+nothing calls `webdsp`'s `setNodeParameter`/`setVoiceParameter` for any `effectCommand` yet — a
+genuinely separate gap, unrelated to pan and not closed by it. `effectCommand`/`effectParam` are
+stored, properly editable, and displayed (the grid's fx column; NoteEditor for all three); they
+just don't yet *do* anything to the sound. See [`docs/EXTENDING.md`](EXTENDING.md#wiring-up-a-real-effect)
+for how to close this gap for one specific effect.
 
 ### 8. `Pattern.rowCount` is per-pattern, not a song-wide constant
 
@@ -476,15 +503,16 @@ Left out of this MVP on purpose, with the seam each one would extend noted:
   (`model/pattern.js#trackLocalStep`, `model/mutations.js#setTrackLength`,
   `ui/chrome/Mixer.jsx`'s LEN control).
 - **Send/aux buses, a routing matrix** — there are only insert FX (one bus per track) and
-  master FX (`MASTER_BUS`) — see "FX: track/master buses and cell automation" below. Nothing
-  in that model hard-codes "exactly one bus per track" in a way that would block adding sends
-  later; it just isn't built.
+  master FX (`MASTER_BUS`) — see "FX: track/master buses, stacked FX instances, and cell
+  automation" below. Nothing in that model hard-codes "exactly one bus per track" in a way that
+  would block adding sends later; it just isn't built.
 - **Tracker FX columns and Push/MIDI parameter mappings consuming `model/fxParams.js`** — the
-  single parameter-definition registry exists and the FX panel/cell editor already consume it,
-  but nothing beyond those two UIs reads it yet (no grid column, no `control/contract.js`
-  entries). Mute/solo/volume remain compile-time gain/gating (`audio/compile.js#compileRow`),
-  not real buses — only FX (filter/delay/reverb/compressor/saturation/chorus-flanger) routes
-  through the new per-track buses.
+  single parameter-definition registry exists and the FX panel/cell editor already consume it
+  (Push's own encoder FX mode does too — `midi/push/encoderController.js`), but nothing beyond
+  those reads it yet (no grid column, no `control/contract.js` entries). Mute/solo/volume remain
+  compile-time gain/gating (`audio/compile.js#compileRow`), not real buses — only FX
+  (filter/delay/reverb/compressor/saturation/chorus-flanger/phaser/bitcrusher) routes through
+  the per-track buses' chains.
 - **Undo/redo, block selection, copy/paste, velocity curves/automation, sample waveform
   trimming.**
 
@@ -497,4 +525,8 @@ Ableton Push Mk1 controller surface) is also now implemented — see
 Resampling the tracker's own playback into a new instrument, local (IndexedDB-backed) storage
 for that generated audio, and a debounced local recovery cache for unsaved edits are also now
 implemented, built directly on this doc's lookahead-scheduler timing model and `webdsp`'s own
-`armCapture()` primitive — see [`docs/RESAMPLE.md`](RESAMPLE.md).
+`armCapture()` primitive — see [`docs/RESAMPLE.md`](RESAMPLE.md). FX stacking (multiple
+independent instances per bus, reorderable, including Phaser/Bitcrusher), track/master stereo
+panning, and a per-instrument ADSR amplitude envelope are also now implemented — see "FX:
+track/master buses, stacked FX instances, and cell automation" and its "ADSR amplitude envelope"
+subsection above, and [`docs/FX.md`](FX.md) for the full FX design.

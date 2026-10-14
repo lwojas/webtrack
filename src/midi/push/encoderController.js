@@ -23,7 +23,7 @@ import {
   lcdSysex,
 } from "./constants.js";
 import { formatBar, buildEncoderLine, centerColumn } from "./lcd.js";
-import { getFxParamsForType, getFxType, formatFxValue, isFxBooleanOn } from "../../model/fxParams.js";
+import { getFxParamsForType, getFxInstanceLabel, formatFxValue, isFxBooleanOn } from "../../model/fxParams.js";
 import { CONTROLS } from "../../control/contract.js";
 import { getSelectedPattern } from "../../model/query.js";
 import { EFFECT_COMMANDS } from "../../model/effects.js";
@@ -216,9 +216,9 @@ export function createPushEncoderController({ device, store, fxController }) {
     const entry = currentFxEntry();
     if (!entry) return [];
     const trackChannel = store.getState().song.trackChannels[currentTrackIndex()];
-    const fxBag = trackChannel?.fx ?? {};
+    const instanceValues = trackChannel?.fx?.instances?.[entry.id] ?? {};
     return getFxParamsForType(entry.type).map((param) => {
-      const value = fxBag[param.id] ?? param.default;
+      const value = instanceValues[param.id] ?? param.default;
       const isBoolean = param.kind === "boolean";
       return {
         isBoolean,
@@ -260,7 +260,7 @@ export function createPushEncoderController({ device, store, fxController }) {
     const chain = getEnabledFxChain(trackIndex);
     if (chain.length === 0) return `FX  (no FX enabled)  TRK${trackIndex + 1}`;
     const entry = chain[fxPageIndex] ?? chain[0];
-    const label = getFxType(entry.type)?.label ?? entry.type;
+    const label = getFxInstanceLabel(chain, entry.id);
     return `FX  ${label}  ${fxPageIndex + 1}/${chain.length}  TRK${trackIndex + 1}`;
   }
 
@@ -317,8 +317,8 @@ export function createPushEncoderController({ device, store, fxController }) {
     const param = getFxParamsForType(entry.type)[encoderIndex];
     if (!param) return;
     const trackIndex = currentTrackIndex();
-    const fxBag = store.getState().song.trackChannels[trackIndex]?.fx ?? {};
-    const current = fxBag[param.id] ?? param.default;
+    const instanceValues = store.getState().song.trackChannels[trackIndex]?.fx?.instances?.[entry.id] ?? {};
+    const current = instanceValues[param.id] ?? param.default;
 
     if (param.kind === "boolean") {
       const accumulated = (booleanAccumulator.get(param.id) ?? 0) + Math.abs(delta);
@@ -327,12 +327,12 @@ export function createPushEncoderController({ device, store, fxController }) {
         return;
       }
       booleanAccumulator.set(param.id, 0);
-      fxController.setTrackFxParam(trackIndex, param.id, isFxBooleanOn(current, param) ? param.min : param.max);
+      fxController.setTrackFxInstanceParam(trackIndex, entry.id, param.id, isFxBooleanOn(current, param) ? param.min : param.max);
       return;
     }
 
     const step = (param.max - param.min) / 100;
-    fxController.setTrackFxParam(trackIndex, param.id, clamp(current + delta * step, param.min, param.max));
+    fxController.setTrackFxInstanceParam(trackIndex, entry.id, param.id, clamp(current + delta * step, param.min, param.max));
   }
 
   // effectCommand is a bounded enum, not a continuous/hex value — reads exactly like

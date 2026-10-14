@@ -7,9 +7,27 @@
 import { createStore } from "./state/store.js";
 import { createPlaybackController } from "./audio/playbackController.js";
 import { initRuntime } from "./audio/runtime.js";
-import { setTrackFxParam, setMasterFxParam, setTrackFxTypeState, setMasterFxTypeState, isFxBypassed } from "./audio/fx.js";
+import {
+  setTrackFxParam,
+  setMasterFxParam,
+  setTrackFxInstanceParam,
+  setMasterFxInstanceParam,
+  addTrackFxInstance,
+  addMasterFxInstance,
+  removeTrackFxInstance,
+  removeMasterFxInstance,
+  setTrackFxInstanceEnabled,
+  setMasterFxInstanceEnabled,
+  moveTrackFxInstance,
+  moveMasterFxInstance,
+  setTrackPan,
+  setMasterPan,
+  resyncAllFxChains,
+  isFxInstanceBypassed,
+} from "./audio/fx.js";
 import { loadSample } from "./audio/instrumentLoader.js";
 import { setInstrumentGain } from "./audio/instrumentGain.js";
+import { setInstrumentEnvelope } from "./audio/instrumentEnvelope.js";
 import { createDemoSong, createDemoInstruments } from "./demo/demoSong.js";
 import { getSelectedPattern } from "./model/query.js";
 import { createKeyboardNoteSource } from "./input/keyboardNoteMap.js";
@@ -66,66 +84,137 @@ export function createAppContext() {
   let currentProjectId = crypto.randomUUID();
 
   // Keeps the model (trackChannel.fx/song.masterFx, so the FX panel reflects it live) in sync
-  // with whichever of its two callers actually changed a parameter: the FX panel's own sliders
-  // call these directly; playbackController's onTrackFxChange (cell automation during
-  // playback) calls the track variant via the same wiring TRACK_CHANGED/pattern-selection
-  // already uses below. The real engine call only happens when this parameter's FX is actually
-  // active and not bypassed (audio/fx.js#isFxBypassed) — while bypassed, the model still keeps
-  // the "intended" value (so un-bypassing restores it via applyTrackFxBypass below), but the
-  // engine itself stays at that FX's neutral/bypass values until then.
+  // with whichever of its two callers actually changed the always-on bus.gain parameter: the FX
+  // panel's pinned Output module calls this directly; playbackController's onTrackFxChange (cell
+  // automation during playback) calls the track variant with instanceId === null for the same
+  // reason (see audio/compile.js#compileRowFx's own doc comment). bus.gain isn't part of any
+  // chain, so there's no bypass gate here — it always reaches the engine.
   function applyTrackFxParam(trackIndex, paramId, value) {
     store.setTrackFxParam(trackIndex, paramId, value);
-    const fxChain = store.getState().song.trackChannels[trackIndex]?.fxChain ?? [];
-    if (!isFxBypassed(fxChain, paramId)) setTrackFxParam(trackIndex, paramId, value);
+    setTrackFxParam(trackIndex, paramId, value);
   }
 
   function applyMasterFxParam(paramId, value) {
     store.setMasterFxParam(paramId, value);
-    if (!isFxBypassed(store.getState().song.masterFxChain, paramId)) setMasterFxParam(paramId, value);
+    setMasterFxParam(paramId, value);
   }
 
-  // The FX panel's "+ ADD FX"/remove/bypass controls (ui/chrome/FxPanel.jsx) — each bundles the
-  // model mutation (model/mutations.js) with the matching engine push
-  // (audio/fx.js#setTrackFxTypeState), the same pairing applyTrackFxParam/applyMasterFxParam
-  // already do per-parameter above. The model mutation runs first so the engine push's
-  // `fxBag` read (trackChannel.fx/song.masterFx) sees this type's just-seeded default values
-  // on first enable.
-  function applyTrackFx(trackIndex, type, active) {
-    if (active) store.addTrackFx(trackIndex, type);
-    else store.removeTrackFx(trackIndex, type);
-    setTrackFxTypeState(trackIndex, type, active, store.getState().song.trackChannels[trackIndex].fx);
+  // Stacking-aware counterpart to applyTrackFxParam/applyMasterFxParam above, for one chain
+  // instance's own parameter (ui/chrome/FxPanel.jsx's per-module sliders, and cell automation
+  // with a real instanceId). The real engine call only happens when this instance is actually
+  // not bypassed (audio/fx.js#isFxInstanceBypassed) — while bypassed, the model still keeps the
+  // "intended" value (so un-bypassing needs no extra push — see applyTrackFxBypass below), but
+  // the engine itself stays disabled until then.
+  function applyTrackFxInstanceParam(trackIndex, instanceId, paramId, value) {
+    store.setTrackFxInstanceParam(trackIndex, instanceId, paramId, value);
+    const fxChain = store.getState().song.trackChannels[trackIndex]?.fxChain ?? [];
+    if (!isFxInstanceBypassed(fxChain, instanceId)) setTrackFxInstanceParam(trackIndex, instanceId, paramId, value);
   }
 
-  function applyTrackFxBypass(trackIndex, type, bypassed) {
-    store.setTrackFxBypass(trackIndex, type, bypassed);
-    setTrackFxTypeState(trackIndex, type, !bypassed, store.getState().song.trackChannels[trackIndex].fx);
+  function applyMasterFxInstanceParam(instanceId, paramId, value) {
+    store.setMasterFxInstanceParam(instanceId, paramId, value);
+    if (!isFxInstanceBypassed(store.getState().song.masterFxChain, instanceId)) setMasterFxInstanceParam(instanceId, paramId, value);
   }
 
-  function applyMasterFx(type, active) {
-    if (active) store.addMasterFx(type);
-    else store.removeMasterFx(type);
-    setMasterFxTypeState(type, active, store.getState().song.masterFx);
+  // The FX panel's "+ ADD FX" control (ui/chrome/FxPanel.jsx) — bundles the model mutation
+  // (model/mutations.js#addTrackFx, which allocates the new instance's id and seeds its param
+  // bag to catalog defaults) with creating the matching engine-side instance
+  // (audio/fx.js#addTrackFxInstance) for that same id, passing along the freshly-seeded values so
+  // the new instance sounds like its defaults immediately rather than webdsp's own silent
+  // "inert until parameterized" state. Unlike before FX chains existed, this is never a toggle —
+  // every call adds one more independent instance, same type or not.
+  function applyAddTrackFx(trackIndex, type) {
+    const instanceId = store.addTrackFx(trackIndex, type);
+    if (instanceId === undefined) return;
+    const paramValues = store.getState().song.trackChannels[trackIndex].fx.instances[instanceId];
+    addTrackFxInstance(trackIndex, instanceId, type, paramValues);
   }
 
-  function applyMasterFxBypass(type, bypassed) {
-    store.setMasterFxBypass(type, bypassed);
-    setMasterFxTypeState(type, !bypassed, store.getState().song.masterFx);
+  // The FX panel's remove button on one module — removes that one instance only (siblings of
+  // the same type are untouched), both model-side (purging cell automation too — model/
+  // mutations.js#removeTrackFx) and engine-side.
+  function applyRemoveTrackFx(trackIndex, instanceId) {
+    store.removeTrackFx(trackIndex, instanceId);
+    removeTrackFxInstance(trackIndex, instanceId);
   }
 
-  // The FX panel's (ui/chrome/FxPanel.jsx) one entry point for every FX change — parameter
-  // edits, enabling/disabling an FX, and bypass — so the panel never has to touch audio/fx.js
-  // or state/store.js's FX methods separately. Defined up here (rather than alongside
-  // instrumentController near the bottom) because midi/push/encoderController.js's own FX-mode
-  // encoders need this same object, constructed below, before any of its other dependents.
+  function applyTrackFxBypass(trackIndex, instanceId, bypassed) {
+    store.setTrackFxBypass(trackIndex, instanceId, bypassed);
+    setTrackFxInstanceEnabled(trackIndex, instanceId, !bypassed);
+  }
+
+  // The FX panel's move up/down buttons on one module (ui/chrome/FxPanel.jsx) — reorders the
+  // model's own fxChain array (which *is* chain order — model/trackChannel.js's doc comment),
+  // then mirrors the instance's new position into webdsp's own moveEffect().
+  function applyMoveTrackFx(trackIndex, instanceId, direction) {
+    store.moveTrackFx(trackIndex, instanceId, direction);
+    const chain = store.getState().song.trackChannels[trackIndex].fxChain;
+    const newIndex = chain.findIndex((entry) => entry.id === instanceId);
+    if (newIndex !== -1) moveTrackFxInstance(trackIndex, instanceId, newIndex);
+  }
+
+  // Master-bus equivalents of applyAddTrackFx/applyRemoveTrackFx/applyMoveTrackFx above
+  // (model/song.js's masterFx/masterFxChain).
+  function applyAddMasterFx(type) {
+    const instanceId = store.addMasterFx(type);
+    if (instanceId === undefined) return;
+    const paramValues = store.getState().song.masterFx.instances[instanceId];
+    addMasterFxInstance(instanceId, type, paramValues);
+  }
+
+  function applyRemoveMasterFx(instanceId) {
+    store.removeMasterFx(instanceId);
+    removeMasterFxInstance(instanceId);
+  }
+
+  function applyMasterFxBypass(instanceId, bypassed) {
+    store.setMasterFxBypass(instanceId, bypassed);
+    setMasterFxInstanceEnabled(instanceId, !bypassed);
+  }
+
+  function applyMoveMasterFx(instanceId, direction) {
+    store.moveMasterFx(instanceId, direction);
+    const newIndex = store.getState().song.masterFxChain.findIndex((entry) => entry.id === instanceId);
+    if (newIndex !== -1) moveMasterFxInstance(instanceId, newIndex);
+  }
+
+  // Track/master bus pan (ui/chrome/Mixer.jsx's ChannelStrip for a track; the FX panel's pinned
+  // Output module, right alongside bus.gain, for the master — model/trackChannel.js#pan's own
+  // doc comment explains why MASTER_BUS's pan lives there instead of a dedicated mixer strip).
+  // Always reaches the engine immediately, same as bus.gain — NodeParam.BusPan isn't part of any
+  // chain, so there's no bypass gate.
+  function applyTrackPan(trackIndex, pan) {
+    store.setTrackChannelPan(trackIndex, pan);
+    setTrackPan(trackIndex, pan);
+  }
+
+  function applyMasterPan(pan) {
+    store.setMasterPan(pan);
+    setMasterPan(pan);
+  }
+
+  // The FX panel's (ui/chrome/FxPanel.jsx) and Mixer's (ui/chrome/Mixer.jsx) one entry point for
+  // every bus-level change — parameter edits (both bus.gain and one chain instance's own
+  // params), adding/removing/reordering/bypassing an instance, and pan — so neither ever has to
+  // touch audio/fx.js or state/store.js's FX/pan methods separately. Defined up here (rather
+  // than alongside instrumentController near the bottom) because midi/push/
+  // encoderController.js's own FX-mode encoders need this same object, constructed below, before
+  // any of its other dependents.
   const fxController = {
     setTrackFxParam: applyTrackFxParam,
     setMasterFxParam: applyMasterFxParam,
-    addTrackFx: (trackIndex, type) => applyTrackFx(trackIndex, type, true),
-    removeTrackFx: (trackIndex, type) => applyTrackFx(trackIndex, type, false),
+    setTrackFxInstanceParam: applyTrackFxInstanceParam,
+    setMasterFxInstanceParam: applyMasterFxInstanceParam,
+    addTrackFx: applyAddTrackFx,
+    removeTrackFx: applyRemoveTrackFx,
     setTrackFxBypass: applyTrackFxBypass,
-    addMasterFx: (type) => applyMasterFx(type, true),
-    removeMasterFx: (type) => applyMasterFx(type, false),
+    moveTrackFx: applyMoveTrackFx,
+    addMasterFx: applyAddMasterFx,
+    removeMasterFx: applyRemoveMasterFx,
     setMasterFxBypass: applyMasterFxBypass,
+    moveMasterFx: applyMoveMasterFx,
+    setTrackPan: applyTrackPan,
+    setMasterPan: applyMasterPan,
   };
 
   // Instrument gain (ui/chrome/InstrumentPanel.jsx's editor): updates the model, then pushes
@@ -138,15 +227,25 @@ export function createAppContext() {
     if (instrument?.sampleId != null) setInstrumentGain(instrument.sampleId, gain);
   }
 
+  // Instrument ADSR envelope (ui/chrome/InstrumentPanel.jsx's editor, directly below Gain) — same
+  // shape as applyInstrumentGain above: update the model (only the fields actually passed
+  // change, same semantics as webdsp's own setSampleEnvelope — model/instrument.js#envelope's doc
+  // comment), then push live if this slot already has a sample loaded.
+  function applyInstrumentEnvelope(index, envelope) {
+    store.setInstrumentEnvelope(index, envelope);
+    const instrument = store.getState().instruments[index];
+    if (instrument?.sampleId != null) setInstrumentEnvelope(instrument.sampleId, envelope);
+  }
+
   // The one place a sample gets assigned into an instrument slot (a file picked in
   // InstrumentPanel.jsx, the bundled demo kit below, or a completed resample — see
-  // handleResample) — bundles the model update with pushing that slot's already-set gain to
-  // the engine for the *new* sampleId, so a previously-customized instrument gain survives
-  // loading a different sample into the same slot instead of silently reverting to the
-  // engine's unity default. Also the one place every loaded sample's bytes get a localAssetId
-  // and are written to persistence/localAssetStore.js's IndexedDB-backed store — fire-and-
-  // forget, off the critical path, so this never blocks on (or fails over) a storage write;
-  // see model/instrument.js's origin doc comment for what that id is for.
+  // handleResample) — bundles the model update with pushing that slot's already-set gain and
+  // envelope to the engine for the *new* sampleId, so a previously-customized instrument gain/
+  // envelope survives loading a different sample into the same slot instead of silently
+  // reverting to the engine's defaults. Also the one place every loaded sample's bytes get a
+  // localAssetId and are written to persistence/localAssetStore.js's IndexedDB-backed store —
+  // fire-and-forget, off the critical path, so this never blocks on (or fails over) a storage
+  // write; see model/instrument.js's origin doc comment for what that id is for.
   function applyInstrumentSample(index, sampleId, name, sampleAsset, origin = "import") {
     const localAssetId = sampleAsset ? crypto.randomUUID() : null;
     store.setInstrumentSample(index, sampleId, name, sampleAsset, { origin, localAssetId });
@@ -157,6 +256,7 @@ export function createAppContext() {
     }
     const instrument = store.getState().instruments[index];
     setInstrumentGain(sampleId, instrument.gain);
+    setInstrumentEnvelope(sampleId, instrument.envelope);
   }
 
   // Assigns a localAssetId (and writes bytes to localAssetStore) to any just-loaded instrument
@@ -189,10 +289,14 @@ export function createAppContext() {
     getSwing: () => store.getState().song.swing,
     onTransportChange: ({ playing }) => store.setTransport(playing),
     onPatternSwitchPending: (pending) => store.setPatternSwitchPending(pending),
-    // Cell FX automation already calls audio/fx.js's setTrackFxParam itself (see
-    // playbackController.js) for the real engine call — this callback only needs to keep the
-    // model in sync, not repeat that call.
-    onTrackFxChange: (trackIndex, paramId, value) => store.setTrackFxParam(trackIndex, paramId, value),
+    // Cell FX automation already calls audio/fx.js's setTrackFxParam/setTrackFxInstanceParam
+    // itself (see playbackController.js) for the real engine call — this callback only needs to
+    // keep the model in sync, not repeat that call. instanceId === null is the one flat,
+    // non-chain entry (bus.gain — audio/compile.js#compileRowFx's own doc comment).
+    onTrackFxChange: (trackIndex, instanceId, paramId, value) => {
+      if (instanceId === null) store.setTrackFxParam(trackIndex, paramId, value);
+      else store.setTrackFxInstanceParam(trackIndex, instanceId, paramId, value);
+    },
   });
 
   // Selecting a pattern always repaints the grid (the edit view) immediately — see
@@ -414,11 +518,19 @@ export function createAppContext() {
     currentProjectId = crypto.randomUUID();
     store.loadProject({ song, instruments, ui });
     // The engine has no persistence of its own — every sample above just loaded fresh at the
-    // runtime's unity default, so a project's saved (possibly non-default) instrument gains
-    // need one explicit push each, the same way applyInstrumentSample does for a single slot.
+    // runtime's unity default/envelope, so a project's saved (possibly non-default) instrument
+    // gains/envelopes need one explicit push each, the same way applyInstrumentSample does for a
+    // single slot. Track/master FX chains need the equivalent whole-chain replay
+    // (audio/fx.js#resyncAllFxChains's own doc comment explains why a full resync, not an
+    // incremental push, is required here specifically — a reused bus may carry a previous
+    // project's leftover effect instances).
     for (const instrument of instruments) {
-      if (instrument.sampleId != null) setInstrumentGain(instrument.sampleId, instrument.gain);
+      if (instrument.sampleId != null) {
+        setInstrumentGain(instrument.sampleId, instrument.gain);
+        setInstrumentEnvelope(instrument.sampleId, instrument.envelope);
+      }
     }
+    await resyncAllFxChains(song.trackChannels, song.masterFxChain, song.masterFx);
   }
 
   // ui/chrome/TransportBar.jsx's Resample control — see audio/resampleController.js for the
@@ -481,8 +593,12 @@ export function createAppContext() {
     currentProjectId = record.projectId ?? crypto.randomUUID();
     store.loadProject({ song, instruments, ui });
     for (const instrument of instruments) {
-      if (instrument.sampleId != null) setInstrumentGain(instrument.sampleId, instrument.gain);
+      if (instrument.sampleId != null) {
+        setInstrumentGain(instrument.sampleId, instrument.gain);
+        setInstrumentEnvelope(instrument.sampleId, instrument.envelope);
+      }
     }
+    await resyncAllFxChains(song.trackChannels, song.masterFxChain, song.masterFx);
   }
 
   // App.jsx's "discard" action on the restore prompt, and saveProject()'s own cleanup after an
@@ -500,10 +616,11 @@ export function createAppContext() {
   const controlRegistry = createControlRegistry({ store, playbackController });
 
   // InstrumentPanel.jsx's one entry point for instrument edits that need to reach the engine
-  // (gain) or need the model+sample bookkeeping bundled together (assigning a sample) — the
-  // same role fxController plays for the FX panel.
+  // (gain, envelope) or need the model+sample bookkeeping bundled together (assigning a sample)
+  // — the same role fxController plays for the FX panel.
   const instrumentController = {
     setGain: applyInstrumentGain,
+    setEnvelope: applyInstrumentEnvelope,
     setSample: applyInstrumentSample,
     setOutput: store.setInstrumentOutput,
   };

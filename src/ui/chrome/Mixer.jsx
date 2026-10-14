@@ -11,11 +11,18 @@ import * as events from "../../state/events.js";
 // header instead of here (ui/grid/gridView.js's track-header row) — it reads naturally sitting
 // above the column it governs, and this strip is left with only the song-wide trackChannel
 // fields (mute/solo/volume), which are shared across every pattern.
-function ChannelStrip({ store, trackIndex }) {
+// pan (model/trackChannel.js#pan) is a live engine parameter (webdsp's NodeParam.BusPan), unlike
+// volume above (a compile-time-only multiplier — ARCHITECTURE.md's "Instrument/track gain
+// staging") — it needs the model+engine push fxController already bundles for every other
+// bus-level control (ui/chrome/FxPanel.jsx's own bus.gain/pan controls use the same object), so
+// this calls fxController.setTrackPan rather than a bare store method the way volume/mute/solo
+// do.
+function ChannelStrip({ store, fxController, trackIndex }) {
   const name = store.getState().song.trackChannels[trackIndex].name;
   const muted = useStore(store, events.TRACK_CHANNEL_CHANGED, (s) => s.song.trackChannels[trackIndex].muted);
   const solo = useStore(store, events.TRACK_CHANNEL_CHANGED, (s) => s.song.trackChannels[trackIndex].solo);
   const volume = useStore(store, events.TRACK_CHANNEL_CHANGED, (s) => s.song.trackChannels[trackIndex].volume);
+  const pan = useStore(store, events.TRACK_CHANNEL_CHANGED, (s) => s.song.trackChannels[trackIndex].pan);
 
   return (
     <div className="channel-strip">
@@ -30,6 +37,18 @@ function ChannelStrip({ store, trackIndex }) {
           value={volume}
           onChange={(e) => store.setTrackChannelVolume(trackIndex, Number(e.target.value))}
           title={`Volume: ${volume.toFixed(2)}`}
+        />
+      </div>
+      <div className="channel-strip__pan-track">
+        <input
+          className="channel-strip__pan"
+          type="range"
+          min={-1}
+          max={1}
+          step={0.01}
+          value={pan}
+          onChange={(e) => fxController.setTrackPan(trackIndex, Number(e.target.value))}
+          title={`Pan: ${pan.toFixed(2)}`}
         />
       </div>
       <div className="channel-strip__switches">
@@ -54,13 +73,13 @@ function ChannelStrip({ store, trackIndex }) {
 
 // A compact horizontal row of per-track channel strips, placed below the tracker grid (see
 // App.jsx). Same store wiring as the old TrackHeaders — only the layout/markup changed.
-export default function Mixer({ store }) {
+export default function Mixer({ store, fxController }) {
   const { trackCount } = store.getState().song;
 
   return (
     <div className="mixer">
       {Array.from({ length: trackCount }, (_, i) => (
-        <ChannelStrip key={i} store={store} trackIndex={i} />
+        <ChannelStrip key={i} store={store} fxController={fxController} trackIndex={i} />
       ))}
     </div>
   );

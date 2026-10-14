@@ -28,7 +28,7 @@ export default function MixerFxPanel({ store, fxController }) {
           </button>
         ))}
       </div>
-      {view === "mixer" ? <Mixer store={store} /> : <FxPanel store={store} fxController={fxController} />}
+      {view === "mixer" ? <Mixer store={store} fxController={fxController} /> : <FxPanel store={store} fxController={fxController} />}
     </div>
   );
 }

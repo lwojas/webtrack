@@ -2,7 +2,7 @@ import { initRuntime, ensureTrackBuses, getRuntime } from "./runtime.js";
 import { createLookaheadPlayer } from "./lookaheadPlayer.js";
 import { createResampleController } from "./resampleController.js";
 import { compileRow, compileRowFx } from "./compile.js";
-import { setTrackFxParam, isFxBypassed } from "./fx.js";
+import { setTrackFxParam, setTrackFxInstanceParam, isFxInstanceBypassed } from "./fx.js";
 import { voiceTracker } from "./voiceTracker.js";
 import { STEPS_PER_BEAT } from "../model/timing.js";
 import { getPatternQueueEntries } from "../model/query.js";
@@ -76,15 +76,21 @@ export function createPlaybackController({
         getSwing,
         onPatternSwitched: () => onPatternSwitchPending?.(false),
         getNextQueueEntry: (currentIndex) => resolveQueueEntry(currentIndex + 1),
-        // A cell can only ever hold automation for a param whose FX is already enabled
-        // (model/mutations.js#setCellFxParam's own validation), but it may be enabled-and-
-        // bypassed — same rule applyTrackFxParam (appContext.js) applies to the FX panel's own
-        // sliders: the model still latches the value (via onTrackFxChange below, so the panel
-        // shows it live) but the engine stays at that FX's bypass values until un-bypassed.
-        onTrackFxChange: (trackIndex, paramId, value) => {
-          const fxChain = getTrackChannels()[trackIndex]?.fxChain ?? [];
-          if (!isFxBypassed(fxChain, paramId)) setTrackFxParam(trackIndex, paramId, value);
-          onTrackFxChange?.(trackIndex, paramId, value);
+        // A cell can only ever hold automation for an instance already in the track's chain
+        // (model/mutations.js#setCellFxInstanceParam's own validation), but that instance may be
+        // bypassed — same rule applyTrackFxInstanceParam (appContext.js) applies to the FX
+        // panel's own sliders: the model still latches the value (via onTrackFxChange below, so
+        // the panel shows it live) but the engine stays disabled on that instance until
+        // un-bypassed. instanceId === null is the one flat, non-chain entry (bus.gain —
+        // audio/compile.js#compileRowFx's own doc comment), which is never bypassed.
+        onTrackFxChange: (trackIndex, instanceId, paramId, value) => {
+          if (instanceId === null) {
+            setTrackFxParam(trackIndex, paramId, value);
+          } else {
+            const fxChain = getTrackChannels()[trackIndex]?.fxChain ?? [];
+            if (!isFxInstanceBypassed(fxChain, instanceId)) setTrackFxInstanceParam(trackIndex, instanceId, paramId, value);
+          }
+          onTrackFxChange?.(trackIndex, instanceId, paramId, value);
         },
         onStepScheduled: (stepTime, stepDuration) => resampleController?.onStepScheduled(stepTime, stepDuration),
       });

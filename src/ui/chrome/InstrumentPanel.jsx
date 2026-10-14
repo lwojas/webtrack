@@ -3,6 +3,7 @@ import * as events from "../../state/events.js";
 import { loadSample } from "../../audio/instrumentLoader.js";
 import { initRuntime } from "../../audio/runtime.js";
 import { toHex } from "../../model/notes.js";
+import { ENVELOPE_PARAMS, formatEnvelopeValue } from "../../model/envelopeParams.js";
 import { downloadBytes } from "../../persistence/projectIO.js";
 
 // Instrument gain's own musical range — same scale as model/fxParams.js's "bus.gain" entry
@@ -94,6 +95,14 @@ function InstrumentEditor({ store, instrumentController }) {
   const gain = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.gain ?? 1);
   const outputType = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.output?.type ?? "sample");
   const outputChannel = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.output?.channel ?? null);
+  // One primitive selector per field (not `s.instruments[index]?.envelope` itself) — the same
+  // in-place-mutation gotcha every other mutable-object field on this page already works around
+  // (see this file's own module doc comment / ARCHITECTURE.md's Gotcha #1).
+  const attack = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.envelope?.attack ?? 0);
+  const decay = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.envelope?.decay ?? 0);
+  const sustain = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.envelope?.sustain ?? 1);
+  const release = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.envelope?.release ?? 0.01);
+  const envelopeValues = { attack, decay, sustain, release };
 
   if (!exists) return null;
 
@@ -152,20 +161,46 @@ function InstrumentEditor({ store, instrumentController }) {
         </label>
       ) : (
         hasSample && (
-          <label className="fx-module__field">
-            <span className="fx-module__field-label" title="Gain">
-              Gain
-            </span>
-            <input
-              type="range"
-              min={GAIN_MIN}
-              max={GAIN_MAX}
-              step={GAIN_STEP}
-              value={gain}
-              onChange={(e) => instrumentController.setGain(index, Number(e.target.value))}
-            />
-            <span className="fx-module__value">{gain.toFixed(2)}x</span>
-          </label>
+          <>
+            <label className="fx-module__field">
+              <span className="fx-module__field-label" title="Gain">
+                Gain
+              </span>
+              <input
+                type="range"
+                min={GAIN_MIN}
+                max={GAIN_MAX}
+                step={GAIN_STEP}
+                value={gain}
+                onChange={(e) => instrumentController.setGain(index, Number(e.target.value))}
+              />
+              <span className="fx-module__value">{gain.toFixed(2)}x</span>
+            </label>
+
+            {/* ADSR amplitude envelope (model/instrument.js#envelope, webdsp's
+                EnvelopeParams — node_modules/webdsp's docs/adsr-envelope.md) — per
+                sample/instrument, never a track/bus property (see model/envelopeParams.js's
+                own doc comment), so it lives here directly below Gain rather than in the
+                mixer or FX panel. Each slider commits only the one field it owns —
+                setEnvelope merges, it doesn't replace (state/store.js#setInstrumentEnvelope). */}
+            <div className="note-editor__section">ENVELOPE</div>
+            {ENVELOPE_PARAMS.map((param) => (
+              <label className="fx-module__field" key={param.id}>
+                <span className="fx-module__field-label" title={param.label}>
+                  {param.label}
+                </span>
+                <input
+                  type="range"
+                  min={param.min}
+                  max={param.max}
+                  step={param.step}
+                  value={envelopeValues[param.id]}
+                  onChange={(e) => instrumentController.setEnvelope(index, { [param.id]: Number(e.target.value) })}
+                />
+                <span className="fx-module__value">{formatEnvelopeValue(envelopeValues[param.id], param)}</span>
+              </label>
+            ))}
+          </>
         )
       )}
     </div>

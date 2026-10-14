@@ -16,32 +16,56 @@ export const VOICE_MODES = ["poly", "mono"];
 export const MAX_VOICES_OPTIONS = [1, 2, 4, 8, 16];
 export const DEFAULT_MAX_VOICES = 4;
 //
-// FX is a three-layer model (model/fxParams.js has the full doc comment on the catalog side):
-//   1. FX_TYPES/FX_PARAMS — every FX the DSP knows how to provide. Catalog, not per-track.
-//   2. `fxChain` — which of those FX_TYPES are actually *enabled* on this track right now, in
-//      the order the FX panel (ui/chrome/FxPanel.jsx) lists them. One entry per enabled type:
-//      { type: "delay", bypassed: false }. This is what's new — before this existed, every FX
-//      was implicitly "present" everywhere, just resting at its own neutral value.
-//   3. `fx` — this track's insert-bus parameter *values*, { [fxParamId]: value }, for whichever
-//      params belong to an enabled fxChain entry (plus bus.gain, always present/ungated — see
-//      model/fxParams.js). Set by the FX panel and latched by cell automation during playback
-//      (audio/compile.js#compileRowFx). Not cleared when an FX is removed from fxChain, so
-//      re-enabling it restores the last values rather than resetting to defaults.
-// `bypassed` on an fxChain entry pushes that type's FX_TYPES#bypassValues to the engine without
-// touching the stored values in `fx` — a temporary mute distinct from removing the FX outright
-// (model/mutations.js#setTrackFxBypass vs. #removeTrackFx).
+// FX is a three-layer model (model/fxParams.js has the full doc comment on the catalog side),
+// built on webdsp's own ordered-FX-chain-of-*instances* primitive (node_modules/webdsp's
+// docs/fx-chain.md) rather than "one of each type":
+//   1. FX_TYPES/FX_PARAMS — every FX kind the DSP knows how to provide. Catalog, not per-track.
+//   2. `fxChain` — an ordered array of *instances* actually added to this track's insert bus,
+//      each `{ id, type, bypassed }` — `id` (allocated from song.nextFxInstanceId, see
+//      model/song.js) is this instance's own stable handle, distinct from `type`: two entries
+//      can share the same `type` (two independent Filters), each with its own id, own stored
+//      parameter values (see `fx` below), own bypass flag, and own webdsp EffectId once pushed
+//      to the engine (audio/fx.js keeps that id -> EffectId mapping, never persisted — a fresh
+//      EffectId is allocated the moment this instance is (re)created in a live runtime). Array
+//      order is chain/signal-flow order, preserved end to end into webdsp's own chain order
+//      (addEffect's `index`/`moveEffect` — see model/mutations.js#addTrackFx/moveTrackFx).
+//   3. `fx` — this track's insert-bus parameter *values*: `{ "bus.gain"?: value, instances: {
+//      [instanceId]: { [fxParamId]: value } } }`. `bus.gain` sits flat at the top (it isn't part
+//      of any chain — see model/fxParams.js's own doc comment, always present/ungated); every
+//      other param lives under `instances[id]`, one bag per chain entry, so two instances of the
+//      same type (two Filters) each keep independent cutoff/resonance/etc. — changing one can
+//      never change the other. Set by the FX panel and latched by cell automation during
+//      playback (audio/compile.js#compileRowFx). Not cleared when an instance is removed from
+//      fxChain (only its own `instances[id]` bag goes with it via removeTrackFx) — re-adding the
+//      *same* id never happens (ids aren't reused), but this does mean a freshly re-enabled FX
+//      of a given type always starts from that type's catalog defaults, same as any brand-new
+//      instance.
+// `bypassed` on an fxChain entry is backed by webdsp's own real per-instance enable/disable
+// (`setEffectEnabled`, audio/fx.js) — a temporary mute distinct from removing the instance
+// outright (model/mutations.js#setTrackFxBypass vs. #removeTrackFx). No more "push a neutral
+// value" bypass trick: that was only ever needed because the pre-chain engine had no per-node
+// disable primitive.
 //
 // A pattern's per-cell Event.fx is distinct from all of this: it's a sparse override that
-// latches onto whichever of these *current* values playback is already using, validated against
-// fxChain at write time (model/mutations.js#setCellFxParam) so a cell can never reference an FX
-// this track doesn't have enabled.
+// latches onto whichever of these *current* values playback is already using, addressing the
+// same `{ "bus.gain"?: value, instances: { [instanceId]: { [paramId]: value } } }` shape so a
+// cell can unambiguously automate one specific stacked instance's parameter — validated against
+// fxChain at write time (model/mutations.js#setCellFxInstanceParam) so a cell can never reference
+// an instance this track doesn't have.
+//
+// pan: this track's own insert bus output balance (-1..+1, default 0/centre — webdsp's
+// NodeParam.BusPan, node_modules/webdsp's docs/panning.md) — a channel-strip control
+// (ui/chrome/Mixer.jsx's ChannelStrip, alongside volume/mute/solo), never part of fxChain/fx: it
+// sits after BusGain on the same always-present bus-output stage bus.gain already addresses, not
+// a toggleable effect a track chooses to add/remove.
 export function createTrackChannel({
   index,
   name,
   muted = false,
   solo = false,
   volume = 1.0,
-  fx = {},
+  pan = 0,
+  fx = { instances: {} },
   fxChain = [],
   voiceMode = "poly",
   maxVoices = DEFAULT_MAX_VOICES,
@@ -52,6 +76,7 @@ export function createTrackChannel({
     muted,
     solo,
     volume,
+    pan,
     fx,
     fxChain,
     voiceMode,

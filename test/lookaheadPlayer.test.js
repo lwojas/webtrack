@@ -154,10 +154,10 @@ describe("createLookaheadPlayer — one shared transport, independent per-track 
     const runtime = createFakeRuntime();
     const pattern = makePattern({ rowCount: 16, trackLengths: [4, 4] });
     const compileRowFx = vi.fn((_pattern, transportStep) =>
-      transportStep === 0 ? [{ trackIndex: 0, paramId: "filter.cutoff", value: 1200 }] : [],
+      transportStep === 0 ? [{ trackIndex: 0, instanceId: 7, paramId: "filter.cutoff", value: 1200 }] : [],
     );
     const changes = [];
-    const onTrackFxChange = vi.fn((trackIndex, paramId, value) => changes.push({ trackIndex, paramId, value }));
+    const onTrackFxChange = vi.fn((trackIndex, instanceId, paramId, value) => changes.push({ trackIndex, instanceId, paramId, value }));
     const player = createLookaheadPlayer({
       runtime,
       compileRow: () => [],
@@ -168,7 +168,7 @@ describe("createLookaheadPlayer — one shared transport, independent per-track 
 
     player.start({ initialPattern: pattern, initialTrackChannels: [], initialInstruments: [], startAt: 0 });
 
-    expect(changes).toEqual([{ trackIndex: 0, paramId: "filter.cutoff", value: 1200 }]);
+    expect(changes).toEqual([{ trackIndex: 0, instanceId: 7, paramId: "filter.cutoff", value: 1200 }]);
 
     player.stop();
   });

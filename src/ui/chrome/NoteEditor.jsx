@@ -3,7 +3,7 @@ import { useStore } from "../../state/useStore.js";
 import * as events from "../../state/events.js";
 import { getSelectedPattern } from "../../model/query.js";
 import { EFFECT_COMMANDS } from "../../model/effects.js";
-import { FX_PARAMS, getFxParam, formatFxValue } from "../../model/fxParams.js";
+import { FX_PARAMS, getFxParam, getFxInstanceLabel, formatFxValue } from "../../model/fxParams.js";
 import { formatBarBeat } from "../../model/timing.js";
 import { noteNumberToName, parseNoteName, toHex } from "../../model/notes.js";
 
@@ -183,40 +183,66 @@ export default function NoteEditor({ store }) {
   // Cell FX automation (model/event.js#fx) — a sparse subset of FX_PARAMS, shared with
   // ui/chrome/FxPanel.jsx so a given parameter edits with the exact same range/step/formatting
   // wherever it shows up, not two independently-maintained descriptions of "delay.mix". Only
-  // ever shows params belonging to an FX this track actually has enabled
+  // ever shows params belonging to an *instance* this track actually has in its chain
   // (model/trackChannel.js#fxChain) and marked cellAutomatable (model/fxParams.js) — never the
-  // complete FX_PARAMS catalog. bus.gain (type null) is exempt: it's always on, not part of any
-  // chain. model/mutations.js#setCellFxParam enforces the same rule at the write layer, so the
-  // cellFxEntries filter below is only ever a no-op defensive guard in steady state (it'd only
-  // matter for data from a track whose FX was since removed without going through that path).
+  // complete FX_PARAMS catalog. bus.gain (type null, instanceId null) is exempt: it's always on,
+  // not part of any chain. model/mutations.js#setCellFxInstanceParam enforces the same rule at
+  // the write layer, so the cellFxEntries filter below is only ever a no-op defensive guard in
+  // steady state (it'd only matter for data from an instance since removed without going
+  // through that path).
+  //
+  // Each entry is `{ instanceId, paramId, value }` — instanceId === null is the one flat
+  // bus.gain entry; every other entry addresses one specific stacked instance (two Filters on
+  // this track show up as two separately removable/addable entries, "Filter #1 — Cutoff" and
+  // "Filter #2 — Cutoff"), never ambiguous about which one.
   const trackFxChain = state.song.trackChannels[cursor.trackIndex]?.fxChain ?? [];
-  const isFxTypeActive = (type) => type === null || trackFxChain.some((entry) => entry.type === type);
+  const cellFxEntries = [
+    ...(event.fx && "bus.gain" in event.fx ? [{ instanceId: null, paramId: "bus.gain", value: event.fx["bus.gain"] }] : []),
+    ...Object.entries(event.fx?.instances ?? {}).flatMap(([instanceId, bag]) =>
+      Object.entries(bag).map(([paramId, value]) => ({ instanceId: Number(instanceId), paramId, value })),
+    ),
+  ].filter(({ instanceId }) => instanceId === null || trackFxChain.some((entry) => entry.id === instanceId));
 
-  const cellFxEntries = (event.fx ? Object.entries(event.fx) : []).filter(([paramId]) => isFxTypeActive(getFxParam(paramId)?.type));
-  const availableFxParams = FX_PARAMS.filter(
-    (param) =>
-      isFxTypeActive(param.type) &&
-      param.cellAutomatable !== false &&
-      !cellFxEntries.some(([id]) => id === param.id),
-  );
+  // "+ ADD FX" offers bus.gain (if not already set) plus one option per (instance, param) pair
+  // for every instance actually in this track's chain, skipping params already automated on
+  // this cell and ones marked cellAutomatable: false.
+  const availableFxOptions = [
+    ...(cellFxEntries.some((e) => e.paramId === "bus.gain")
+      ? []
+      : [{ key: "bus.gain", instanceId: null, paramId: "bus.gain", label: "Output — Bus Gain" }]),
+    ...trackFxChain.flatMap((entry) =>
+      FX_PARAMS.filter((param) => param.type === entry.type && param.cellAutomatable !== false)
+        .filter((param) => !cellFxEntries.some((e) => e.instanceId === entry.id && e.paramId === param.id))
+        .map((param) => ({
+          key: `${entry.id}:${param.id}`,
+          instanceId: entry.id,
+          paramId: param.id,
+          label: `${getFxInstanceLabel(trackFxChain, entry.id)} — ${param.label}`,
+        })),
+    ),
+  ];
 
-  function handleCellFxChange(paramId, value) {
-    store.setCellFx(cursor.trackIndex, cursor.rowIndex, paramId, value);
+  function handleCellFxChange(instanceId, paramId, value) {
+    if (instanceId === null) store.setCellFx(cursor.trackIndex, cursor.rowIndex, paramId, value);
+    else store.setCellFxInstanceParam(cursor.trackIndex, cursor.rowIndex, instanceId, paramId, value);
   }
 
-  function handleCellFxRemove(paramId) {
-    store.setCellFx(cursor.trackIndex, cursor.rowIndex, paramId, null);
+  function handleCellFxRemove(instanceId, paramId) {
+    handleCellFxChange(instanceId, paramId, null);
   }
 
-  function handleAddCellFx(paramId) {
-    if (!paramId) return;
-    const param = getFxParam(paramId);
-    const trackFx = state.song.trackChannels[cursor.trackIndex]?.fx ?? {};
-    // Seeds at the track's current value for this param, not the catalog default — this FX is
-    // already enabled and (very likely) already parked somewhere other than its neutral value,
-    // so a freshly-added cell entry should start as a no-op continuation of that, not a jump
-    // back to default the moment this row plays.
-    store.setCellFx(cursor.trackIndex, cursor.rowIndex, paramId, trackFx[paramId] ?? param?.default ?? 0);
+  function handleAddCellFx(optionKey) {
+    const option = availableFxOptions.find((o) => o.key === optionKey);
+    if (!option) return;
+    const param = getFxParam(option.paramId);
+    // Seeds at this instance's current value for this param, not the catalog default — this FX
+    // is already enabled and (very likely) already parked somewhere other than its neutral
+    // value, so a freshly-added cell entry should start as a no-op continuation of that, not a
+    // jump back to default the moment this row plays.
+    const channel = state.song.trackChannels[cursor.trackIndex];
+    const current =
+      option.instanceId === null ? (channel?.fx?.["bus.gain"] ?? param?.default ?? 0) : (channel?.fx?.instances?.[option.instanceId]?.[option.paramId] ?? param?.default ?? 0);
+    handleCellFxChange(option.instanceId, option.paramId, current);
   }
 
   return (
@@ -286,36 +312,37 @@ export default function NoteEditor({ store }) {
 
       <div className="note-editor__section">CELL FX</div>
 
-      {cellFxEntries.map(([paramId, value]) => {
+      {cellFxEntries.map(({ instanceId, paramId, value }) => {
         const param = getFxParam(paramId);
         if (!param) return null;
+        const label = instanceId === null ? param.label : `${getFxInstanceLabel(trackFxChain, instanceId)} — ${param.label}`;
         return (
-          <label className="note-editor__field note-editor__field--fx" key={paramId}>
-            {param.label}
+          <label className="note-editor__field note-editor__field--fx" key={`${instanceId}:${paramId}`}>
+            {label}
             <input
               type="range"
               min={param.min}
               max={param.max}
               step={param.step}
               value={value}
-              onChange={(e) => handleCellFxChange(paramId, Number(e.target.value))}
+              onChange={(e) => handleCellFxChange(instanceId, paramId, Number(e.target.value))}
             />
             <span className="note-editor__fx-value">{formatFxValue(value, param)}</span>
-            <button type="button" className="note-editor__fx-remove" onClick={() => handleCellFxRemove(paramId)} title="Remove">
+            <button type="button" className="note-editor__fx-remove" onClick={() => handleCellFxRemove(instanceId, paramId)} title="Remove">
               ×
             </button>
           </label>
         );
       })}
 
-      {availableFxParams.length > 0 && (
+      {availableFxOptions.length > 0 && (
         <label className="note-editor__field">
           + ADD FX
           <select value="" onChange={(e) => handleAddCellFx(e.target.value)}>
             <option value="">(select)</option>
-            {availableFxParams.map((param) => (
-              <option key={param.id} value={param.id}>
-                {param.group} — {param.label}
+            {availableFxOptions.map((option) => (
+              <option key={option.key} value={option.key}>
+                {option.label}
               </option>
             ))}
           </select>

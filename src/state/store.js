@@ -6,15 +6,22 @@ import {
   setTrackChannelVolume as setTrackChannelVolumeModel,
   setTrackChannelVoiceMode as setTrackChannelVoiceModeModel,
   setTrackChannelMaxVoices as setTrackChannelMaxVoicesModel,
+  setTrackChannelPan as setTrackChannelPanModel,
+  setMasterPan as setMasterPanModel,
   setTrackFxParam as setTrackFxParamModel,
   setMasterFxParam as setMasterFxParamModel,
+  setTrackFxInstanceParam as setTrackFxInstanceParamModel,
+  setMasterFxInstanceParam as setMasterFxInstanceParamModel,
   setCellFxParam as setCellFxParamModel,
+  setCellFxInstanceParam as setCellFxInstanceParamModel,
   addTrackFx as addTrackFxModel,
   removeTrackFx as removeTrackFxModel,
   setTrackFxBypass as setTrackFxBypassModel,
+  moveTrackFx as moveTrackFxModel,
   addMasterFx as addMasterFxModel,
   removeMasterFx as removeMasterFxModel,
   setMasterFxBypass as setMasterFxBypassModel,
+  moveMasterFx as moveMasterFxModel,
   setPatternRowCount,
   setTrackLength as setTrackLengthModel,
   setSongName,
@@ -308,67 +315,119 @@ export function createStore({ song, instruments }) {
     emitCellChangedInRect(destRect);
   }
 
-  // One entry in a cell's sparse FX automation map (model/event.js#fx; ui/chrome/NoteEditor.jsx
-  // is the editing surface) — value === null removes that entry. Reuses CELL_CHANGED, the same
-  // event every other per-cell write already emits, rather than a dedicated event (see
-  // setCell/clearSelection above).
+  // One entry in a cell's sparse FX automation map for the always-on bus.gain param only
+  // (model/event.js#fx's flat top-level key; ui/chrome/NoteEditor.jsx is the editing surface) —
+  // value === null removes that entry. See setCellFxInstanceParam below for a chain instance's
+  // own parameter. Reuses CELL_CHANGED, the same event every other per-cell write already emits,
+  // rather than a dedicated event (see setCell/clearSelection above).
   function setCellFx(trackIndex, rowIndex, paramId, value) {
     const { selectedPatternId } = state.song;
     setCellFxParamModel(state.song, { patternId: selectedPatternId, trackIndex, rowIndex }, paramId, value);
     emitter.emit(events.CELL_CHANGED, { trackIndex, rowIndex });
   }
 
-  // A track's FX panel/cell-automation baseline (model/trackChannel.js#fx) — called directly
-  // by the FX panel (ui/chrome/FxPanel.jsx) and by appContext.js's wiring of
-  // playbackController's onTrackFxChange callback, so model state stays in sync with whichever
-  // of the two actually changed it. Doesn't touch the audio engine itself — that's
+  // Stacking-aware counterpart to setCellFx above, for one specific chain instance's parameter
+  // (model/event.js#fx's `instances[instanceId]` bag) — unambiguously automates e.g. the second
+  // of two Filters on this track.
+  function setCellFxInstanceParam(trackIndex, rowIndex, instanceId, paramId, value) {
+    const { selectedPatternId } = state.song;
+    setCellFxInstanceParamModel(state.song, { patternId: selectedPatternId, trackIndex, rowIndex }, instanceId, paramId, value);
+    emitter.emit(events.CELL_CHANGED, { trackIndex, rowIndex });
+  }
+
+  // A track's always-on bus.gain value (model/trackChannel.js#fx's flat top-level key) — called
+  // directly by the FX panel's pinned Output module (ui/chrome/FxPanel.jsx) and by appContext.js's
+  // wiring of playbackController's onTrackFxChange callback, so model state stays in sync with
+  // whichever of the two actually changed it. Doesn't touch the audio engine itself — that's
   // audio/fx.js#setTrackFxParam, called separately by whichever of those two call sites needs
-  // the real runtime.setNodeParameter() too (appContext.js's applyTrackFxParam bundles both
-  // for the FX panel's own direct use).
+  // the real runtime call too (appContext.js's applyTrackFxParam bundles both for the FX panel's
+  // own direct use).
   function setTrackFxParam(trackIndex, paramId, value) {
     setTrackFxParamModel(state.song, trackIndex, paramId, value);
     emitter.emit(events.TRACK_FX_CHANGED, { trackIndex, paramId });
   }
 
-  // The master bus's own FX baseline (model/song.js#masterFx) — the FX panel's MASTER view.
+  // The master bus's own bus.gain value (model/song.js#masterFx) — the FX panel's MASTER view.
   function setMasterFxParam(paramId, value) {
     setMasterFxParamModel(state.song, paramId, value);
     emitter.emit(events.MASTER_FX_CHANGED, { paramId });
   }
 
-  // Enable/disable/bypass one FX on a track's insert bus (model/mutations.js#addTrackFx/
-  // removeTrackFx/setTrackFxBypass) — reuses TRACK_FX_CHANGED, the same event a parameter edit
-  // already emits, since the FX panel's useStore selector fingerprints fxChain alongside fx
-  // (ui/chrome/FxPanel.jsx) and should refresh for either kind of change.
+  // Stacking-aware counterpart to setTrackFxParam/setMasterFxParam above, for one chain
+  // instance's own parameter (model/trackChannel.js#fx's `instances[id]` bag) — every FX_PARAMS
+  // entry except bus.gain.
+  function setTrackFxInstanceParam(trackIndex, instanceId, paramId, value) {
+    setTrackFxInstanceParamModel(state.song, trackIndex, instanceId, paramId, value);
+    emitter.emit(events.TRACK_FX_CHANGED, { trackIndex, instanceId, paramId });
+  }
+
+  function setMasterFxInstanceParam(instanceId, paramId, value) {
+    setMasterFxInstanceParamModel(state.song, instanceId, paramId, value);
+    emitter.emit(events.MASTER_FX_CHANGED, { instanceId, paramId });
+  }
+
+  // Add/remove/bypass/reorder one FX *instance* on a track's insert bus
+  // (model/mutations.js#addTrackFx/removeTrackFx/setTrackFxBypass/moveTrackFx — see
+  // model/trackChannel.js's doc comment for why this is instance-, not type-, scoped: the same
+  // kind can now appear more than once) — reuses TRACK_FX_CHANGED, the same event a parameter
+  // edit already emits, since the FX panel's useStore selector fingerprints fxChain alongside fx
+  // (ui/chrome/FxPanel.jsx) and should refresh for any kind of change. addTrackFx returns the
+  // new instance's id so appContext.js's applyAddTrackFx can create the matching engine-side
+  // instance without re-deriving it.
   function addTrackFx(trackIndex, type) {
-    addTrackFxModel(state.song, trackIndex, type);
+    const instanceId = addTrackFxModel(state.song, trackIndex, type);
     emitter.emit(events.TRACK_FX_CHANGED, { trackIndex, type });
+    return instanceId;
   }
 
-  function removeTrackFx(trackIndex, type) {
-    removeTrackFxModel(state.song, trackIndex, type);
-    emitter.emit(events.TRACK_FX_CHANGED, { trackIndex, type });
+  function removeTrackFx(trackIndex, instanceId) {
+    removeTrackFxModel(state.song, trackIndex, instanceId);
+    emitter.emit(events.TRACK_FX_CHANGED, { trackIndex, instanceId });
   }
 
-  function setTrackFxBypass(trackIndex, type, bypassed) {
-    setTrackFxBypassModel(state.song, trackIndex, type, bypassed);
-    emitter.emit(events.TRACK_FX_CHANGED, { trackIndex, type });
+  function setTrackFxBypass(trackIndex, instanceId, bypassed) {
+    setTrackFxBypassModel(state.song, trackIndex, instanceId, bypassed);
+    emitter.emit(events.TRACK_FX_CHANGED, { trackIndex, instanceId });
+  }
+
+  function moveTrackFx(trackIndex, instanceId, direction) {
+    moveTrackFxModel(state.song, trackIndex, instanceId, direction);
+    emitter.emit(events.TRACK_FX_CHANGED, { trackIndex, instanceId });
   }
 
   // Master-bus equivalents (model/song.js#masterFxChain) — the FX panel's MASTER view.
   function addMasterFx(type) {
-    addMasterFxModel(state.song, type);
+    const instanceId = addMasterFxModel(state.song, type);
     emitter.emit(events.MASTER_FX_CHANGED, { type });
+    return instanceId;
   }
 
-  function removeMasterFx(type) {
-    removeMasterFxModel(state.song, type);
-    emitter.emit(events.MASTER_FX_CHANGED, { type });
+  function removeMasterFx(instanceId) {
+    removeMasterFxModel(state.song, instanceId);
+    emitter.emit(events.MASTER_FX_CHANGED, { instanceId });
   }
 
-  function setMasterFxBypass(type, bypassed) {
-    setMasterFxBypassModel(state.song, type, bypassed);
-    emitter.emit(events.MASTER_FX_CHANGED, { type });
+  function setMasterFxBypass(instanceId, bypassed) {
+    setMasterFxBypassModel(state.song, instanceId, bypassed);
+    emitter.emit(events.MASTER_FX_CHANGED, { instanceId });
+  }
+
+  function moveMasterFx(instanceId, direction) {
+    moveMasterFxModel(state.song, instanceId, direction);
+    emitter.emit(events.MASTER_FX_CHANGED, { instanceId });
+  }
+
+  // Track/master bus pan (model/trackChannel.js#pan / model/song.js#masterPan) — reuses
+  // TRACK_CHANGED/MASTER_FX_CHANGED, the same events volume/bus.gain already emit for their own
+  // channel-strip-equivalent controls, rather than inventing a dedicated pan event.
+  function setTrackChannelPan(trackIndex, pan) {
+    setTrackChannelPanModel(state.song, trackIndex, pan);
+    emitter.emit(events.TRACK_CHANNEL_CHANGED, { trackIndex });
+  }
+
+  function setMasterPan(pan) {
+    setMasterPanModel(state.song, pan);
+    emitter.emit(events.MASTER_FX_CHANGED, { pan });
   }
 
   function setProjectName(name) {
@@ -524,6 +583,19 @@ export function createStore({ song, instruments }) {
     emitter.emit(events.INSTRUMENTS_CHANGED, { index });
   }
 
+  // Instrument ADSR envelope (model/instrument.js#envelope) — same split as setInstrumentGain
+  // above: the model-side half of the pair, appContext.js#applyInstrumentEnvelope is the live
+  // runtime.setSampleEnvelope() call. Merges only the fields actually passed (webdsp's own
+  // setSampleEnvelope semantics — model/instrument.js#envelope's doc comment), not a full
+  // replace, so a single-slider edit from ui/chrome/InstrumentPanel.jsx never has to first read
+  // back the instrument's other three fields.
+  function setInstrumentEnvelope(index, envelope) {
+    const instrument = state.instruments[index];
+    if (!instrument) return;
+    instrument.envelope = { ...instrument.envelope, ...envelope };
+    emitter.emit(events.INSTRUMENTS_CHANGED, { index });
+  }
+
   // Instrument.output (model/instrument.js) — which engine renders this slot's cells.
   // Unlike setInstrumentGain/setInstrumentSample, there's no live engine call to pair this
   // with: output type/channel is only ever read at compile time (audio/compile.js), never
@@ -616,14 +688,21 @@ export function createStore({ song, instruments }) {
     fillSelection,
     duplicateSelection,
     setCellFx,
+    setCellFxInstanceParam,
     setTrackFxParam,
     setMasterFxParam,
+    setTrackFxInstanceParam,
+    setMasterFxInstanceParam,
     addTrackFx,
     removeTrackFx,
     setTrackFxBypass,
+    moveTrackFx,
     addMasterFx,
     removeMasterFx,
     setMasterFxBypass,
+    moveMasterFx,
+    setTrackChannelPan,
+    setMasterPan,
     setProjectName,
     moveCursor,
     extendSelection,
@@ -642,6 +721,7 @@ export function createStore({ song, instruments }) {
     setTrackChannelMaxVoices,
     setInstrumentSample,
     setInstrumentGain,
+    setInstrumentEnvelope,
     setInstrumentOutput,
     addInstrumentSlot,
     setPatternSwitchPending,

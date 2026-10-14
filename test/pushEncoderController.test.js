@@ -59,7 +59,10 @@ function createTestContext() {
   // A minimal stand-in for appContext.js's real fxController — routes straight to the store,
   // same as the real one does for the model half (the real one also pushes to audio/fx.js,
   // which this test has no reason to exercise).
-  const fxController = { setTrackFxParam: (trackIndex, paramId, value) => store.setTrackFxParam(trackIndex, paramId, value) };
+  const fxController = {
+    setTrackFxParam: (trackIndex, paramId, value) => store.setTrackFxParam(trackIndex, paramId, value),
+    setTrackFxInstanceParam: (trackIndex, instanceId, paramId, value) => store.setTrackFxInstanceParam(trackIndex, instanceId, paramId, value),
+  };
   const controller = createPushEncoderController({ device, store, fxController });
   return { store, device, controller };
 }
@@ -140,51 +143,51 @@ describe("createPushEncoderController — FX mode", () => {
 
   it("turning an encoder changes the current FX module's continuous parameter", () => {
     const { store, device, controller } = createTestContext();
-    store.addTrackFx(0, "filter"); // filter.cutoff, filter.resonance, filter.mode, filter.slope, in that order
+    const id = store.addTrackFx(0, "filter"); // filter.cutoff, filter.resonance, filter.mode, filter.slope, in that order
     enterFxMode(device, controller);
-    const before = store.getState().song.trackChannels[0].fx["filter.cutoff"];
+    const before = store.getState().song.trackChannels[0].fx.instances[id]["filter.cutoff"];
     expect(before).toBe(20000); // the catalog default, which is also filter.cutoff's max
 
     // encoderDelta(100) === 100 - 128 === -28 (a negative delta) — default sits at the max, so
     // only a downward turn is guaranteed to actually move it.
     device.fireMessage([CC_ON, ENCODER_CC[0], 100]); // encoder 0 -> filter.cutoff
 
-    expect(store.getState().song.trackChannels[0].fx["filter.cutoff"]).toBeLessThan(before);
+    expect(store.getState().song.trackChannels[0].fx.instances[id]["filter.cutoff"]).toBeLessThan(before);
   });
 
   it("turning the boolean filter.mode encoder toggles it once accumulated movement crosses the threshold", () => {
     const { store, device, controller } = createTestContext();
-    store.addTrackFx(0, "filter");
+    const id = store.addTrackFx(0, "filter");
     enterFxMode(device, controller);
-    expect(store.getState().song.trackChannels[0].fx["filter.mode"]).toBe(0); // LOW by default
+    expect(store.getState().song.trackChannels[0].fx.instances[id]["filter.mode"]).toBe(0); // LOW by default
 
     device.fireMessage([CC_ON, ENCODER_CC[2], 4]); // encoder 2 -> filter.mode, delta 4 meets the threshold
 
-    expect(store.getState().song.trackChannels[0].fx["filter.mode"]).toBe(1); // HIGH
+    expect(store.getState().song.trackChannels[0].fx.instances[id]["filter.mode"]).toBe(1); // HIGH
   });
 
   it("turning the boolean filter.slope encoder toggles between webdsp's real 12/24 values, not a normalized 0/1", () => {
     const { store, device, controller } = createTestContext();
-    store.addTrackFx(0, "filter");
+    const id = store.addTrackFx(0, "filter");
     enterFxMode(device, controller);
-    expect(store.getState().song.trackChannels[0].fx["filter.slope"]).toBe(12); // 12dB by default
+    expect(store.getState().song.trackChannels[0].fx.instances[id]["filter.slope"]).toBe(12); // 12dB by default
 
     device.fireMessage([CC_ON, ENCODER_CC[3], 4]); // encoder 3 -> filter.slope, delta 4 meets the threshold
 
-    expect(store.getState().song.trackChannels[0].fx["filter.slope"]).toBe(24);
+    expect(store.getState().song.trackChannels[0].fx.instances[id]["filter.slope"]).toBe(24);
 
     device.fireMessage([CC_ON, ENCODER_CC[3], 4]); // turning again flips it back
 
-    expect(store.getState().song.trackChannels[0].fx["filter.slope"]).toBe(12);
+    expect(store.getState().song.trackChannels[0].fx.instances[id]["filter.slope"]).toBe(12);
   });
 
   it("an unassigned encoder (beyond the current FX's param count) is a no-op", () => {
     const { store, device, controller } = createTestContext();
-    store.addTrackFx(0, "filter"); // 4 params — encoders 4-7 are unassigned
+    const id = store.addTrackFx(0, "filter"); // 4 params — encoders 4-7 are unassigned
     enterFxMode(device, controller);
 
     expect(() => device.fireMessage([CC_ON, ENCODER_CC[6], 40])).not.toThrow();
-    expect(store.getState().song.trackChannels[0].fx).toMatchObject({ "filter.mode": 0 });
+    expect(store.getState().song.trackChannels[0].fx.instances[id]).toMatchObject({ "filter.mode": 0 });
   });
 
   it("Left/Right pages between enabled FX modules on the current track, clamped at the ends", () => {
@@ -192,18 +195,36 @@ describe("createPushEncoderController — FX mode", () => {
     store.addTrackFx(0, "filter");
     store.addTrackFx(0, "delay");
     enterFxMode(device, controller);
-    expect(device.send).toHaveBeenCalledWith(lcdSysex(0, "FX  Filter  1/2  TRK1"));
+    expect(device.send).toHaveBeenCalledWith(lcdSysex(0, "FX  Filter #1  1/2  TRK1"));
     device.send.mockClear();
 
     device.fireMessage([CC_ON, CC_ARROW_RIGHT, 127]);
-    expect(device.send).toHaveBeenCalledWith(lcdSysex(0, "FX  Delay  2/2  TRK1"));
+    expect(device.send).toHaveBeenCalledWith(lcdSysex(0, "FX  Delay #1  2/2  TRK1"));
 
     device.send.mockClear();
     device.fireMessage([CC_ON, CC_ARROW_RIGHT, 127]); // already at the last page — clamp, no resend
     expect(device.send).not.toHaveBeenCalled();
 
     device.fireMessage([CC_ON, CC_ARROW_LEFT, 127]);
-    expect(device.send).toHaveBeenCalledWith(lcdSysex(0, "FX  Filter  1/2  TRK1"));
+    expect(device.send).toHaveBeenCalledWith(lcdSysex(0, "FX  Filter #1  1/2  TRK1"));
+  });
+
+  it("stacking two instances of the same type pages between them, each with independent parameters", () => {
+    const { store, device, controller } = createTestContext();
+    const first = store.addTrackFx(0, "filter");
+    const second = store.addTrackFx(0, "filter");
+    store.setTrackFxInstanceParam(0, first, "filter.cutoff", 400);
+    store.setTrackFxInstanceParam(0, second, "filter.cutoff", 4000);
+    enterFxMode(device, controller);
+    expect(device.send).toHaveBeenCalledWith(lcdSysex(0, "FX  Filter #1  1/2  TRK1"));
+
+    device.fireMessage([CC_ON, CC_ARROW_RIGHT, 127]);
+    expect(device.send).toHaveBeenCalledWith(lcdSysex(0, "FX  Filter #2  2/2  TRK1"));
+
+    // encoder 0 now turns the *second* Filter's cutoff, never the first's.
+    device.fireMessage([CC_ON, ENCODER_CC[0], 100]); // negative delta
+    expect(store.getState().song.trackChannels[0].fx.instances[second]["filter.cutoff"]).toBeLessThan(4000);
+    expect(store.getState().song.trackChannels[0].fx.instances[first]["filter.cutoff"]).toBe(400);
   });
 
   it("Left/Right paging is ignored while in volume mode", () => {

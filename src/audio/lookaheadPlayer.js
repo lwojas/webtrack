@@ -154,7 +154,7 @@ export function createLookaheadPlayer({
       // keep it at.
       if (onTrackFxChange) {
         const fxChanges = compileRowFx(pattern, patternRelativeStep);
-        fxChanges.forEach(({ trackIndex, paramId, value }) => onTrackFxChange(trackIndex, paramId, value));
+        fxChanges.forEach(({ trackIndex, instanceId, paramId, value }) => onTrackFxChange(trackIndex, instanceId, paramId, value));
       }
 
       stepCounter += 1;

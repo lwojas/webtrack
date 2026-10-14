@@ -31,8 +31,9 @@ export const FX_PARAMS = [
   // below renders it via onLabel/offLabel instead of a numeric string, and both FxPanel.jsx and
   // Push's encoder LCD (midi/push/encoderController.js) branch on `kind` the same way, so there's
   // exactly one definition of what this parameter means, not two. Independent of this FX's own
-  // bypass toggle (FX_TYPES' bypassValues below only ever resets cutoff/resonance) — bypassing
-  // the filter doesn't change which mode it's in, it just mutes the filter's effect entirely.
+  // bypass toggle (webdsp's own per-instance enable/disable — see FX_TYPES' doc comment below)
+  // — bypassing the filter doesn't change which mode it's in, it just disables the instance
+  // entirely.
   { id: "filter.mode", nodeParam: "FilterMode", type: "filter", group: "Filter", label: "Mode", kind: "boolean", min: 0, max: 1, default: 0, step: 1, unit: "", onLabel: "HIGH", offLabel: "LOW", cellAutomatable: false },
   // webdsp's NodeParam.FilterSlope (12 = two-pole/default, 24 = four-pole — see
   // node_modules/webdsp/lib/index.d.ts's own FilterSlope enum) is a second `kind: "boolean"`
@@ -71,29 +72,51 @@ export const FX_PARAMS = [
   { id: "chorus.stereoPhase", nodeParam: "ChorusFlangerStereoPhase", type: "chorus", group: "Chorus/Flanger", label: "Stereo", min: 0, max: 1, default: 0.25, step: 0.01, unit: "", cellAutomatable: false },
   { id: "chorus.mix", nodeParam: "ChorusFlangerMix", type: "chorus", group: "Chorus/Flanger", label: "Mix", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
 
-  // Not one of the six toggleable FX nodes below — the bus's own always-present output stage
+  // Phaser/Bitcrusher (node_modules/webdsp's docs/fx-chain.md, "Phaser and Bitcrusher") — added
+  // alongside webdsp's generic ordered FX chains (see this file's own FX_TYPES doc comment below
+  // for why FX_TYPES no longer carries bypassValues: real per-instance enable/disable replaced
+  // the old "push a neutral value" bypass trick these two never needed in the first place).
+  { id: "phaser.rate", nodeParam: "PhaserRate", type: "phaser", group: "Phaser", label: "Rate", min: 0.01, max: 10, default: 0.5, step: 0.01, unit: "Hz" },
+  { id: "phaser.depth", nodeParam: "PhaserDepth", type: "phaser", group: "Phaser", label: "Depth", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
+  { id: "phaser.center", nodeParam: "PhaserCenter", type: "phaser", group: "Phaser", label: "Center", min: 100, max: 5000, default: 1000, step: 1, unit: "Hz" },
+  { id: "phaser.feedback", nodeParam: "PhaserFeedback", type: "phaser", group: "Phaser", label: "Feedback", min: -0.95, max: 0.95, default: 0, step: 0.01, unit: "" },
+  // Rounded to even (2..12) by the engine itself — a discrete stage count, not a continuous
+  // sweep, same reasoning as comp.knee/comp.makeup above for why this is a setup param rather
+  // than a cell automation target.
+  { id: "phaser.stages", nodeParam: "PhaserStages", type: "phaser", group: "Phaser", label: "Stages", min: 2, max: 12, default: 4, step: 2, unit: "", cellAutomatable: false },
+  { id: "phaser.mix", nodeParam: "PhaserMix", type: "phaser", group: "Phaser", label: "Mix", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
+
+  { id: "crush.bits", nodeParam: "CrushBits", type: "bitcrusher", group: "Bitcrusher", label: "Bits", min: 1, max: 16, default: 16, step: 1, unit: "" },
+  { id: "crush.downsample", nodeParam: "CrushDownsample", type: "bitcrusher", group: "Bitcrusher", label: "Downsample", min: 1, max: 64, default: 1, step: 1, unit: "" },
+  { id: "crush.mix", nodeParam: "CrushMix", type: "bitcrusher", group: "Bitcrusher", label: "Mix", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
+
+  // Not one of the toggleable FX nodes below — the bus's own always-present output stage
   // (see FX_TYPES' doc comment), so it has no `type` and is exempt from chain-gating wherever
   // that's checked (model/mutations.js#setCellFxParam, ui/chrome/NoteEditor.jsx).
   { id: "bus.gain", nodeParam: "BusGain", type: null, group: "Output", label: "Bus Gain", min: 0, max: 2, default: 1, step: 0.01, unit: "x" },
 ];
 
-// The catalog of FX a track or the master bus can choose to enable/disable — distinct from
-// FX_PARAMS above, which describes every parameter the DSP supports regardless of whether any
-// track actually uses it (see model/trackChannel.js#fxChain's doc comment for the full
-// three-layer model: FX_TYPES → fxChain → fx values).
+// The catalog of FX kinds a track or the master bus can add one or more instances of —
+// distinct from FX_PARAMS above, which describes every parameter the DSP supports regardless of
+// whether any track actually uses it (see model/trackChannel.js#fxChain's doc comment for the
+// full three-layer model: FX_TYPES → fxChain → fx values, now chain-of-*instances* rather than
+// chain-of-types — see node_modules/webdsp's docs/fx-chain.md).
 //
-// `bypassValues` is what gets sent to the engine while this type is disabled or bypassed on a
-// bus — each one is that node's own documented "neutral"/no-op value (same values as each
-// param's own `default` above; webdsp's NodeParam doc comments call these out explicitly as
-// each node's bypass convention — see docs/FX.md), so disabling an FX never requires a real
-// engine-side bypass primitive, just re-asserting the node's inert state.
+// No `bypassValues` field (unlike before webdsp's FX chains existed): bypass is now backed by a
+// real per-instance engine primitive (`AudioRuntime.setEffectEnabled` — audio/fx.js), not the old
+// "push this node's neutral value" trick a bus-level-only engine required. A freshly-added
+// instance is inert on its own anyway (mix 0 for Delay/Reverb/Saturation/Chorus/Phaser/
+// Bitcrusher, ratio 1 for Compressor, cutoff/resonance at FX_PARAMS' own defaults for Filter —
+// webdsp's own "inert until parameterized" convention, docs/fx-chain.md).
 export const FX_TYPES = [
-  { id: "filter", label: "Filter", bypassValues: { "filter.cutoff": 20000, "filter.resonance": 0.707 } },
-  { id: "delay", label: "Delay", bypassValues: { "delay.mix": 0 } },
-  { id: "reverb", label: "Reverb", bypassValues: { "reverb.mix": 0 } },
-  { id: "compressor", label: "Compressor", bypassValues: { "comp.ratio": 1 } },
-  { id: "saturation", label: "Saturation", bypassValues: { "sat.mix": 0 } },
-  { id: "chorus", label: "Chorus/Flanger", bypassValues: { "chorus.mix": 0 } },
+  { id: "filter", label: "Filter" },
+  { id: "delay", label: "Delay" },
+  { id: "reverb", label: "Reverb" },
+  { id: "compressor", label: "Compressor" },
+  { id: "saturation", label: "Saturation" },
+  { id: "chorus", label: "Chorus/Flanger" },
+  { id: "phaser", label: "Phaser" },
+  { id: "bitcrusher", label: "Bitcrusher" },
 ];
 
 export function getFxParam(id) {
@@ -134,6 +157,21 @@ export function isFxBooleanOn(value, param) {
   const min = param.min ?? 0;
   const max = param.max ?? 1;
   return (value ?? param.default) >= (min + max) / 2;
+}
+
+// A human label for one fxChain entry that disambiguates stacked instances of the same kind —
+// "Filter #1", "Filter #2" — counting this entry's position among same-type siblings already in
+// the chain (1-based). Always numbered, even when only one instance of a kind exists, so the
+// label never has to change shape the moment a second one is added (model/trackChannel.js#
+// fxChain's stacking doc comment; ui/chrome/FxPanel.jsx's module headers and
+// ui/chrome/NoteEditor.jsx's "+ ADD FX" dropdown both use this instead of each inventing their
+// own numbering).
+export function getFxInstanceLabel(fxChain, entryId) {
+  const entry = fxChain.find((e) => e.id === entryId);
+  if (!entry) return "";
+  const fxType = getFxType(entry.type);
+  const ordinal = fxChain.filter((e) => e.type === entry.type).indexOf(entry) + 1;
+  return `${fxType?.label ?? entry.type} #${ordinal}`;
 }
 
 // Shared by the FX panel, the cell editor, and Push's encoder LCD (midi/push/

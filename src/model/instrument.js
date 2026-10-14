@@ -28,6 +28,17 @@
 // instrument's sample is never embedded as base64 in the project JSON the way an "import"-origin
 // one is: resample bytes are addressed by localAssetId only, in both the explicit save and the
 // local recovery cache.
+// envelope: { attack, decay, sustain, release } — webdsp's per-sample ADSR amplitude envelope
+// (node_modules/webdsp's docs/adsr-envelope.md's EnvelopeParams), persistent per instrument like
+// gain (audio/instrumentEnvelope.js bridges this to runtime.setSampleEnvelope()). The default
+// here is a literal copy of webdsp's own engine default — attack/decay 0, sustain 1, release
+// 10ms — which "leaves the sound unchanged apart from a 10ms click-free release," i.e. exactly
+// how every instrument already sounded before this feature existed, so an existing project (or
+// one loaded before envelope existed — see persistence/projectFile.js) is unaffected until a
+// user actually opens the instrument editor and changes something. Edited via
+// ui/chrome/InstrumentPanel.jsx's instrument editor, directly below the existing Gain slider —
+// per-sample/per-instrument, never a track or bus property (model/trackChannel.js has no
+// equivalent field).
 export function createInstrumentSlot({
   id,
   name = "Empty",
@@ -38,6 +49,7 @@ export function createInstrumentSlot({
   output = { type: "sample", channel: null },
   origin = "import",
   localAssetId = null,
+  envelope = { attack: 0, decay: 0, sustain: 1, release: 0.01 },
 } = {}) {
-  return { id, name, sampleId, gain, rootNote, sampleAsset, output, origin, localAssetId };
+  return { id, name, sampleId, gain, rootNote, sampleAsset, output, origin, localAssetId, envelope };
 }

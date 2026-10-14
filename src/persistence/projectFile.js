@@ -93,6 +93,7 @@ function serializeInstrument(instrument, embedSampleBytes) {
     rootNote: instrument.rootNote,
     output: instrument.output,
     origin: instrument.origin,
+    envelope: instrument.envelope,
     sample,
   };
 }
@@ -132,23 +133,38 @@ function ensureVoiceDefaults(song) {
   });
 }
 
-// trackChannel.fx / song.masterFx (model/trackChannel.js, model/song.js) are purely additive
-// too, added after format v2 shipped without them — same reasoning as ensureTrackLengths
-// above: default them here rather than bump PROJECT_FORMAT_VERSION for a field an old project
-// simply never had an opinion about. A cell's own Event.fx needs no equivalent default: every
-// read path already treats a missing/undefined fx map the same as an explicit null (see
-// model/event.js#isEmptyEvent, audio/compile.js#compileRowFx).
-function ensureFxDefaults(song) {
+// trackChannel.pan / song.masterPan (model/trackChannel.js, model/song.js) are purely additive
+// too, added after format v2 shipped without them — default to 0 (centre), bit-identical to
+// every project's existing behavior before panning existed (node_modules/webdsp's
+// docs/panning.md).
+function ensurePanDefaults(song) {
   song.trackChannels.forEach((channel) => {
-    if (!channel.fx) channel.fx = {};
+    if (typeof channel.pan !== "number") channel.pan = 0;
   });
-  if (!song.masterFx) song.masterFx = {};
-  ensureFxChains(song);
+  if (typeof song.masterPan !== "number") song.masterPan = 0;
 }
 
-// Which FX_TYPES ids this fx bag has actually touched — any param sitting at a non-default
-// value (model/fxParams.js's FX_PARAMS#default doubles as each node's own bypass/neutral
-// value, so "untouched" and "bypassed" were indistinguishable before fxChain existed).
+// trackChannel.fx / song.masterFx (model/trackChannel.js, model/song.js) are purely additive
+// too, added after format v2 shipped without them — default them here rather than bump
+// PROJECT_FORMAT_VERSION for a field an old project simply never had an opinion about. A cell's
+// own Event.fx needs no equivalent default: every read path already treats a missing/undefined
+// fx map the same as an explicit null (see model/event.js#isEmptyEvent, audio/compile.js#
+// compileRowFx).
+function ensureFxDefaults(song) {
+  if (typeof song.nextFxInstanceId !== "number") song.nextFxInstanceId = 0;
+  song.trackChannels.forEach((channel) => {
+    if (!channel.fx) channel.fx = { instances: {} };
+  });
+  if (!song.masterFx) song.masterFx = { instances: {} };
+  ensureFxChains(song);
+  ensureFxInstanceIds(song);
+}
+
+// Which FX_TYPES ids this *flat* fx bag has actually touched — any param sitting at a non-default
+// value (model/fxParams.js's FX_PARAMS#default doubles as each node's own bypass/neutral value,
+// so "untouched" and "bypassed" were indistinguishable before fxChain existed). Only ever
+// meaningful for a pre-fxChain project, whose fx bag was still flat `{ [paramId]: value }` — see
+// ensureFxChains below.
 function typesTouchedByFxBag(fxBag) {
   const touched = new Set();
   for (const paramId in fxBag) {
@@ -160,7 +176,9 @@ function typesTouchedByFxBag(fxBag) {
 
 // Which FX_TYPES ids a track's cell automation references anywhere in the song, regardless of
 // which pattern — a cell referencing e.g. "delay.mix" only makes sense if that track's delay is
-// (or, pre-fxChain, effectively always was) enabled.
+// (or, pre-fxChain, effectively always was) enabled. Only meaningful for a pre-fxChain project's
+// still-flat Event.fx map (see ensureFxInstanceIds below for the post-fxChain, per-instance
+// shape's own migration).
 function typesReferencedByCellAutomation(song, trackIndex) {
   const touched = new Set();
   song.patterns.forEach((pattern) => {
@@ -182,7 +200,8 @@ function typesReferencedByCellAutomation(song, trackIndex) {
 // destroy, any FX a saved project already relies on), derive each channel's fxChain from
 // whatever it actually used: any type with a non-default parameter value, or referenced by a
 // cell's Event.fx anywhere in the song, is enabled (not bypassed) — the project sounds and
-// edits identically to how it did before fxChain existed.
+// edits identically to how it did before fxChain existed. Entries built here have no `id` yet
+// (fxChain didn't have instances yet either) — ensureFxInstanceIds below is what assigns one.
 function ensureFxChains(song) {
   song.trackChannels.forEach((channel, trackIndex) => {
     if (channel.fxChain) return;
@@ -194,6 +213,80 @@ function ensureFxChains(song) {
     const touched = typesTouchedByFxBag(song.masterFx);
     song.masterFxChain = FX_TYPES.filter((type) => touched.has(type.id)).map((type) => ({ type: type.id, bypassed: false }));
   }
+}
+
+// fxChain entries gained a stable `id` (and fx/Event.fx moved from a flat `{ [paramId]: value }`
+// bag to a per-instance `{ "bus.gain"?: value, instances: { [id]: { [paramId]: value } } }` one)
+// when webdsp's FX chains made multiple instances of the same type possible — see
+// model/trackChannel.js's doc comment. A project saved before that could only ever have *one*
+// instance of each type to begin with (chain membership was per-type, not per-instance), so the
+// migration is lossless and mechanical: assign each existing chain entry a fresh id, move its
+// type's flat param values into that id's own bag (leaving "bus.gain" flat, since it was never
+// type-scoped), and do the same for every pattern's cell automation on that track.
+function ensureFxInstanceIds(song) {
+  song.trackChannels.forEach((channel, trackIndex) => {
+    if (channel.fxChain.every((entry) => "id" in entry)) return;
+
+    const typeToId = new Map();
+    channel.fxChain.forEach((entry) => {
+      entry.id = song.nextFxInstanceId++;
+      typeToId.set(entry.type, entry.id);
+    });
+
+    const instances = {};
+    const flatFx = { ...channel.fx };
+    delete flatFx.instances;
+    for (const paramId in flatFx) {
+      const type = getFxParam(paramId)?.type;
+      if (type === null || type === undefined) continue; // bus.gain stays flat
+      const id = typeToId.get(type);
+      if (id === undefined) continue; // a stray value for a type that was never actually enabled
+      (instances[id] ??= {})[paramId] = flatFx[paramId];
+      delete flatFx[paramId];
+    }
+    channel.fx = { ...flatFx, instances };
+
+    song.patterns.forEach((pattern) => {
+      pattern.tracks[trackIndex]?.events.forEach((event) => migrateCellFxToInstances(event, typeToId));
+    });
+  });
+
+  if (song.masterFxChain.every((entry) => "id" in entry)) return;
+  const typeToId = new Map();
+  song.masterFxChain.forEach((entry) => {
+    entry.id = song.nextFxInstanceId++;
+    typeToId.set(entry.type, entry.id);
+  });
+  const instances = {};
+  const flatFx = { ...song.masterFx };
+  delete flatFx.instances;
+  for (const paramId in flatFx) {
+    const type = getFxParam(paramId)?.type;
+    if (type === null || type === undefined) continue;
+    const id = typeToId.get(type);
+    if (id === undefined) continue;
+    (instances[id] ??= {})[paramId] = flatFx[paramId];
+    delete flatFx[paramId];
+  }
+  song.masterFx = { ...flatFx, instances };
+}
+
+// One event's own flat fx map ({ [paramId]: value }, pre-fxChain-instances shape) rewritten into
+// the nested per-instance shape (model/event.js#fx's doc comment), using the same type -> id
+// mapping ensureFxInstanceIds just built for this track. bus.gain (type null) stays flat.
+function migrateCellFxToInstances(event, typeToId) {
+  if (!event.fx || event.fx.instances) return; // no automation, or already migrated
+  const instances = {};
+  const flatFx = { ...event.fx };
+  for (const paramId in flatFx) {
+    const type = getFxParam(paramId)?.type;
+    if (type === null || type === undefined) continue;
+    const id = typeToId.get(type);
+    if (id === undefined) continue;
+    (instances[id] ??= {})[paramId] = flatFx[paramId];
+    delete flatFx[paramId];
+  }
+  event.fx = Object.keys(instances).length > 0 ? { ...flatFx, instances } : flatFx;
 }
 
 // song/instruments/ui come straight from state/store.js's state shape. embedSampleBytes: true
@@ -235,11 +328,20 @@ export async function deserializeProject(parsed, { loadSampleBytes, loadLocalAss
   ensureTrackLengths(parsed.song);
   ensureSwingDefault(parsed.song);
   ensureVoiceDefaults(parsed.song);
+  ensurePanDefaults(parsed.song);
   ensureFxDefaults(parsed.song);
 
   const instruments = await Promise.all(
     parsed.instruments.map(async (def) => {
-      const base = { id: def.id, name: def.name, gain: def.gain, rootNote: def.rootNote, output: def.output, origin: def.origin };
+      const base = {
+        id: def.id,
+        name: def.name,
+        gain: def.gain,
+        rootNote: def.rootNote,
+        output: def.output,
+        origin: def.origin,
+        envelope: def.envelope,
+      };
 
       // output is purely additive (a project saved before it existed has no def.output at
       // all) — createInstrumentSlot's own default parameter applies whenever the destructured

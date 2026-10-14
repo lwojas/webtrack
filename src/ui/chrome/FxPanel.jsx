@@ -1,11 +1,14 @@
 import { useState } from "react";
 import { useStore } from "../../state/useStore.js";
 import * as events from "../../state/events.js";
-import { FX_TYPES, getFxType, getFxParam, getFxParamsForType, formatFxValue, isFxBooleanOn } from "../../model/fxParams.js";
+import { FX_TYPES, getFxType, getFxParam, getFxParamsForType, getFxInstanceLabel, formatFxValue, isFxBooleanOn } from "../../model/fxParams.js";
 
 // bus.gain (model/fxParams.js) isn't one of FX_TYPES' toggleable nodes — it's the bus's own
 // always-present output stage, so it gets a pinned module below instead of living in the
-// add/remove chain like every other FX.
+// add/remove chain like every other FX. Pan (model/trackChannel.js#pan / model/song.js#
+// masterPan) lives in this same pinned module for the master side — see its own doc comment for
+// why: MASTER_BUS has no ChannelStrip equivalent (ui/chrome/Mixer.jsx only renders per-track
+// strips), so its pan control sits right next to bus.gain here instead.
 const OUTPUT_PARAM = getFxParam("bus.gain");
 
 // A `kind: "boolean"` param (filter.mode, filter.slope — model/fxParams.js) has no continuous
@@ -49,10 +52,13 @@ function FxParamField({ param, value, onChange }) {
 //     "TRK n" context line already uses, not a second, separate selection concept.
 //   - MASTER: MASTER_BUS, via song.masterFx/masterFxChain — never reachable from a tracker
 //     cell.
-// Both targets render the same chain-based view: whichever FX are actually enabled (fxChain),
-// not every FX the DSP can provide (model/fxParams.js's FX_PARAMS/FX_TYPES catalog) — a track
-// or MASTER_BUS with nothing enabled shows just the pinned Output module and the add-FX
-// control, not a wall of disabled sliders.
+// Both targets render the same chain-based view: an *ordered list of instances* (fxChain), not
+// one slot per FX_TYPES kind — the same kind can appear more than once (model/trackChannel.js's
+// doc comment), each with its own independent parameters, so "+ ADD FX" is never disabled for a
+// kind that's already present, and each module's header is labeled via getFxInstanceLabel to
+// disambiguate stacked instances of the same kind ("Filter #1", "Filter #2"). A track or
+// MASTER_BUS with nothing enabled shows just the pinned Output module and the add-FX control,
+// not a wall of disabled sliders.
 // fxController (appContext.js) is the only thing this component calls to change anything; it
 // never imports audio/fx.js or state/store.js's FX methods directly.
 export default function FxPanel({ store, fxController }) {
@@ -68,16 +74,27 @@ export default function FxPanel({ store, fxController }) {
     const channel = s.song.trackChannels[trackIndex];
     return JSON.stringify([channel?.fx ?? {}, channel?.fxChain ?? []]);
   });
-  useStore(store, events.MASTER_FX_CHANGED, (s) => JSON.stringify([s.song.masterFx, s.song.masterFxChain]));
+  useStore(store, events.MASTER_FX_CHANGED, (s) => JSON.stringify([s.song.masterFx, s.song.masterFxChain, s.song.masterPan]));
+  useStore(store, events.TRACK_CHANNEL_CHANGED, (s) => s.song.trackChannels[trackIndex]?.pan);
 
   const song = store.getState().song;
-  const fxBag = target === "track" ? song.trackChannels[trackIndex]?.fx ?? {} : song.masterFx;
-  const fxChain = target === "track" ? song.trackChannels[trackIndex]?.fxChain ?? [] : song.masterFxChain;
-  const availableTypes = FX_TYPES.filter((fxType) => !fxChain.some((entry) => entry.type === fxType.id));
+  const fxBag = target === "track" ? (song.trackChannels[trackIndex]?.fx ?? { instances: {} }) : song.masterFx;
+  const fxChain = target === "track" ? (song.trackChannels[trackIndex]?.fxChain ?? []) : song.masterFxChain;
+  const pan = target === "track" ? (song.trackChannels[trackIndex]?.pan ?? 0) : song.masterPan;
 
   function handleChange(paramId, value) {
     if (target === "track") fxController.setTrackFxParam(trackIndex, paramId, value);
     else fxController.setMasterFxParam(paramId, value);
+  }
+
+  function handleInstanceChange(instanceId, paramId, value) {
+    if (target === "track") fxController.setTrackFxInstanceParam(trackIndex, instanceId, paramId, value);
+    else fxController.setMasterFxInstanceParam(instanceId, paramId, value);
+  }
+
+  function handlePanChange(value) {
+    if (target === "track") fxController.setTrackPan(trackIndex, value);
+    else fxController.setMasterPan(value);
   }
 
   function handleAddFx(type) {
@@ -86,14 +103,19 @@ export default function FxPanel({ store, fxController }) {
     else fxController.addMasterFx(type);
   }
 
-  function handleRemoveFx(type) {
-    if (target === "track") fxController.removeTrackFx(trackIndex, type);
-    else fxController.removeMasterFx(type);
+  function handleRemoveFx(instanceId) {
+    if (target === "track") fxController.removeTrackFx(trackIndex, instanceId);
+    else fxController.removeMasterFx(instanceId);
   }
 
-  function handleToggleBypass(type, bypassed) {
-    if (target === "track") fxController.setTrackFxBypass(trackIndex, type, bypassed);
-    else fxController.setMasterFxBypass(type, bypassed);
+  function handleToggleBypass(instanceId, bypassed) {
+    if (target === "track") fxController.setTrackFxBypass(trackIndex, instanceId, bypassed);
+    else fxController.setMasterFxBypass(instanceId, bypassed);
+  }
+
+  function handleMove(instanceId, direction) {
+    if (target === "track") fxController.moveTrackFx(trackIndex, instanceId, direction);
+    else fxController.moveMasterFx(instanceId, direction);
   }
 
   return (
@@ -124,29 +146,60 @@ export default function FxPanel({ store, fxController }) {
             <span className="fx-module__title">Output</span>
           </div>
           <FxParamField param={OUTPUT_PARAM} value={fxBag["bus.gain"] ?? OUTPUT_PARAM.default} onChange={(value) => handleChange("bus.gain", value)} />
+          <label className="fx-module__field">
+            <span className="fx-module__field-label" title="Pan">
+              Pan
+            </span>
+            <input type="range" min={-1} max={1} step={0.01} value={pan} onChange={(e) => handlePanChange(Number(e.target.value))} />
+            <span className="fx-module__value">{pan.toFixed(2)}</span>
+          </label>
         </div>
 
-        {fxChain.map((entry) => {
+        {fxChain.map((entry, index) => {
           const fxType = getFxType(entry.type);
           if (!fxType) return null;
+          const instanceValues = fxBag.instances?.[entry.id] ?? {};
           return (
-            <div className="fx-module" key={entry.type}>
+            <div className="fx-module" key={entry.id}>
               <div className="fx-module__header">
-                <span className="fx-module__title">{fxType.label}</span>
+                <span className="fx-module__title">{getFxInstanceLabel(fxChain, entry.id)}</span>
+                <button
+                  type="button"
+                  className="fx-module__move"
+                  onClick={() => handleMove(entry.id, -1)}
+                  disabled={index === 0}
+                  title="Move up"
+                >
+                  ▲
+                </button>
+                <button
+                  type="button"
+                  className="fx-module__move"
+                  onClick={() => handleMove(entry.id, 1)}
+                  disabled={index === fxChain.length - 1}
+                  title="Move down"
+                >
+                  ▼
+                </button>
                 <button
                   type="button"
                   className={`fx-module__bypass${entry.bypassed ? " fx-module__bypass--active" : ""}`}
-                  onClick={() => handleToggleBypass(entry.type, !entry.bypassed)}
+                  onClick={() => handleToggleBypass(entry.id, !entry.bypassed)}
                   title="Bypass"
                 >
                   B
                 </button>
-                <button type="button" className="fx-module__remove" onClick={() => handleRemoveFx(entry.type)} title="Remove">
+                <button type="button" className="fx-module__remove" onClick={() => handleRemoveFx(entry.id)} title="Remove">
                   ×
                 </button>
               </div>
               {getFxParamsForType(entry.type).map((param) => (
-                <FxParamField key={param.id} param={param} value={fxBag[param.id] ?? param.default} onChange={(value) => handleChange(param.id, value)} />
+                <FxParamField
+                  key={param.id}
+                  param={param}
+                  value={instanceValues[param.id] ?? param.default}
+                  onChange={(value) => handleInstanceChange(entry.id, param.id, value)}
+                />
               ))}
             </div>
           );
@@ -155,19 +208,17 @@ export default function FxPanel({ store, fxController }) {
         {fxChain.length === 0 && <div className="fx-panel__empty">No FX enabled</div>}
       </div>
 
-      {availableTypes.length > 0 && (
-        <label className="fx-panel__add">
-          + ADD FX
-          <select value="" onChange={(e) => handleAddFx(e.target.value)}>
-            <option value="">(select)</option>
-            {availableTypes.map((fxType) => (
-              <option key={fxType.id} value={fxType.id}>
-                {fxType.label}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
+      <label className="fx-panel__add">
+        + ADD FX
+        <select value="" onChange={(e) => handleAddFx(e.target.value)}>
+          <option value="">(select)</option>
+          {FX_TYPES.map((fxType) => (
+            <option key={fxType.id} value={fxType.id}>
+              {fxType.label}
+            </option>
+          ))}
+        </select>
+      </label>
     </div>
   );
 }

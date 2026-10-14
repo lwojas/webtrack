@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { compileEvent, compileRow, compileRowFx, noteDurationSteps } from "../src/audio/compile.js";
 import { createSong } from "../src/model/song.js";
 import { createInstrumentSlot } from "../src/model/instrument.js";
-import { setEventField, setTrackLength, setCellFxParam, addTrackFx } from "../src/model/mutations.js";
+import { setEventField, setTrackLength, setCellFxParam, setCellFxInstanceParam, addTrackFx } from "../src/model/mutations.js";
 import { getSelectedPattern } from "../src/model/query.js";
 
 function makeInstruments() {
@@ -87,6 +87,40 @@ describe("compileEvent", () => {
     const event = getSelectedPattern(song).tracks[0].events[0];
     const compiled = compileEvent(event, song.trackChannels[0], makeInstruments());
     expect(compiled).not.toHaveProperty("bus");
+  });
+
+  it("passes event.pan straight through as webdsp's TriggerParams.pan", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 60);
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "instrument", 0);
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "pan", -0.5);
+    const event = getSelectedPattern(song).tracks[0].events[0];
+    const compiled = compileEvent(event, song.trackChannels[0], makeInstruments());
+    expect(compiled.pan).toBe(-0.5);
+  });
+
+  it("omits pan (falls back to the instrument's own default pan, no per-note offset) when the cell's pan is unset", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 60);
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "instrument", 0);
+    const event = getSelectedPattern(song).tracks[0].events[0];
+    expect(event.pan).toBe(null); // createEmptyEvent's default — never touched above
+    const compiled = compileEvent(event, song.trackChannels[0], makeInstruments());
+    expect(compiled).not.toHaveProperty("pan");
+  });
+
+  it("never sets pan for a MIDI-output instrument — there's no webdsp voice to pan", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 60);
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "instrument", 0);
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "pan", 0.5);
+    const event = getSelectedPattern(song).tracks[0].events[0];
+    const midiInstruments = [createInstrumentSlot({ id: 0, output: { type: "midi", channel: 0 } })];
+    const compiled = compileEvent(event, song.trackChannels[0], midiInstruments);
+    expect(compiled).not.toHaveProperty("pan");
   });
 
   it("tags a compiled sample event with kind: 'sample'", () => {
@@ -322,24 +356,33 @@ describe("compileRow", () => {
 });
 
 describe("compileRowFx", () => {
-  it("returns a sparse change per track whose cell at this row has fx set", () => {
+  it("returns a sparse change per track whose cell at this row has instance fx set, carrying the instance id", () => {
     const song = createSong();
     const patternId = song.patterns[0].id;
-    addTrackFx(song, 0, "filter");
-    addTrackFx(song, 2, "delay");
-    setCellFxParam(song, { patternId, trackIndex: 0, rowIndex: 0 }, "filter.cutoff", 1200);
-    setCellFxParam(song, { patternId, trackIndex: 2, rowIndex: 0 }, "delay.mix", 0.25);
+    const filterId = addTrackFx(song, 0, "filter");
+    const delayId = addTrackFx(song, 2, "delay");
+    setCellFxInstanceParam(song, { patternId, trackIndex: 0, rowIndex: 0 }, filterId, "filter.cutoff", 1200);
+    setCellFxInstanceParam(song, { patternId, trackIndex: 2, rowIndex: 0 }, delayId, "delay.mix", 0.25);
     const pattern = getSelectedPattern(song);
 
     const changes = compileRowFx(pattern, 0);
 
     expect(changes).toEqual(
       expect.arrayContaining([
-        { trackIndex: 0, paramId: "filter.cutoff", value: 1200 },
-        { trackIndex: 2, paramId: "delay.mix", value: 0.25 },
+        { trackIndex: 0, instanceId: filterId, paramId: "filter.cutoff", value: 1200 },
+        { trackIndex: 2, instanceId: delayId, paramId: "delay.mix", value: 0.25 },
       ]),
     );
     expect(changes).toHaveLength(2);
+  });
+
+  it("returns a change with instanceId: null for the flat bus.gain entry", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setCellFxParam(song, { patternId, trackIndex: 0, rowIndex: 0 }, "bus.gain", 0.5);
+    const pattern = getSelectedPattern(song);
+
+    expect(compileRowFx(pattern, 0)).toEqual([{ trackIndex: 0, instanceId: null, paramId: "bus.gain", value: 0.5 }]);
   });
 
   it("returns nothing for a row with no fx-automated cells", () => {
@@ -351,23 +394,40 @@ describe("compileRowFx", () => {
   it("isn't gated by mute/solo — fx automation latches in even on a muted track", () => {
     const song = createSong();
     const patternId = song.patterns[0].id;
-    addTrackFx(song, 0, "filter");
-    setCellFxParam(song, { patternId, trackIndex: 0, rowIndex: 0 }, "filter.cutoff", 1200);
+    const filterId = addTrackFx(song, 0, "filter");
+    setCellFxInstanceParam(song, { patternId, trackIndex: 0, rowIndex: 0 }, filterId, "filter.cutoff", 1200);
     song.trackChannels[0].muted = true;
     const pattern = getSelectedPattern(song);
 
-    expect(compileRowFx(pattern, 0)).toEqual([{ trackIndex: 0, paramId: "filter.cutoff", value: 1200 }]);
+    expect(compileRowFx(pattern, 0)).toEqual([{ trackIndex: 0, instanceId: filterId, paramId: "filter.cutoff", value: 1200 }]);
   });
 
   it("folds the transport step through each track's own polymetric length, same as compileRow", () => {
     const song = createSong();
     const patternId = song.patterns[0].id;
     setTrackLength(song, patternId, 0, 4);
-    addTrackFx(song, 0, "delay");
-    setCellFxParam(song, { patternId, trackIndex: 0, rowIndex: 3 }, "delay.mix", 0.5);
+    const delayId = addTrackFx(song, 0, "delay");
+    setCellFxInstanceParam(song, { patternId, trackIndex: 0, rowIndex: 3 }, delayId, "delay.mix", 0.5);
     const pattern = getSelectedPattern(song);
 
     // transport step 7 -> local row 3 (7 % 4) on a track of length 4
-    expect(compileRowFx(pattern, 7)).toEqual([{ trackIndex: 0, paramId: "delay.mix", value: 0.5 }]);
+    expect(compileRowFx(pattern, 7)).toEqual([{ trackIndex: 0, instanceId: delayId, paramId: "delay.mix", value: 0.5 }]);
+  });
+
+  it("keeps two instances of the same type independent — automating one never shows up under the other's id", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    const filterA = addTrackFx(song, 0, "filter");
+    const filterB = addTrackFx(song, 0, "filter");
+    setCellFxInstanceParam(song, { patternId, trackIndex: 0, rowIndex: 0 }, filterA, "filter.cutoff", 400);
+    setCellFxInstanceParam(song, { patternId, trackIndex: 0, rowIndex: 0 }, filterB, "filter.cutoff", 4000);
+    const pattern = getSelectedPattern(song);
+
+    expect(compileRowFx(pattern, 0)).toEqual(
+      expect.arrayContaining([
+        { trackIndex: 0, instanceId: filterA, paramId: "filter.cutoff", value: 400 },
+        { trackIndex: 0, instanceId: filterB, paramId: "filter.cutoff", value: 4000 },
+      ]),
+    );
   });
 });

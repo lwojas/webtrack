@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getFxParam, getFxParamsForType, formatFxValue, isFxBooleanOn } from "../src/model/fxParams.js";
+import { FX_TYPES, getFxParam, getFxParamsForType, getFxInstanceLabel, formatFxValue, isFxBooleanOn } from "../src/model/fxParams.js";
 
 describe("filter.mode — the boolean low-pass/high-pass FX parameter", () => {
   it("is catalogued under the filter type, independent of the filter's bypass values", () => {
@@ -42,6 +42,42 @@ describe("filter.slope — the boolean 12dB/24dB filter FX parameter (webdsp's F
     const param = getFxParam("filter.slope");
     expect(formatFxValue(12, param)).toBe("12dB");
     expect(formatFxValue(24, param)).toBe("24dB");
+  });
+});
+
+describe("Phaser / Bitcrusher catalog entries", () => {
+  it("FX_TYPES includes phaser and bitcrusher, with no bypassValues field (real per-instance enable/disable replaced it)", () => {
+    const phaser = FX_TYPES.find((t) => t.id === "phaser");
+    const bitcrusher = FX_TYPES.find((t) => t.id === "bitcrusher");
+    expect(phaser).toEqual({ id: "phaser", label: "Phaser" });
+    expect(bitcrusher).toEqual({ id: "bitcrusher", label: "Bitcrusher" });
+  });
+
+  it("getFxParamsForType('phaser') returns every PhaserX param, phaser.stages marked non-cell-automatable", () => {
+    const ids = getFxParamsForType("phaser").map((p) => p.id);
+    expect(ids).toEqual(["phaser.rate", "phaser.depth", "phaser.center", "phaser.feedback", "phaser.stages", "phaser.mix"]);
+    expect(getFxParam("phaser.stages").cellAutomatable).toBe(false);
+  });
+
+  it("getFxParamsForType('bitcrusher') returns every CrushX param", () => {
+    expect(getFxParamsForType("bitcrusher").map((p) => p.id)).toEqual(["crush.bits", "crush.downsample", "crush.mix"]);
+  });
+});
+
+describe("getFxInstanceLabel — disambiguates stacked instances of the same kind", () => {
+  it("numbers same-kind instances by chain position, always including the ordinal", () => {
+    const chain = [
+      { id: 1, type: "filter", bypassed: false },
+      { id: 2, type: "delay", bypassed: false },
+      { id: 3, type: "filter", bypassed: false },
+    ];
+    expect(getFxInstanceLabel(chain, 1)).toBe("Filter #1");
+    expect(getFxInstanceLabel(chain, 2)).toBe("Delay #1");
+    expect(getFxInstanceLabel(chain, 3)).toBe("Filter #2");
+  });
+
+  it("returns an empty string for an id not in the chain", () => {
+    expect(getFxInstanceLabel([], 99)).toBe("");
   });
 });
 

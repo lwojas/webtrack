@@ -106,16 +106,17 @@ describe("serializeProject / deserializeProject", () => {
 
     const restored = await deserializeProject(serialized, { loadSampleBytes: async () => null });
 
-    expect(restored.song.trackChannels[0].fx).toEqual({});
-    expect(restored.song.masterFx).toEqual({});
+    expect(restored.song.trackChannels[0].fx).toEqual({ instances: {} });
+    expect(restored.song.masterFx).toEqual({ instances: {} });
   });
 
-  it("derives fxChain/masterFxChain for a project saved before FX chains existed, from whatever FX it already used", async () => {
+  it("derives fxChain/masterFxChain for a project saved before FX chains existed, from whatever FX it already used, assigning each a fresh instance id and moving its values into fx.instances", async () => {
     const song = createSong();
     const patternId = song.patterns[0].id;
-    // Simulate a v2 file saved before fxChain existed at all: a non-default fx bag value (the
-    // old implicit "enabled" signal) on track 0's delay, and a cell automating track 1's
-    // compressor directly, with no fxChain/masterFxChain field anywhere.
+    // Simulate a v2 file saved before fxChain (and its per-instance ids) existed at all: a
+    // non-default flat fx bag value (the old implicit "enabled" signal) on track 0's delay, and
+    // a cell automating track 1's compressor directly via the old flat shape, with no
+    // fxChain/masterFxChain field anywhere.
     song.trackChannels[0].fx = { "delay.mix": 0.4 };
     delete song.trackChannels[0].fxChain;
     setEventField(song, { patternId, trackIndex: 1, rowIndex: 0 }, "note", 60);
@@ -124,14 +125,46 @@ describe("serializeProject / deserializeProject", () => {
     delete song.trackChannels[2].fxChain;
     song.masterFx = { "reverb.mix": 0.3 };
     delete song.masterFxChain;
+    delete song.nextFxInstanceId;
 
     const serialized = serializeProject({ song, instruments: [], ui: {} });
     const restored = await deserializeProject(serialized, { loadSampleBytes: async () => null });
 
-    expect(restored.song.trackChannels[0].fxChain).toEqual([{ type: "delay", bypassed: false }]);
-    expect(restored.song.trackChannels[1].fxChain).toEqual([{ type: "compressor", bypassed: false }]);
+    expect(restored.song.trackChannels[0].fxChain).toHaveLength(1);
+    const [delayEntry] = restored.song.trackChannels[0].fxChain;
+    expect(delayEntry).toMatchObject({ type: "delay", bypassed: false });
+    expect(typeof delayEntry.id).toBe("number");
+    expect(restored.song.trackChannels[0].fx.instances[delayEntry.id]).toEqual({ "delay.mix": 0.4 });
+
+    expect(restored.song.trackChannels[1].fxChain).toHaveLength(1);
+    const [compEntry] = restored.song.trackChannels[1].fxChain;
+    expect(compEntry).toMatchObject({ type: "compressor", bypassed: false });
+    // The cell's own flat Event.fx automation moved to the same freshly-assigned instance id.
+    expect(restored.song.patterns[0].tracks[1].events[0].fx).toEqual({ instances: { [compEntry.id]: { "comp.threshold": -12 } } });
+
     expect(restored.song.trackChannels[2].fxChain).toEqual([]);
-    expect(restored.song.masterFxChain).toEqual([{ type: "reverb", bypassed: false }]);
+
+    expect(restored.song.masterFxChain).toHaveLength(1);
+    const [reverbEntry] = restored.song.masterFxChain;
+    expect(reverbEntry).toMatchObject({ type: "reverb", bypassed: false });
+    expect(restored.song.masterFx.instances[reverbEntry.id]).toEqual({ "reverb.mix": 0.3 });
+
+    // Every migrated instance across both tracks and master got a distinct id.
+    const allIds = [delayEntry.id, compEntry.id, reverbEntry.id];
+    expect(new Set(allIds).size).toBe(allIds.length);
+  });
+
+  it("leaves an already-id-based fxChain/fx untouched (new-format project, nothing to migrate)", async () => {
+    const song = createSong();
+    song.trackChannels[0].fxChain = [{ id: 7, type: "filter", bypassed: false }];
+    song.trackChannels[0].fx = { instances: { 7: { "filter.cutoff": 900 } } };
+    song.nextFxInstanceId = 8;
+    const serialized = serializeProject({ song, instruments: [], ui: {} });
+
+    const restored = await deserializeProject(serialized, { loadSampleBytes: async () => null });
+
+    expect(restored.song.trackChannels[0].fxChain).toEqual([{ id: 7, type: "filter", bypassed: false }]);
+    expect(restored.song.trackChannels[0].fx.instances[7]).toEqual({ "filter.cutoff": 900 });
   });
 
   it("round-trips a MIDI-output instrument's output type and channel", async () => {
@@ -246,6 +279,51 @@ describe("serializeProject / deserializeProject", () => {
     const restored = await deserializeProject(serialized, { loadSampleBytes: async () => "fresh-id" });
 
     expect(restored.instruments[0].origin).toBe("import");
+  });
+
+  it("round-trips an instrument's ADSR envelope", async () => {
+    const instruments = [
+      createInstrumentSlot({ id: 0, name: "Kick", sampleId: "x", envelope: { attack: 0.01, decay: 0.2, sustain: 0.6, release: 0.4 } }),
+    ];
+    const serialized = serializeProject({ song: createSong(), instruments, ui: {} });
+
+    const restored = await deserializeProject(serialized, { loadSampleBytes: async () => "fresh-id" });
+
+    expect(restored.instruments[0].envelope).toEqual({ attack: 0.01, decay: 0.2, sustain: 0.6, release: 0.4 });
+  });
+
+  it("defaults an instrument's envelope to webdsp's own pre-envelope-equivalent values on a project saved before envelopes existed", async () => {
+    const instruments = [createInstrumentSlot({ id: 0, name: "Kick", sampleId: "x" })];
+    const serialized = serializeProject({ song: createSong(), instruments, ui: {} });
+    delete serialized.instruments[0].envelope; // simulate a file saved before Instrument.envelope existed
+
+    const restored = await deserializeProject(serialized, { loadSampleBytes: async () => "fresh-id" });
+
+    expect(restored.instruments[0].envelope).toEqual({ attack: 0, decay: 0, sustain: 1, release: 0.01 });
+  });
+
+  it("round-trips track/master pan", async () => {
+    const song = createSong();
+    song.trackChannels[0].pan = -0.6;
+    song.masterPan = 0.3;
+    const serialized = serializeProject({ song, instruments: [], ui: {} });
+
+    const restored = await deserializeProject(serialized, { loadSampleBytes: async () => null });
+
+    expect(restored.song.trackChannels[0].pan).toBe(-0.6);
+    expect(restored.song.masterPan).toBe(0.3);
+  });
+
+  it("defaults track/master pan to centre (0) on a project saved before panning existed", async () => {
+    const song = createSong();
+    delete song.trackChannels[0].pan;
+    delete song.masterPan;
+    const serialized = serializeProject({ song, instruments: [], ui: {} });
+
+    const restored = await deserializeProject(serialized, { loadSampleBytes: async () => null });
+
+    expect(restored.song.trackChannels[0].pan).toBe(0);
+    expect(restored.song.masterPan).toBe(0);
   });
 
   it("rejects an unsupported format version", async () => {

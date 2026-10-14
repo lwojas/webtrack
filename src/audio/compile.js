@@ -19,9 +19,17 @@ export function noteDurationSteps(track, rowIndex) {
   return 1;
 }
 
-// event.pan is modeled (model/event.js) and editable, but webdsp has no per-voice pan
-// parameter yet (see its ARCHITECTURE.md, "Intentionally deferred") — nothing to wire it to
-// until the engine grows one, so it's deliberately not read here.
+// event.pan (model/event.js, editable via ui/chrome/NoteEditor.jsx's PAN slider) is a per-note
+// pan offset, compiled straight into webdsp's own per-voice TriggerParams.pan (see
+// node_modules/webdsp's docs/panning.md) — null (the default/unset state) omits the field
+// entirely rather than sending an explicit 0, so an untouched cell plays at the sample's own
+// instrument-default pan (SampleParam.Pan) with no per-note offset at all, not a per-note offset
+// that happens to be zero. It composes with, and is independent of, the track/master-level bus
+// pan this file's sibling pushes (audio/fx.js#setTrackPan/setMasterPan) — see docs/panning.md's
+// "Where it sits in the signal path": voice pan is applied per note, before the bus sum; bus pan
+// is a channel-strip control for the whole track/master, applied after BusGain. A voice panned
+// left on a bus panned left is further left, never cancelling out. Only meaningful for a
+// "sample" output — a MIDI output has no webdsp voice to pan.
 //
 // `bus` (a webdsp BusId, from audio/runtime.js#ensureTrackBuses) routes this voice into its
 // track's own insert-bus FX chain instead of straight to MASTER_BUS — omitted (the
@@ -73,6 +81,7 @@ export function compileEvent(event, trackChannel, instruments, time, durationSec
   if (time !== undefined) compiled.time = time;
   if (durationSeconds !== undefined) compiled.duration = durationSeconds;
   if (bus !== undefined && bus !== null) compiled.bus = bus;
+  if (event.pan !== null && event.pan !== undefined) compiled.pan = event.pan;
   return compiled;
 }
 
@@ -116,16 +125,21 @@ export function compileRow(pattern, trackChannels, instruments, transportStep, t
   return events;
 }
 
-// Cell-level FX automation at a row — distinct from compileRow's note triggers above: a
-// sparse { trackIndex, paramId, value } entry for every Event.fx key actually set on whichever
-// cell each track is on right now, folded through the exact same trackLocalStep every other
-// per-track read path uses (audio/compile.js's own compileRow above, and
+// Cell-level FX automation at a row — distinct from compileRow's note triggers above: a sparse
+// { trackIndex, instanceId, paramId, value } entry for every Event.fx key actually set on
+// whichever cell each track is on right now, folded through the exact same trackLocalStep every
+// other per-track read path uses (audio/compile.js's own compileRow above, and
 // audio/playbackController.js#getTrackPlayheadRow for what's drawn), so cell FX can never
 // disagree with what plays or what's shown. Deliberately NOT gated by mute/solo (unlike
 // compileRow) — a track's FX automation should keep latching in even while muted, same as
 // turning a real mixer knob would; and deliberately never looks at song.masterFx/MASTER_BUS —
 // a tracker cell can only ever address its own track's insert bus (see the brief's track-vs-
 // master ownership rule).
+//
+// instanceId is `null` for the one flat, non-chain entry (bus.gain — model/event.js#fx's own
+// doc comment) and the real chain-instance id for everything under fx.instances — callers
+// (audio/playbackController.js) branch on it to pick the matching audio/fx.js setter
+// (setTrackFxParam vs. setTrackFxInstanceParam).
 export function compileRowFx(pattern, transportStep) {
   const changes = [];
 
@@ -135,7 +149,14 @@ export function compileRowFx(pattern, transportStep) {
     if (!event?.fx) return;
 
     for (const paramId in event.fx) {
-      changes.push({ trackIndex, paramId, value: event.fx[paramId] });
+      if (paramId === "instances") continue;
+      changes.push({ trackIndex, instanceId: null, paramId, value: event.fx[paramId] });
+    }
+    for (const instanceId in event.fx.instances ?? {}) {
+      const bag = event.fx.instances[instanceId];
+      for (const paramId in bag) {
+        changes.push({ trackIndex, instanceId: Number(instanceId), paramId, value: bag[paramId] });
+      }
     }
   });
 

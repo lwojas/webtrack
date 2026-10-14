@@ -370,7 +370,9 @@ already established):
   rather than a hardcoded 0/1 — `filter.slope`'s two values are webdsp's own real 12/24, not a
   normalized flag like `filter.mode`'s.
 
-Writes exclusively through `store.setTrackChannelVolume`/`fxController.setTrackFxParam` — the
+Writes exclusively through `store.setTrackChannelVolume`/`fxController.setTrackFxInstanceParam`
+(the latter addresses one specific stacked FX instance's own parameter bag, now that the same
+kind can appear more than once in a chain — `model/trackChannel.js#fxChain`'s doc comment) — the
 exact calls `Mixer.jsx`/`FxPanel.jsx` already use, so there's one path from "a parameter
 changed" to the engine, whichever UI (hardware or React) changed it.
 
