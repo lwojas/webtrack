@@ -8,7 +8,7 @@ import { barsForRowCount, MAX_BARS } from "../../model/timing.js";
 // mutate; nothing here touches grid DOM directly. Pattern selection/creation lives in the
 // Pattern Manager tab (ui/chrome/PatternManager.jsx) — this bar only shows which pattern is
 // currently selected and lets its length be changed.
-export default function TransportBar({ store, playbackController, onSaveProject, onLoadProjectFile }) {
+export default function TransportBar({ store, playbackController, onSaveProject, onLoadProjectFile, onOpenSettings }) {
   const playing = useStore(store, events.TRANSPORT_CHANGED, (s) => s.playing);
   const bpm = useStore(store, events.TRANSPORT_CHANGED, (s) => s.song.bpm);
   const swing = useStore(store, events.TRANSPORT_CHANGED, (s) => s.song.swing);
@@ -95,6 +95,9 @@ export default function TransportBar({ store, playbackController, onSaveProject,
             LOAD
             <input type="file" accept="application/json" hidden onChange={handleLoadFileChange} />
           </label>
+          <button className="transport-bar__chip transport-bar__settings" onClick={onOpenSettings} title="Settings" aria-label="Settings">
+            ⚙
+          </button>
         </div>
       </div>
     </div>

@@ -22,7 +22,7 @@ import {
   CC_MODE_CLIP,
   PUSH_CHANNEL,
   padCoordinates,
-  FEEDBACK_OFF,
+  FEEDBACK_DIM,
   FEEDBACK_FULL,
 } from "./constants.js";
 
@@ -60,14 +60,17 @@ export function createPushModeController({ device, gridContent = {} }) {
   // device always shows what you'll land on next time you press Session (see the architecture
   // doc). These four are monochrome dim/full-feedback buttons, not velocity-color-led (see
   // colors.js's own doc comment on the bug that came from mixing the two up) — FEEDBACK_FULL/
-  // FEEDBACK_OFF from constants.js, never a RAW/PALETTE color.
+  // FEEDBACK_DIM from constants.js, never a RAW/PALETTE color. Unselected is dim (not off) so a
+  // mutually-exclusive button group always shows every option as a real, lit choice rather than
+  // looking like only one of four buttons even does anything — the same dim/full convention
+  // encoderController.js's CC114/115 buttons and transportController.js's Play button reuse.
   function paintModeButtons() {
     if (lastPaintedModeState?.pushMode === pushMode && lastPaintedModeState?.sessionView === sessionView) return;
     lastPaintedModeState = { pushMode, sessionView };
-    sendCC(CC_MODE_NOTE, pushMode === "note" ? FEEDBACK_FULL : FEEDBACK_OFF);
-    sendCC(CC_MODE_SESSION, pushMode === "session" ? FEEDBACK_FULL : FEEDBACK_OFF);
-    sendCC(CC_MODE_TRACK, sessionView === "tracker" ? FEEDBACK_FULL : FEEDBACK_OFF);
-    sendCC(CC_MODE_CLIP, sessionView === "pattern" ? FEEDBACK_FULL : FEEDBACK_OFF);
+    sendCC(CC_MODE_NOTE, pushMode === "note" ? FEEDBACK_FULL : FEEDBACK_DIM);
+    sendCC(CC_MODE_SESSION, pushMode === "session" ? FEEDBACK_FULL : FEEDBACK_DIM);
+    sendCC(CC_MODE_TRACK, sessionView === "tracker" ? FEEDBACK_FULL : FEEDBACK_DIM);
+    sendCC(CC_MODE_CLIP, sessionView === "pattern" ? FEEDBACK_FULL : FEEDBACK_DIM);
   }
 
   function switchTo(nextMode, nextSessionView) {
@@ -133,5 +136,22 @@ export function createPushModeController({ device, gridContent = {} }) {
     return { pushMode, sessionView };
   }
 
-  return { attach, getState };
+  // Forces a full resync without re-entering the active content — used by appContext.js's
+  // refreshPushState() (e.g. after a Push reconnect, or the Settings modal's manual refresh
+  // button) to repaint everything currently on the device. Deliberately does NOT call
+  // onEnter() again: onEnter() is where trackerGridMode.js subscribes to the store, and calling
+  // it a second time while already attached would pile a second set of subscriptions on top of
+  // the first with no way to ever cancel the original ones — the exact StrictMode double-mount
+  // leak class documented in docs/MIDI.md's "Lessons from real bugs" #2, just triggered by a
+  // manual refresh instead of React. A content's own refresh() (if it has one) resets its LED
+  // diff cache and repaints; paint() alone is the fallback for a content with no cache to reset.
+  function refresh() {
+    lastPaintedModeState = null;
+    paintModeButtons();
+    const content = activeContent();
+    if (content?.refresh) content.refresh();
+    else content?.paint?.();
+  }
+
+  return { attach, getState, refresh };
 }

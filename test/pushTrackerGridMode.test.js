@@ -228,3 +228,22 @@ describe("createPushTrackerGridMode — live playhead LEDs", () => {
     mode.onExit();
   });
 });
+
+describe("createPushTrackerGridMode — refresh()", () => {
+  // Used by modeController.js#refresh() (a Push reconnect, or the Settings modal's manual
+  // refresh button) when this is the active content — must reset the diff cache (so a stale
+  // cache from before a reconnect can't suppress a send the device actually needs) and
+  // repaint, without re-subscribing to the store.
+  it("resets the diff cache so a full repaint is sent again, even though nothing changed", () => {
+    const { device, mode } = createTestContext();
+    mode.onEnter();
+    mode.paint();
+    device.send.mockClear();
+
+    mode.refresh();
+
+    const padSends = device.send.mock.calls.filter(([bytes]) => bytes[0] === 0x90);
+    expect(padSends).toHaveLength(64);
+    mode.onExit();
+  });
+});

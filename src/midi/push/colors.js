@@ -46,4 +46,9 @@ export const PALETTE = {
   // root-note-highlight; re-check against real hardware before relying on it.
   NOTE_KEY_ROOT: RAW.AMBER,
   NOTE_KEY_IN_RANGE: RAW.DIM_WHITE,
+  // Note Mode's own resting/pressed pair (noteEntryMode.js) — kept here, centrally, with every
+  // other Push color rather than buried in that file, so re-theming is a one-place edit like
+  // everything else above. AMBER is provisional (see RAW's own caveat); GREEN is confirmed.
+  NOTE_MODE_BASE: RAW.AMBER,
+  NOTE_MODE_PRESSED: RAW.GREEN,
 };

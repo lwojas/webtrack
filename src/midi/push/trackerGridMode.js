@@ -242,5 +242,14 @@ export function createPushTrackerGridMode({ device, store, playbackController })
     darkenAll();
   }
 
-  return { onEnter, onExit, onPadOn, onCC, paint };
+  // Used by modeController.js#refresh() (a Push reconnect, or the Settings modal's manual
+  // refresh button) when this is the active content — resets the diff caches (so a stale cache
+  // from before a reconnect can't suppress a send the device actually needs) and repaints, but
+  // deliberately doesn't touch the store subscriptions onEnter() owns.
+  function refresh() {
+    resetPaintCache();
+    paint();
+  }
+
+  return { onEnter, onExit, onPadOn, onCC, paint, refresh };
 }

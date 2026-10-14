@@ -6,7 +6,7 @@ import {
   CC_MODE_TRACK,
   CC_MODE_CLIP,
   padNote,
-  FEEDBACK_OFF,
+  FEEDBACK_DIM,
   FEEDBACK_FULL,
 } from "../src/midi/push/constants.js";
 
@@ -35,17 +35,17 @@ const NOTE_ON = 0x90;
 const NOTE_OFF = 0x80;
 
 describe("createPushModeController — mode button state machine", () => {
-  it("defaults to session.tracker and paints all four mode buttons on attach", () => {
+  it("defaults to session.tracker and paints all four mode buttons on attach — unselected is dim, not off", () => {
     const device = createFakeDevice();
     const controller = createPushModeController({ device, gridContent: {} });
 
     controller.attach();
 
     expect(controller.getState()).toEqual({ pushMode: "session", sessionView: "tracker" });
-    expect(device.send).toHaveBeenCalledWith([CC_ON, CC_MODE_NOTE, FEEDBACK_OFF]);
+    expect(device.send).toHaveBeenCalledWith([CC_ON, CC_MODE_NOTE, FEEDBACK_DIM]);
     expect(device.send).toHaveBeenCalledWith([CC_ON, CC_MODE_SESSION, FEEDBACK_FULL]);
     expect(device.send).toHaveBeenCalledWith([CC_ON, CC_MODE_TRACK, FEEDBACK_FULL]);
-    expect(device.send).toHaveBeenCalledWith([CC_ON, CC_MODE_CLIP, FEEDBACK_OFF]);
+    expect(device.send).toHaveBeenCalledWith([CC_ON, CC_MODE_CLIP, FEEDBACK_DIM]);
   });
 
   it("CC50 (Note) switches pushMode to note and repaints", () => {
@@ -58,7 +58,7 @@ describe("createPushModeController — mode button state machine", () => {
 
     expect(controller.getState().pushMode).toBe("note");
     expect(device.send).toHaveBeenCalledWith([CC_ON, CC_MODE_NOTE, FEEDBACK_FULL]);
-    expect(device.send).toHaveBeenCalledWith([CC_ON, CC_MODE_SESSION, FEEDBACK_OFF]);
+    expect(device.send).toHaveBeenCalledWith([CC_ON, CC_MODE_SESSION, FEEDBACK_DIM]);
   });
 
   it("CC112 (Track) sets sessionView to tracker AND switches into session mode, even from note mode", () => {
@@ -256,5 +256,35 @@ describe("createPushModeController — gridContent dispatch", () => {
 
     expect(note.onPadOn).toHaveBeenCalledWith(0, 0, 100);
     expect(tracker.onPadOn).not.toHaveBeenCalled();
+  });
+});
+
+describe("createPushModeController — refresh()", () => {
+  it("repaints the mode buttons and calls the active content's own refresh(), not onEnter", () => {
+    const device = createFakeDevice();
+    const tracker = createFakeContent();
+    tracker.refresh = vi.fn();
+    const controller = createPushModeController({ device, gridContent: { "session.tracker": tracker } });
+    controller.attach();
+    tracker.onEnter.mockClear();
+    device.send.mockClear();
+
+    controller.refresh();
+
+    expect(device.send).toHaveBeenCalledWith([CC_ON, CC_MODE_SESSION, FEEDBACK_FULL]);
+    expect(tracker.refresh).toHaveBeenCalledTimes(1);
+    expect(tracker.onEnter).not.toHaveBeenCalled(); // never re-subscribes — see the StrictMode leak this avoids
+  });
+
+  it("falls back to paint() when the active content has no refresh()", () => {
+    const device = createFakeDevice();
+    const tracker = createFakeContent(); // no .refresh
+    const controller = createPushModeController({ device, gridContent: { "session.tracker": tracker } });
+    controller.attach();
+    tracker.paint.mockClear();
+
+    controller.refresh();
+
+    expect(tracker.paint).toHaveBeenCalledTimes(1);
   });
 });

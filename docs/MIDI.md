@@ -181,14 +181,19 @@ substitute, since re-deriving it would mean re-probing a real device.
 ### Layout
 
 ```
-src/midi/push/
-  constants.js        protocol constants — CCs, pad note formula, LCD SysEx framing
-  colors.js            LED feedback — RAW bytes + a semantic PALETTE
-  pushDevice.js         raw connection to the Push's "User Port" input/output pair
-  modeController.js     the CC50/51/112/113 mode state machine + gridContent dispatch
-  noteEntryMode.js       "note" content — pads behave like a keyboard
-  trackerGridMode.js     "session.tracker" content — the tracker grid controller
-  patternGridModeStub.js "session.pattern" content — a placeholder (Pattern view isn't built)
+src/midi/
+  deviceManager.js        generic Web MIDI port listing, for the Settings modal
+  push/
+    constants.js        protocol constants — CCs, pad note formula, LCD SysEx framing
+    colors.js            LED feedback — RAW bytes + a semantic PALETTE
+    lcd.js                 LCD text-building helpers (bars, columns) — not protocol data
+    pushDevice.js         raw connection to the Push's "User Port" input/output pair
+    modeController.js     the CC50/51/112/113 mode state machine + gridContent dispatch
+    noteEntryMode.js       "note" content — pads behave like a keyboard
+    trackerGridMode.js     "session.tracker" content — the tracker grid controller
+    patternGridModeStub.js "session.pattern" content — a placeholder (Pattern view isn't built)
+    encoderController.js    the 8 encoders + LCD — volume/FX modes, independent of gridContent
+    transportController.js  the Play button — also independent of gridContent
 ```
 
 ### `pushDevice.js` — the User Port, never the Live Port
@@ -259,7 +264,10 @@ Pressing Track or Clip sets `sessionView` **and** switches into session mode dir
 land on the grid immediately rather than needing a separate Session press afterward. Note/
 Session light up mutually exclusively per `pushMode`; Track/Clip light up mutually exclusively
 per `sessionView` regardless of which `pushMode` is current — so the device always shows what
-you'll land on next time you press Session.
+you'll land on next time you press Session. The unselected button in each pair is dim
+(`FEEDBACK_DIM`), not off — every mutually-exclusive Push button group (these four, plus
+`encoderController.js`'s CC114/115 and `transportController.js`'s Play) uses this one
+dim/selected-is-full convention, not a per-button scheme.
 
 `gridContent` is the dispatch table — keyed `"note"` or `"session.<view>"` — each entry an
 optional `{ onEnter, onExit, onPadOn(row, column, velocity), onPadOff(row, column),
@@ -283,6 +291,12 @@ of `padCoordinates`) and feeds it through `noteInputSource.js`'s contract — th
 note came from a Push pad instead of a keyboard. `pushNoteEntryMode` is simultaneously a
 `gridContent["note"]` entry (receives pad events from the mode controller) and a regular
 `noteSources` entry in `appContext.js` (the same object, both roles).
+
+Note Mode's pads also carry a deliberate color scheme, configured in `colors.js`'s `PALETTE`
+alongside every other Push color (`NOTE_MODE_BASE`/`NOTE_MODE_PRESSED` — resting amber,
+struck-bright green): `onEnter()` paints the whole grid to the base color, `onPadOn`/`onPadOff`
+flash a pad to the pressed color and back, `onExit()` darkens everything, all diffed against a
+per-pad cache the same way `trackerGridMode.js`'s own LED sends already are.
 
 ### `trackerGridMode.js` — Push as a tracker grid controller
 
@@ -324,6 +338,53 @@ status actually changed get repainted.
 send if the color hasn't actually changed (see "Lessons from real bugs" below for why this
 exists). The cache resets on `onEnter()`, since another mode may have painted over the same
 physical LEDs in the meantime.
+
+### `encoderController.js` — the 8 encoders + LCD, volume/FX modes
+
+Attached independently of `modeController.js`'s grid-mode dispatch — its own
+`device.onMessage` subscription (`pushDevice.js` already supports more than one listener) —
+because the encoder row is a physically separate set of controls from the 8x8 pad grid and stays
+meaningful regardless of whether the grid is currently showing Note or Session content.
+
+Two switchable modes, each a Push-surface-local piece of state (not `state/store.js` — the same
+"this module owns its own windowing state" precedent `trackerGridMode.js`'s own `stepOffset`
+already established):
+
+- **Volume** (`CC_ENCODER_MODE_VOLUME`/114, the hardware's own Volume/Pan button, reused as-is) —
+  encoder *i* controls `trackChannels[i].volume`, the same column-is-track axis the grid/mute
+  strip/track-select row already use. Range clamped to `src/control/contract.js`'s own
+  `track.*.volume` `{min:0,max:1.5}`, not a second copy of that number.
+- **FX** (`CC_ENCODER_MODE_FX`/115 — this project's own reassignment of that physical button,
+  the same kind of repurposing `CC_MODE_NOTE`/`SESSION`/`TRACK`/`CLIP` already are, not a ported
+  hardware meaning) — encoder *i* controls the *i*-th parameter (`model/fxParams.js#getFxParamsForType`)
+  of whichever `fxChain` entry is currently paged to, on the grid cursor's current track
+  (`store.getState().cursor.trackIndex` — the same "current track" `FxPanel.jsx`/`NoteEditor.jsx`
+  already use). `CC_ARROW_LEFT`/`CC_ARROW_RIGHT` (44/45 — unclaimed by `trackerGridMode.js`,
+  which only consumes Up/Down) page between enabled FX modules, clamped at the ends like
+  `trackerGridMode.js#pageSteps` already is. A `kind: "boolean"` parameter (`filter.mode`, see
+  below) can't read a relative encoder's delta as "current + delta" the way a continuous one
+  does — it accumulates `|delta|` and flips once that crosses a small threshold, then resets.
+
+Writes exclusively through `store.setTrackChannelVolume`/`fxController.setTrackFxParam` — the
+exact calls `Mixer.jsx`/`FxPanel.jsx` already use, so there's one path from "a parameter
+changed" to the engine, whichever UI (hardware or React) changed it.
+
+The LCD (4 lines via `constants.js#lcdSysex`, diffed per-line the same "only send what changed"
+way every other Push paint already is) shows a header (mode, or the current FX's name/page/
+track), a bar row per encoder (`midi/push/lcd.js#formatBar`, glyphs from `[ ] - =` per
+`constants.js`'s own doc comment — a boolean parameter centers "ON"/"OFF" instead), a name row,
+and a value row (`model/fxParams.js#formatFxValue`). Repaints on an encoder turn and on
+`TRACK_CHANNEL_CHANGED`/`TRACK_FX_CHANGED`/`CURSOR_MOVED`, so the display tracks a value changed
+from the React UI, a track switch, or an FX-module page turn alike — never a second
+representation of the same state.
+
+### `transportController.js` — the Play button
+
+Also attached independently of the grid-mode dispatch. Reflects `store`'s `playing` flag as
+dim/full on `CC_PLAY`, and a press calls `appContext.js`'s own `togglePlayback()` — the same
+play/stop entry point the keyboard shortcut uses, so Push's Play button can't start playback
+ahead of `ensureDemoInstrumentsLoaded()` finishing (the autoplay-gesture + demo-kit-load race,
+`ARCHITECTURE.md`'s Gotcha #4) by routing around it.
 
 ### `patternGridModeStub.js` — a placeholder, not a feature
 
@@ -437,19 +498,40 @@ Following the shape Push established:
    content to the shared `noteSources` array, and call `attachX()`/its cleanup from `App.jsx`'s
    effect alongside the existing ones.
 
+## The MIDI settings modal (`src/midi/deviceManager.js`, `ui/chrome/SettingsModal.jsx`)
+
+`deviceManager.js` wraps its own `requestMIDIAccess({ sysex: true })` call (overridable, same
+"overridable for tests" shape as everything else above), independent of `pushDevice.js`'s own
+connection — a read-only, generic view of whatever Web MIDI currently sees, for the Settings
+modal's port listing. It never decides what to *do* with a port; `pushDevice.js` is still the
+only thing that connects to anything, and `deviceManager.js` just labels a port `likelyPush` by
+reusing `constants.js`'s own `USER_PORT_NAME_PATTERN` (so the UI never re-derives that rule
+itself). `getSnapshot()` returns a cached, stable reference (rebuilt only on an actual
+access-granted/`statechange` event) — required by `useSyncExternalStore`'s equality check, not
+an incidental detail; returning a fresh object on every call infinite-loops React.
+
+`pushDevice.js` additionally exposes `ensureConnected` (already existed internally; now a public
+re-connect trigger) and `onConnectionChange(fn)`, fired from the end of `refreshPorts()`.
+`appContext.js` wires that straight into `refreshPushState()` — the one function that resyncs
+mode buttons, encoders/LCD, and the Play button together (`pushModeController.refresh()` +
+`pushEncoderController.refresh()` + `pushTransportController.refresh()`) — so a reconnect (the
+device was plugged in after the page loaded, or the Settings modal's own "Reconnect"/"Refresh
+Push State" buttons) always leaves every LED/LCD line matching live state, never stale.
+
+A `refresh()` on each piece deliberately never re-calls `onEnter()` (which owns store
+subscriptions) — only resets that piece's own LED/LCD diff cache and repaints — so a manual
+refresh can't produce the same StrictMode-style leaked-subscription bug `modeController.js`'s
+own `attach()` cleanup was built to avoid (see "Lessons from real bugs" #2 below).
+
 ## Boundaries (what this deliberately doesn't do yet)
 
-- **No LCD/display output.** `constants.js#lcdSysex()` is written and unit-tested
-  (`test/pushConstants.test.js`), and was confirmed to actually render text on the real
-  hardware during Stage 4's hardware pass, but nothing in `src/midi/push/` calls it yet — no
-  contextual per-mode header, no encoder-touch value overlay. The architecture for this (an
-  idle header per mode plus a touch-triggered overlay that auto-reverts, using the same
-  "only write on change" discipline as the LED code) is designed but not built.
 - **No Pattern view.** `patternGridModeStub.js` is the placeholder; see "Boundaries" in that
   file's own doc comment.
-- **Encoders aren't wired to anything.** `ENCODER_CC`/`encoderDelta()` exist in `constants.js`;
-  nothing reads them yet (a natural future fit: track volume, or whatever the LCD's contextual
-  overlay would show while turning one).
+- **No per-port device selection for generic MIDI input/output.** The Settings modal lists every
+  detected port for visibility, but `input/midiInputSource.js` still attaches to every connected
+  input indiscriminately (no per-device filtering exists anywhere in this app) — Push is the only
+  device with real connect/reconnect semantics today, so that's the only "connect" action the
+  modal gives real behavior to.
 - **No voice-stealing/poly-mono policy for MIDI output.** A MIDI-output instrument sends one
   Note On/Off pair per event with no cross-event bookkeeping (see "Scheduling" above) — a
   track's `voiceMode`/`maxVoices` policy (`model/trackChannel.js`) only governs sample-output

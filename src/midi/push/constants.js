@@ -43,6 +43,17 @@ export const CC_MODE_SESSION = 51;
 export const CC_MODE_TRACK = 112;
 export const CC_MODE_CLIP = 113;
 
+// --- Encoder mode select (independent of the grid-mode buttons above) ---
+// CC114 is the Volume/Pan button's own hardware CC, reused as-is (see CC_VOLUME below — same
+// constant, kept here too under this name for symmetry with CC_ENCODER_MODE_FX). CC115 is this
+// project's own reassignment of a physical button to "FX mode" — specified directly by the
+// brief that drove this feature, the same way CC_MODE_NOTE/SESSION/TRACK/CLIP above repurpose
+// their buttons away from whatever Ableton Live would otherwise use them for. Not independently
+// hardware-confirmed as "FX mode" (there's no factory meaning for that), just a CC number this
+// project has chosen to listen on.
+export const CC_ENCODER_MODE_VOLUME = 114;
+export const CC_ENCODER_MODE_FX = 115;
+
 // --- Mute strip (the control row directly above the grid) ---
 // velocity-color-led (see colors.js) — CC 102-109, confirmed: 6=red, 22=green.
 export const MUTE_CC = [102, 103, 104, 105, 106, 107, 108, 109];
@@ -115,3 +126,12 @@ export function lcdSysex(lineIndex, text) {
   const bytes = Array.from(padded, (char) => char.charCodeAt(0));
   return [0xf0, 0x47, 0x7f, 0x15, LCD_LINE_ID[lineIndex], 0x00, 0x45, 0x00, ...bytes, 0xf7];
 }
+
+// --- Device identification ---
+// Matches Push's own "User Port" (never its "Live Port" — see pushDevice.js's own doc comment)
+// by a loose substring rather than an exact name, since the same port can show up elsewhere
+// (Audio MIDI Setup, a DAW's device list) with a manufacturer suffix, e.g. "Ableton Push User
+// Port (Akai)". Lives here (protocol/identification data) rather than only inside pushDevice.js
+// so midi/deviceManager.js's generic port listing can label a detected port as "likely Push"
+// using the exact same pattern, instead of a second, possibly-drifting copy.
+export const USER_PORT_NAME_PATTERN = /push.*user/i;

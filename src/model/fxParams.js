@@ -23,6 +23,17 @@
 export const FX_PARAMS = [
   { id: "filter.cutoff", nodeParam: "FilterCutoff", type: "filter", group: "Filter", label: "Cutoff", min: 20, max: 20000, default: 20000, step: 1, unit: "Hz" },
   { id: "filter.resonance", nodeParam: "FilterResonance", type: "filter", group: "Filter", label: "Resonance", min: 0.1, max: 20, default: 0.707, step: 0.01, unit: "Q" },
+  // webdsp's NodeParam.FilterMode (0 = LowPass, 1 = HighPass — see node_modules/webdsp/lib/
+  // index.d.ts's own FilterMode enum) was previously left out of this catalog entirely (see
+  // docs/FX.md's "Boundaries" — "a discrete on/off mode isn't a great fit for cell automation").
+  // `kind: "boolean"` is this catalog's own extension for exactly that case: a parameter whose
+  // only two values are meaningfully "on"/"off" rather than a continuous range — formatFxValue
+  // below renders it via onLabel/offLabel instead of a numeric string, and both FxPanel.jsx and
+  // Push's encoder LCD (midi/push/encoderController.js) branch on `kind` the same way, so there's
+  // exactly one definition of what this parameter means, not two. Independent of this FX's own
+  // bypass toggle (FX_TYPES' bypassValues below only ever resets cutoff/resonance) — bypassing
+  // the filter doesn't change which mode it's in, it just mutes the filter's effect entirely.
+  { id: "filter.mode", nodeParam: "FilterMode", type: "filter", group: "Filter", label: "Mode", kind: "boolean", min: 0, max: 1, default: 0, step: 1, unit: "", onLabel: "HIGH", offLabel: "LOW", cellAutomatable: false },
 
   { id: "delay.time", nodeParam: "DelayTime", type: "delay", group: "Delay", label: "Time", min: 0, max: 2, default: 0.25, step: 0.001, unit: "s" },
   { id: "delay.feedback", nodeParam: "DelayFeedback", type: "delay", group: "Delay", label: "Feedback", min: 0, max: 0.95, default: 0.3, step: 0.01, unit: "" },
@@ -104,10 +115,13 @@ function decimalsForStep(step) {
   return dot === -1 ? 0 : text.length - dot - 1;
 }
 
-// Shared by the FX panel and the cell editor so a given parameter's value always reads the
-// same way everywhere (model/notes.js's toHex/noteNumberToName is the existing precedent for
-// formatting living in model/, not duplicated per-consumer).
+// Shared by the FX panel, the cell editor, and Push's encoder LCD (midi/push/
+// encoderController.js) so a given parameter's value always reads the same way everywhere
+// (model/notes.js's toHex/noteNumberToName is the existing precedent for formatting living in
+// model/, not duplicated per-consumer). A `kind: "boolean"` param (filter.mode above) has no
+// natural numeric string — onLabel/offLabel stand in for it instead.
 export function formatFxValue(value, param) {
   if (value === null || value === undefined || !param) return "--";
+  if (param.kind === "boolean") return value >= 0.5 ? param.onLabel ?? "ON" : param.offLabel ?? "OFF";
   return `${Number(value).toFixed(decimalsForStep(param.step))}${param.unit}`;
 }

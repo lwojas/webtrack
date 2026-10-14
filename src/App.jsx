@@ -6,6 +6,7 @@ import InstrumentPanel from "./ui/chrome/InstrumentPanel.jsx";
 import NoteEditor from "./ui/chrome/NoteEditor.jsx";
 import SelectionToolbar from "./ui/chrome/SelectionToolbar.jsx";
 import PatternManager from "./ui/chrome/PatternManager.jsx";
+import SettingsModal from "./ui/chrome/SettingsModal.jsx";
 import PerfPanel from "./ui/debug/PerfPanel.jsx";
 import { createAppContext } from "./appContext.js";
 import { attachTransportKeys } from "./input/transportKeys.js";
@@ -17,6 +18,7 @@ const TABS = [
 
 export default function App() {
   const [activeTab, setActiveTab] = useState("tracker");
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const {
     store,
     playbackController,
@@ -24,9 +26,11 @@ export default function App() {
     editController,
     attachPush,
     ensureDemoInstrumentsLoaded,
+    togglePlayback,
     renderStats,
     fxController,
     instrumentController,
+    midiController,
     saveProject,
     loadProjectFromFile,
   } = useMemo(() => createAppContext(), []);
@@ -35,15 +39,11 @@ export default function App() {
     const detachNoteSources = noteSources.map((noteSource) => noteSource.attach());
     const detachEditController = editController.attach();
     const detachPush = attachPush();
+    // togglePlayback (appContext.js) is the one play/stop entry point every transport control
+    // calls — this keyboard shortcut and midi/push/transportController.js's Play button both
+    // route through it, rather than each awaiting ensureDemoInstrumentsLoaded() separately.
     const detachTransportKeys = attachTransportKeys({
-      onTogglePlay: async () => {
-        if (playbackController.isPlaying()) {
-          playbackController.stop();
-        } else {
-          await ensureDemoInstrumentsLoaded();
-          playbackController.play();
-        }
-      },
+      onTogglePlay: togglePlayback,
       onToggleEditMode: () => store.toggleEditMode(),
     });
 
@@ -67,7 +67,7 @@ export default function App() {
       window.removeEventListener("pointerdown", handleFirstGesture);
       window.removeEventListener("keydown", handleFirstGesture);
     };
-  }, [store, playbackController, noteSources, editController, attachPush, ensureDemoInstrumentsLoaded]);
+  }, [store, playbackController, noteSources, editController, attachPush, ensureDemoInstrumentsLoaded, togglePlayback]);
 
   return (
     <div className="app">
@@ -76,7 +76,9 @@ export default function App() {
         playbackController={playbackController}
         onSaveProject={saveProject}
         onLoadProjectFile={loadProjectFromFile}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
+      <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} midiController={midiController} />
       <div className="app__tabs" role="tablist" aria-label="View">
         {TABS.map((tab) => (
           <button

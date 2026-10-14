@@ -8,7 +8,27 @@ import { FX_TYPES, getFxType, getFxParam, getFxParamsForType, formatFxValue } fr
 // add/remove chain like every other FX.
 const OUTPUT_PARAM = getFxParam("bus.gain");
 
+// A `kind: "boolean"` param (currently just filter.mode — model/fxParams.js) has no continuous
+// range to slide through, so it gets its own on/off button instead of a <input type="range">
+// that would otherwise only ever sit at one of two tick marks. Independent of the module
+// header's own bypass (B) button above — this toggles what the FX *does*, bypass toggles
+// whether it's active at all.
+function FxBooleanField({ param, value, onChange }) {
+  const isOn = (value ?? param.default) >= 0.5;
+  return (
+    <label className="fx-module__field">
+      <span className="fx-module__field-label" title={param.label}>
+        {param.label}
+      </span>
+      <button type="button" className={`fx-module__toggle${isOn ? " fx-module__toggle--on" : ""}`} onClick={() => onChange(isOn ? 0 : 1)}>
+        {formatFxValue(value ?? param.default, param)}
+      </button>
+    </label>
+  );
+}
+
 function FxParamField({ param, value, onChange }) {
+  if (param.kind === "boolean") return <FxBooleanField param={param} value={value} onChange={onChange} />;
   return (
     <label className="fx-module__field">
       <span className="fx-module__field-label" title={param.label}>

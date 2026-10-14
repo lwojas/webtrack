@@ -861,6 +861,32 @@ textarea {
   font-size: var(--text-micro);
 }
 
+/* A kind: "boolean" param (model/fxParams.js — currently just filter.mode) has no continuous
+   range to slide through, so FxPanel.jsx's FxBooleanField renders this instead of the usual
+   range input + value span — spans both of those columns so it reads as one wide on/off
+   control rather than a half-width button next to an empty cell. */
+.fx-module__toggle {
+  grid-column: 2 / 4;
+  padding: var(--space-xs) var(--space-sm);
+  background: var(--surface-1);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+  letter-spacing: 0.04em;
+}
+
+.fx-module__toggle:hover {
+  border-color: var(--border-active);
+}
+
+.fx-module__toggle--on {
+  background: var(--cyan);
+  color: var(--surface);
+  border-color: var(--cyan);
+}
+
 /* --- side column: instrument panel + note editor --- */
 
 .instrument-panel {
@@ -1360,6 +1386,179 @@ textarea {
 
 .perf-panel__row span:last-child {
   color: var(--emerald);
+}
+
+/* --- settings modal (gear icon, next to the transport bar's save/load chips) --- */
+
+.transport-bar__settings {
+  font-size: var(--text-body);
+  line-height: 1;
+}
+
+.settings-modal__overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+}
+
+.settings-modal {
+  width: 420px;
+  max-width: calc(100vw - var(--space-xl) * 2);
+  max-height: calc(100vh - var(--space-xl) * 2);
+  overflow: auto;
+  background: var(--surface-2);
+  border: 1px solid var(--border-active);
+  display: flex;
+  flex-direction: column;
+}
+
+.settings-modal__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  letter-spacing: 0.04em;
+}
+
+.settings-modal__header h3 {
+  margin: 0;
+  font-size: var(--text-body);
+}
+
+.settings-modal__close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: var(--text-body);
+  line-height: 1;
+}
+
+.settings-modal__close:hover {
+  color: var(--crimson);
+}
+
+.settings-modal__body {
+  display: flex;
+  min-height: 0;
+}
+
+.settings-modal__nav {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  min-width: 100px;
+}
+
+.settings-modal__nav-item {
+  padding: var(--space-sm) var(--space-md);
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  text-align: left;
+  cursor: pointer;
+  font-size: var(--text-label);
+  letter-spacing: 0.02em;
+}
+
+.settings-modal__nav-item:hover {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.settings-modal__nav-item--active {
+  background: var(--surface-1);
+  color: var(--cyan);
+  border-left: 2px solid var(--cyan);
+}
+
+.settings-modal__content {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-lg);
+}
+
+.settings-modal__push-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+  color: var(--text-dim);
+  font-size: var(--text-label);
+}
+
+.settings-modal__status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--crimson);
+  flex-shrink: 0;
+}
+
+.settings-modal__status-dot--connected {
+  background: var(--emerald);
+}
+
+.settings-modal__port-group {
+  margin-bottom: var(--space-lg);
+}
+
+.settings-modal__port-group h4 {
+  margin: 0 0 var(--space-xs);
+  color: var(--text-dim);
+  font-size: var(--text-micro);
+  letter-spacing: 0.04em;
+}
+
+.settings-modal__port-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--border);
+}
+
+.settings-modal__port {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-sm);
+  border-bottom: 1px solid var(--border);
+  font-size: var(--text-label);
+  color: var(--text);
+}
+
+.settings-modal__port:last-child {
+  border-bottom: none;
+}
+
+.settings-modal__port--push {
+  color: var(--cyan);
+}
+
+.settings-modal__port-manufacturer {
+  color: var(--text-dim);
+  font-size: var(--text-micro);
+}
+
+.settings-modal__port-tag {
+  margin-left: auto;
+  color: var(--surface);
+  background: var(--cyan);
+  padding: 0 var(--space-xs);
+  font-size: var(--text-micro);
+  letter-spacing: 0.04em;
+}
+
+.settings-modal__hint {
+  color: var(--text-dim);
+  font-size: var(--text-micro);
+  line-height: 1.4;
 }
 
 /* --- small viewports: stack the side column under the tracker instead of squeezing it --- */

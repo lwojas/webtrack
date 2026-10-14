@@ -20,6 +20,9 @@ import { createPushModeController } from "./midi/push/modeController.js";
 import { createPushNoteEntryMode } from "./midi/push/noteEntryMode.js";
 import { createPushTrackerGridMode } from "./midi/push/trackerGridMode.js";
 import { createPatternGridModeStub } from "./midi/push/patternGridModeStub.js";
+import { createPushEncoderController } from "./midi/push/encoderController.js";
+import { createPushTransportController } from "./midi/push/transportController.js";
+import { midiDeviceManager } from "./midi/deviceManager.js";
 import { createRenderStats } from "./debug/renderStats.js";
 import { createControlRegistry } from "./control/registry.js";
 import { serializeProject, deserializeProject } from "./persistence/projectFile.js";
@@ -79,6 +82,22 @@ export function createAppContext() {
     setMasterFxTypeState(type, !bypassed, store.getState().song.masterFx);
   }
 
+  // The FX panel's (ui/chrome/FxPanel.jsx) one entry point for every FX change — parameter
+  // edits, enabling/disabling an FX, and bypass — so the panel never has to touch audio/fx.js
+  // or state/store.js's FX methods separately. Defined up here (rather than alongside
+  // instrumentController near the bottom) because midi/push/encoderController.js's own FX-mode
+  // encoders need this same object, constructed below, before any of its other dependents.
+  const fxController = {
+    setTrackFxParam: applyTrackFxParam,
+    setMasterFxParam: applyMasterFxParam,
+    addTrackFx: (trackIndex, type) => applyTrackFx(trackIndex, type, true),
+    removeTrackFx: (trackIndex, type) => applyTrackFx(trackIndex, type, false),
+    setTrackFxBypass: applyTrackFxBypass,
+    addMasterFx: (type) => applyMasterFx(type, true),
+    removeMasterFx: (type) => applyMasterFx(type, false),
+    setMasterFxBypass: applyMasterFxBypass,
+  };
+
   // Instrument gain (ui/chrome/InstrumentPanel.jsx's editor): updates the model, then pushes
   // the live webdsp call — but only if this slot already has a sample loaded (a slot without
   // one has no sampleId to address yet; the value is still saved on the instrument and gets
@@ -130,6 +149,22 @@ export function createAppContext() {
   // recomputes and is a no-op unless mute/solo actually changed what's audible.
   store.subscribe(events.TRACK_CHANNEL_CHANGED, () => playbackController.syncTrackMuting());
 
+  // The one play/stop toggle every transport control actually calls — App.jsx's keyboard
+  // shortcut, and now midi/push/transportController.js's Play button. Awaits
+  // ensureDemoInstrumentsLoaded() (defined further down, but a hoisted function declaration, so
+  // referencing it here is safe) before the first play(), the documented autoplay-gesture +
+  // demo-kit-load race (ARCHITECTURE.md's Gotcha #4) — previously only App.jsx's own inline
+  // closure did this; centralizing it here means Push's Play button can't bypass that race
+  // avoidance by routing straight to playbackController itself.
+  async function togglePlayback() {
+    if (playbackController.isPlaying()) {
+      playbackController.stop();
+    } else {
+      await ensureDemoInstrumentsLoaded();
+      playbackController.play();
+    }
+  }
+
   // Live note input: the computer keyboard (always present) and, once a real device is
   // connected, any Web MIDI input (keyboard, controller) — both implement the same
   // noteInputSource.js contract, so editController.js's handleNoteOn treats a note from either
@@ -146,7 +181,7 @@ export function createAppContext() {
   // Push pad instead of a keyboard). pushTrackerGridMode needs playbackController (already
   // constructed above) for its live playhead LEDs.
   const pushDevice = createPushDevice();
-  const pushNoteEntryMode = createPushNoteEntryMode();
+  const pushNoteEntryMode = createPushNoteEntryMode({ device: pushDevice });
   const pushTrackerGridMode = createPushTrackerGridMode({ device: pushDevice, store, playbackController });
   const pushModeController = createPushModeController({
     device: pushDevice,
@@ -156,14 +191,49 @@ export function createAppContext() {
       "session.pattern": createPatternGridModeStub({ device: pushDevice }),
     },
   });
+  // Encoders (volume/FX modes + LCD) and the Play button are each a physically separate control
+  // group from the 8x8 pad grid, so they're attached independently of pushModeController rather
+  // than folded into its gridContent dispatch — pushDevice.js already supports more than one
+  // onMessage listener, exactly for this.
+  const pushEncoderController = createPushEncoderController({ device: pushDevice, store, fxController });
+  const pushTransportController = createPushTransportController({ device: pushDevice, store, togglePlayback });
+
+  // The one entry point for "fully resync whatever's currently on the device" — a Push
+  // reconnect (wired below via pushDevice.onConnectionChange) and the Settings modal's manual
+  // refresh button both call this, rather than each re-deriving what a full repaint means.
+  function refreshPushState() {
+    pushModeController.refresh();
+    pushEncoderController.refresh();
+    pushTransportController.refresh();
+  }
+  pushDevice.onConnectionChange((connected) => {
+    if (connected) refreshPushState();
+  });
+
   function attachPush() {
     const detachDevice = pushDevice.attach();
     const detachController = pushModeController.attach();
+    const detachEncoders = pushEncoderController.attach();
+    const detachTransport = pushTransportController.attach();
     return () => {
+      detachTransport();
+      detachEncoders();
       detachController?.();
       detachDevice();
     };
   }
+
+  // ui/chrome/SettingsModal.jsx's one entry point for MIDI device visibility/connection — never
+  // duplicates midiDeviceManager.js's or pushDevice.js's own connection logic, just exposes it.
+  const midiController = {
+    requestAccess: midiDeviceManager.requestAccess,
+    subscribeDevices: midiDeviceManager.subscribe,
+    getDeviceSnapshot: midiDeviceManager.getSnapshot,
+    isPushConnected: pushDevice.isConnected,
+    subscribePushConnection: pushDevice.onConnectionChange,
+    reconnectPush: pushDevice.ensureConnected,
+    refreshPush: refreshPushState,
+  };
 
   const noteSources = [keyboardNoteSource, midiNoteSource, pushNoteEntryMode];
   const editController = createEditController({ store, noteSources });
@@ -242,20 +312,6 @@ export function createAppContext() {
   // integration — the mistake that let webseq's equivalent grow unspecified (§9).
   const controlRegistry = createControlRegistry({ store, playbackController });
 
-  // The FX panel's (ui/chrome/FxPanel.jsx) one entry point for every FX change — parameter
-  // edits, enabling/disabling an FX, and bypass — so the panel never has to touch audio/fx.js
-  // or state/store.js's FX methods separately.
-  const fxController = {
-    setTrackFxParam: applyTrackFxParam,
-    setMasterFxParam: applyMasterFxParam,
-    addTrackFx: (trackIndex, type) => applyTrackFx(trackIndex, type, true),
-    removeTrackFx: (trackIndex, type) => applyTrackFx(trackIndex, type, false),
-    setTrackFxBypass: applyTrackFxBypass,
-    addMasterFx: (type) => applyMasterFx(type, true),
-    removeMasterFx: (type) => applyMasterFx(type, false),
-    setMasterFxBypass: applyMasterFxBypass,
-  };
-
   // InstrumentPanel.jsx's one entry point for instrument edits that need to reach the engine
   // (gain) or need the model+sample bookkeeping bundled together (assigning a sample) — the
   // same role fxController plays for the FX panel.
@@ -272,10 +328,12 @@ export function createAppContext() {
     editController,
     attachPush,
     ensureDemoInstrumentsLoaded,
+    togglePlayback,
     renderStats,
     controlRegistry,
     fxController,
     instrumentController,
+    midiController,
     saveProject,
     loadProjectFromFile,
   };
