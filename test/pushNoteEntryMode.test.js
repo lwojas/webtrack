@@ -1,6 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 import { createPushNoteEntryMode } from "../src/midi/push/noteEntryMode.js";
-import { padNote, PUSH_CHANNEL, CC_ARROW_LEFT, CC_ARROW_RIGHT, CC_ARROW_UP, CC_ARROW_DOWN } from "../src/midi/push/constants.js";
+import {
+  padNote,
+  PUSH_CHANNEL,
+  CC_ARROW_LEFT,
+  CC_ARROW_RIGHT,
+  CC_ARROW_UP,
+  CC_ARROW_DOWN,
+  CC_SELECT,
+  FEEDBACK_DIM,
+  FEEDBACK_FULL,
+} from "../src/midi/push/constants.js";
 import { PALETTE, RAW } from "../src/midi/push/colors.js";
 import { createStore } from "../src/state/store.js";
 import { createSong } from "../src/model/song.js";
@@ -353,6 +363,172 @@ describe("createPushNoteEntryMode — write mode: the selected-cell cursor overl
     mode.refresh();
 
     expect(device.send).toHaveBeenCalledWith([0x90, padNote(padRowForStep(2), 3), PALETTE.SELECTED_CELL_CURSOR]);
+    mode.onExit();
+  });
+});
+
+// Select (CC48) copy/paste (docs/MIDI.md, "Extend Push Write Mode: Cell Copy and Paste") — the
+// Note Mode half of the same interaction trackerGridMode.js's own Session/Grid tests cover: a
+// pad press during a held Select becomes a paste-destination pick, reusing the exact same
+// (track=column, row=wrap-mod-8) mapping the cursor overlay above already paints, rather than a
+// separate convention.
+describe("createPushNoteEntryMode — write mode: Select cell copy/paste (CC48)", () => {
+  it("Select LED is dim on entry, full while physically held, dim again on release", () => {
+    const device = createFakeDevice();
+    const store = createStore({ song: createSong(), instruments: [] });
+    const mode = createPushNoteEntryMode({ device, store, writeMode: createFakeWriteMode(true) });
+    mode.onEnter();
+    device.send.mockClear();
+
+    mode.onCC(CC_SELECT, 127);
+    expect(device.send).toHaveBeenCalledWith([0xb0, CC_SELECT, FEEDBACK_FULL]);
+
+    device.send.mockClear();
+    mode.onCC(CC_SELECT, 0);
+    expect(device.send).toHaveBeenCalledWith([0xb0, CC_SELECT, FEEDBACK_DIM]);
+    mode.onExit();
+  });
+
+  it("does nothing while write mode is off — normal/inert behaviour", () => {
+    const device = createFakeDevice();
+    const store = createStore({ song: createSong(), instruments: [] });
+    const mode = createPushNoteEntryMode({ device, store, writeMode: createFakeWriteMode(false) });
+    mode.onEnter();
+    device.send.mockClear();
+
+    mode.onCC(CC_SELECT, 127);
+
+    expect(device.send).not.toHaveBeenCalledWith([0xb0, CC_SELECT, FEEDBACK_FULL]);
+    mode.onExit();
+  });
+
+  it("pressing Select copies the current cursor cell via the existing store clipboard", () => {
+    const store = createStore({ song: createSong(), instruments: [] });
+    store.setCell(1, 2, "note", 60);
+    store.setCell(1, 2, "velocity", 90);
+    store.selectCell(1, 2, "note");
+    const mode = createPushNoteEntryMode({ store, writeMode: createFakeWriteMode(true) });
+    mode.onEnter();
+
+    mode.onCC(CC_SELECT, 127);
+
+    expect(store.getState().clipboard.block[0][0].note).toBe(60);
+    expect(store.getState().clipboard.block[0][0].velocity).toBe(90);
+    mode.onExit();
+  });
+
+  it("holding Select then pressing a pad pastes into that destination cell and selects it, without writing/auditioning a note", () => {
+    const store = createStore({ song: createSong(), instruments: [] });
+    store.setCell(0, 0, "note", 60);
+    store.selectCell(0, 0, "note");
+    const mode = createPushNoteEntryMode({ store, writeMode: createFakeWriteMode(true) });
+    const onNoteOn = vi.fn();
+    mode.onNoteOn(onNoteOn);
+    mode.onEnter();
+
+    mode.onCC(CC_SELECT, 127); // copies cell (0,0)
+    mode.onPadOn(padRowForStep(3), 5, 90); // destination: track 5, step 3
+
+    const pattern = getSelectedPattern(store.getState().song);
+    expect(pattern.tracks[5].events[3].note).toBe(60);
+    expect(store.getState().cursor).toEqual({ trackIndex: 5, rowIndex: 3, field: "note" });
+    expect(onNoteOn).not.toHaveBeenCalled(); // no audition for a paste-destination pick
+    mode.onExit();
+  });
+
+  it("the destination keeps the cursor's own 8-row block, only changing the mod-8 remainder", () => {
+    const store = createStore({ song: createSong(), instruments: [] });
+    store.setCell(0, 0, "note", 60);
+    store.selectCell(0, 9, "note"); // row 9 -> block 1 (rows 8-15), remainder 1
+    const mode = createPushNoteEntryMode({ store, writeMode: createFakeWriteMode(true) });
+    mode.onEnter();
+
+    mode.onCC(CC_SELECT, 127);
+    mode.onPadOn(padRowForStep(3), 2, 90); // remainder 3 within the same block -> row 11
+
+    expect(store.getState().cursor).toEqual({ trackIndex: 2, rowIndex: 11, field: "note" });
+    mode.onExit();
+  });
+
+  it("the destination pad's rest color becomes SELECTED_CELL_CURSOR after the paste", () => {
+    const device = createFakeDevice();
+    const store = createStore({ song: createSong(), instruments: [] });
+    store.setCell(0, 0, "note", 60);
+    store.selectCell(0, 0, "note");
+    const mode = createPushNoteEntryMode({ device, store, writeMode: createFakeWriteMode(true) });
+    mode.onEnter();
+    mode.onCC(CC_SELECT, 127);
+    const destRow = padRowForStep(4);
+    device.send.mockClear();
+
+    mode.onPadOn(destRow, 6, 90);
+    mode.onPadOff(destRow, 6); // release the paste-pick pad — must not emit a stray noteOff
+
+    expect(device.send).toHaveBeenCalledWith([0x90, padNote(destRow, 6), PALETTE.SELECTED_CELL_CURSOR]);
+    mode.onExit();
+  });
+
+  it("releasing Select ends the interaction — a later pad press writes a note normally, not a paste", () => {
+    const store = createStore({ song: createSong(), instruments: [] });
+    store.setCell(0, 0, "note", 60);
+    store.selectCell(0, 0, "note");
+    const mode = createPushNoteEntryMode({ store, writeMode: createFakeWriteMode(true) });
+    mode.onEnter();
+    mode.onCC(CC_SELECT, 127);
+    mode.onCC(CC_SELECT, 0); // released before any pad press
+
+    mode.onPadOn(3, 2, 90); // a normal write-mode note entry
+
+    const event = getSelectedPattern(store.getState().song).tracks[0].events[0]; // cursor never moved
+    expect(event.note).toBe(padNote(3, 2)); // written like any other write-mode pad press
+    mode.onExit();
+  });
+
+  it("no valid current cell: pressing Select does not copy, and holding it suppresses note entry without pasting the stale clipboard", () => {
+    const store = createStore({ song: createSong(), instruments: [] });
+    store.setCell(0, 0, "note", 60);
+    store.selectCell(0, 0, "note");
+    store.copySelection(); // a real, prior clipboard entry
+    const mode = createPushNoteEntryMode({ store, writeMode: createFakeWriteMode(true) });
+    mode.onEnter();
+    store.getState().cursor.trackIndex = 999; // simulate an invalid cursor
+
+    mode.onCC(CC_SELECT, 127);
+    mode.onPadOn(padRowForStep(2), 2, 90);
+
+    const pattern = getSelectedPattern(store.getState().song);
+    expect(pattern.tracks[2].events[2].note).toBe(null); // the stale clipboard was not pasted
+    expect(store.getState().cursor.trackIndex).toBe(999); // no fallback select happened either
+    mode.onExit();
+  });
+
+  it("leaving the view resets a stale held/paste-ready state", () => {
+    const store = createStore({ song: createSong(), instruments: [] });
+    store.setCell(0, 0, "note", 60);
+    store.selectCell(0, 0, "note");
+    const mode = createPushNoteEntryMode({ store, writeMode: createFakeWriteMode(true) });
+    mode.onEnter();
+    mode.onCC(CC_SELECT, 127);
+    mode.onExit();
+
+    mode.onEnter(); // re-entering without a fresh Select press
+    mode.onPadOn(padRowForStep(4), 4, 90);
+
+    const pattern = getSelectedPattern(store.getState().song);
+    expect(pattern.tracks[4].events[4].note).not.toBe(60); // no stray paste from the old held state
+    mode.onExit();
+  });
+
+  it("existing non-write-mode behaviour is unchanged — Select stays inert and pads still enter notes normally (write mode off doesn't touch the model, but the LED/clipboard side is untouched too)", () => {
+    const device = createFakeDevice();
+    const store = createStore({ song: createSong(), instruments: [] });
+    const mode = createPushNoteEntryMode({ device, store, writeMode: createFakeWriteMode(false) });
+    mode.onEnter();
+
+    mode.onCC(CC_SELECT, 127);
+
+    expect(store.getState().clipboard).toBe(null);
+    expect(device.send).not.toHaveBeenCalledWith([0xb0, CC_SELECT, FEEDBACK_FULL]);
     mode.onExit();
   });
 });

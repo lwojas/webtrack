@@ -191,6 +191,7 @@ src/midi/
     modeController.js     the CC50/51/112/113 mode state machine + gridContent dispatch
     noteEntryMode.js       "note" content — pads behave like a keyboard
     trackerGridMode.js     "session.tracker" content — the tracker grid controller
+    selectCopyPaste.js     CC48 Select copy/paste actions, shared by noteEntryMode/trackerGridMode
     patternGridModeStub.js "session.pattern" content — a placeholder (Pattern view isn't built)
     encoderController.js    the 8 encoders + LCD — volume/FX/cellEdit modes, independent of gridContent
     transportController.js  the Play button — also independent of gridContent
@@ -506,6 +507,64 @@ copy/paste implementation.
   refresh()` wiring actually fires through). This is what stops Push from clobbering a selection
   the desktop UI's own mouse drag made independently of it, while still cleaning up anything
   Push itself started.
+
+**Session/Grid and Note Mode: Select cell copy/paste** (`selectCopyPaste.js`, CC48 Select):
+a momentary modifier, available in *both* grid contents, that exposes webtrack's own existing
+cell clipboard (`state/store.js#copySelection`/`pasteSelection` — the exact mutators Ctrl/Cmd+C/V
+and the toolbar's Copy/Paste buttons already use) through Push, rather than a second, Push-only
+clipboard or paste implementation.
+
+- **`selectCopyPaste.js`** holds the two shared actions as plain functions over a `store`, not a
+  stateful module the way `writeMode.js` is one for CC86: `copyCurrentCellToClipboard(store)`
+  collapses any active range selection onto the cursor's own cell (`collapseSelectionToCursor`'s
+  own pattern) then calls `store.copySelection()` — "the currently selected/cursor cell," never
+  whatever a pending Shift-made range spans — and returns `false` without copying anything if
+  there's no valid cell under the cursor, so a stale older clipboard entry can never be mistaken
+  for a fresh copy by a caller that only checks "is held." `pasteClipboardIntoCell(store,
+  trackIndex, rowIndex, field)` calls `store.selectCell` then `store.pasteSelection()` — a no-op
+  without a clipboard. Both `noteEntryMode.js` and `trackerGridMode.js` import these directly;
+  each content tracks its own local `selectHeld`/`pasteReady` live-held state (reset in its own
+  `onEnter`/`onExit`), the same way `trackerGridMode.js`'s own `shiftHeld` already is — Select has
+  to reset the moment the active grid content changes or write mode turns off, not persist across
+  either.
+- **Select (CC48)** needs its own release, for the same reason Shift does (`modeController.js`
+  forwards every CC, release included, to the active content's `onCC` — see "Session/Grid range
+  selection and Duplicate" below). A press copies the current cell (`copyCurrentCellToClipboard`)
+  and records whether that copy actually succeeded (`pasteReady`); a release clears both
+  `selectHeld` and `pasteReady`. Lit (`FEEDBACK_FULL`) while physically held, dim otherwise — only
+  meaningful while write mode is on; a plain no-op otherwise, same dim/full convention
+  Shift/Duplicate already use. Painting the LED in `noteEntryMode.js` is additionally gated on
+  `writeMode` being *present* at all (not just inactive), so the plain no-arg/no-writeMode
+  construction `test/pushNoteEntryMode.test.js` uses for Note Mode's base note-input contract
+  never sees this button touched — `appContext.js`'s one real caller always passes a `writeMode`.
+- **A pad press while Select is held** is a destination pick, not its usual action — this takes
+  precedence over everything else a pad press would otherwise do in write mode (including
+  Shift's own range-selection handling in `trackerGridMode.js`; if both happen to be held, Select
+  wins), and never falls through to a plain select/toggle/note-entry either, even if the armed
+  copy turned out invalid (`pasteReady` false): while physically held, the grid is dedicated to
+  this interaction only, per the brief. A valid press calls `pasteClipboardIntoCell` with that
+  pad's own tracker cell — in `trackerGridMode.js` that's the same (trackIndex=column,
+  stepIndex=stepOffset+row) pair `onPadOn` already computes; in `noteEntryMode.js`, which has no
+  (track, row) pad grid of its own (it's a piano layout), it reuses the exact same mapping the
+  cursor overlay already paints (`destinationRowForPadRow`): column -> track directly, and the
+  pressed pad's row -> the same mod-8 remainder within the cursor's *own* current 8-row block
+  (there's no window/page position in Note Mode to otherwise pick which of a pattern's many rows
+  sharing that remainder is meant) — so a destination lands predictably relative to the pad
+  actually pressed, the same reasoning the cursor overlay's own mapping was already built on.
+  `noteEntryMode.js` also tracks which notes were redirected this way (`pasteInterceptedNotes`)
+  so the matching `onPadOff` swallows the release without emitting a stray `noteOff` — no matching
+  `noteOn` was ever emitted for it — while leaving every *other* `onPadOff` call exactly as
+  stateless as it already was.
+- **The destination becomes the new selection** for free, through the exact same
+  `store.selectCell` call every other Push cell-selection entry point already makes — the
+  `CURSOR_MOVED` it emits is what moves the `SELECTED_CELL_CURSOR` highlight and refreshes
+  `encoderController.js`'s `cellEdit` display onto the pasted cell, with no separate "push the
+  result back to the device" step. `store.pasteSelection()`'s own `CELL_CHANGED` is what updates
+  the pasted cell's own on-grid content/color in `trackerGridMode.js`.
+- **No second clipboard, no second paste:** `state.clipboard` is the only clipboard involved —
+  identical to a desktop Ctrl/Cmd+C/V or the toolbar's Copy/Paste buttons, which Select doesn't
+  touch and isn't touched by. Pasting onto the cell that was just copied is allowed (ordinary
+  `pasteSelection` behavior — no special-casing).
 
 **The encoders/LCD** (`encoderController.js`'s `cellEdit` mode, entered via
 `setCellEditMode(true)`/restored via `setCellEditMode(false)`): while write mode is on, the 8

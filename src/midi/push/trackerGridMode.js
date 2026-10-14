@@ -37,11 +37,13 @@ import {
   CC_ARROW_DOWN,
   CC_SHIFT,
   CC_DUPLICATE,
+  CC_SELECT,
   FEEDBACK_DIM,
   FEEDBACK_FULL,
 } from "./constants.js";
 import { PALETTE, RAW } from "./colors.js";
 import * as events from "../../state/events.js";
+import { copyCurrentCellToClipboard, pasteClipboardIntoCell } from "./selectCopyPaste.js";
 
 const TRACK_COUNT = 8;
 const STEP_WINDOW = 8;
@@ -80,6 +82,14 @@ export function createPushTrackerGridMode({ device, store, playbackController, w
   let pushOwnsSelection = false;
   let lastShiftFeedback = null;
   let lastDuplicateFeedback = null;
+  // Select (CC48) copy/paste (docs/MIDI.md, "Extend Push Write Mode: Cell Copy and Paste") —
+  // a momentary modifier, tracked the same live-held way shiftHeld above is: selectHeld is the
+  // button's raw physical state; pasteReady is only true once a press has actually copied a
+  // valid cell (copyCurrentCellToClipboard's own return value), so a pad press while held but
+  // without a valid source cell can't fall through to an unrelated stale clipboard entry.
+  let selectHeld = false;
+  let pasteReady = false;
+  let lastSelectFeedback = null;
 
   // A paint pass (especially a full-window repaint from paging, or darkening everything on
   // exit) sends up to 64 pad + 16 control messages in one synchronous burst — real hardware
@@ -100,6 +110,7 @@ export function createPushTrackerGridMode({ device, store, playbackController, w
     lastSelectColor.fill(null);
     lastShiftFeedback = null;
     lastDuplicateFeedback = null;
+    lastSelectFeedback = null;
   }
 
   function sendPad(row, column, color) {
@@ -133,6 +144,12 @@ export function createPushTrackerGridMode({ device, store, playbackController, w
     device.send([0xb0, CC_DUPLICATE, value]);
   }
 
+  function sendSelectFeedback(value) {
+    if (lastSelectFeedback === value) return;
+    lastSelectFeedback = value;
+    device.send([0xb0, CC_SELECT, value]);
+  }
+
   // True exactly when store.getSelectionRect() currently spans more than one cell — the same
   // "has a real range, not just the 1x1 cursor" check ui/chrome/SelectionToolbar.jsx's own
   // spansMultipleCells already makes, read fresh off the store rather than tracked separately.
@@ -153,6 +170,12 @@ export function createPushTrackerGridMode({ device, store, playbackController, w
   // dim/full convention every other monochrome Push button here already uses.
   function paintDuplicate() {
     sendDuplicateFeedback(hasRangeSelection() ? FEEDBACK_FULL : FEEDBACK_DIM);
+  }
+
+  // Select (CC48): lit while physically held, dim otherwise — same dim/full convention Shift
+  // already uses, driven by the button's own live press/release state.
+  function paintSelect() {
+    sendSelectFeedback(selectHeld ? FEEDBACK_FULL : FEEDBACK_DIM);
   }
 
   // Priority order (highest first): write mode's grid range selection, then its single-cell
@@ -231,9 +254,11 @@ export function createPushTrackerGridMode({ device, store, playbackController, w
     if (writeMode?.isActive()) {
       paintShift();
       paintDuplicate();
+      paintSelect();
     } else {
       sendShiftFeedback(FEEDBACK_DIM);
       sendDuplicateFeedback(FEEDBACK_DIM);
+      sendSelectFeedback(FEEDBACK_DIM);
     }
   }
 
@@ -262,6 +287,7 @@ export function createPushTrackerGridMode({ device, store, playbackController, w
     }
     sendShiftFeedback(FEEDBACK_DIM);
     sendDuplicateFeedback(FEEDBACK_DIM);
+    sendSelectFeedback(FEEDBACK_DIM);
   }
 
   // Collapses the selection rect back onto the cursor's own single cell, unconditionally —
@@ -343,6 +369,17 @@ export function createPushTrackerGridMode({ device, store, playbackController, w
     // the previous range, per the brief.
     if (writeMode?.isActive()) {
       const { field } = store.getState().cursor;
+
+      // Select held (docs/MIDI.md, "Cell Copy and Paste"): the grid is dedicated entirely to
+      // picking a paste destination — takes precedence over Shift's own range-selection pad
+      // handling below, and never falls through to a plain cell-select either, even if the
+      // copy that armed this press turned out invalid (pasteReady false): while Select is
+      // physically held, a pad press is never "just select this cell" or "toggle this step."
+      if (selectHeld) {
+        if (pasteReady) pasteClipboardIntoCell(store, trackIndex, stepIndex, field);
+        return;
+      }
+
       if (shiftHeld) {
         store.selectCell(0, 0, field);
         store.extendSelectionTo(trackIndex, stepIndex);
@@ -383,6 +420,23 @@ export function createPushTrackerGridMode({ device, store, playbackController, w
       return;
     }
 
+    // Select (CC48) needs its own release too, same reason Shift does — the momentary
+    // copy/paste interaction (docs/MIDI.md) must end the instant the button is physically
+    // released, not behave like a one-shot toggle. Only meaningful while write mode is on; a
+    // plain no-op otherwise, and releasing write mode's own guard here also clears any stale
+    // held/pasteReady state rather than leaving it stuck for whenever write mode comes back on.
+    if (cc === CC_SELECT) {
+      if (!writeMode?.isActive()) {
+        selectHeld = false;
+        pasteReady = false;
+        return;
+      }
+      selectHeld = value > 0;
+      pasteReady = selectHeld ? copyCurrentCellToClipboard(store) : false;
+      paintSelect();
+      return;
+    }
+
     if (value === 0) return; // ignore releases, same convention modeController.js uses
 
     if (cc === CC_DUPLICATE) {
@@ -411,6 +465,8 @@ export function createPushTrackerGridMode({ device, store, playbackController, w
   function onEnter() {
     resetPaintCache(); // anything another mode painted onto these same physical LEDs since we last ran is now unknown
     shiftHeld = false; // physical Shift state is unknown at this point — assume not held
+    selectHeld = false; // same for Select — never carry a stale held/paste-ready state across a view switch
+    pasteReady = false;
     syncSelectionWithWriteMode(); // no stale Push-made selection if write mode is already off (docs/MIDI.md)
     unsubscribes = [
       store.subscribe(events.CELL_CHANGED, paint),
@@ -428,6 +484,8 @@ export function createPushTrackerGridMode({ device, store, playbackController, w
     clearInterval(playheadInterval);
     playheadInterval = null;
     shiftHeld = false;
+    selectHeld = false;
+    pasteReady = false;
     // Leaving this view always dismisses a Push-made range selection (docs/MIDI.md) — regardless
     // of write mode's own state at this moment, unlike syncSelectionWithWriteMode's own guard.
     dismissPushOwnedSelectionIfAny();

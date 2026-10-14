@@ -10,6 +10,7 @@ import {
   CC_ARROW_DOWN,
   CC_SHIFT,
   CC_DUPLICATE,
+  CC_SELECT,
   FEEDBACK_DIM,
   FEEDBACK_FULL,
 } from "../src/midi/push/constants.js";
@@ -589,6 +590,154 @@ describe("createPushTrackerGridMode — write mode: selection lifecycle across m
     const event = getSelectedPattern(store.getState().song).tracks[0].events[0];
     expect(event.note).not.toBe(null); // toggled on, exactly like before this feature existed
     expect(device.send).not.toHaveBeenCalledWith([0x90, expect.anything(), PALETTE.GRID_SELECTION]);
+    mode.onExit();
+  });
+});
+
+describe("createPushTrackerGridMode — write mode: Select cell copy/paste (CC48)", () => {
+  it("Select LED is dim on entry, full while physically held, dim again on release", () => {
+    const { device, mode } = createTestContext({ writeModeActive: true });
+    mode.onEnter();
+    device.send.mockClear();
+
+    mode.onCC(CC_SELECT, 127);
+    expect(device.send).toHaveBeenCalledWith([0xb0, CC_SELECT, FEEDBACK_FULL]);
+
+    device.send.mockClear();
+    mode.onCC(CC_SELECT, 0);
+    expect(device.send).toHaveBeenCalledWith([0xb0, CC_SELECT, FEEDBACK_DIM]);
+    mode.onExit();
+  });
+
+  it("does nothing while write mode is off — normal/inert behaviour", () => {
+    const { device, mode } = createTestContext({ writeModeActive: false });
+    mode.onEnter();
+    device.send.mockClear();
+
+    mode.onCC(CC_SELECT, 127);
+
+    expect(device.send).not.toHaveBeenCalledWith([0xb0, CC_SELECT, FEEDBACK_FULL]);
+    mode.onExit();
+  });
+
+  it("pressing Select copies the current cursor cell via the existing store clipboard", () => {
+    const { store, mode } = createTestContext({ writeModeActive: true });
+    store.setCell(1, 2, "note", 60);
+    store.setCell(1, 2, "velocity", 90);
+    store.selectCell(1, 2, "note");
+    mode.onEnter();
+
+    mode.onCC(CC_SELECT, 127);
+
+    expect(store.getState().clipboard.block[0][0].note).toBe(60);
+    expect(store.getState().clipboard.block[0][0].velocity).toBe(90);
+    mode.onExit();
+  });
+
+  it("holding Select then pressing a pad pastes the clipboard into that cell and selects it", () => {
+    const { store, mode } = createTestContext({ writeModeActive: true });
+    store.setCell(0, 0, "note", 60);
+    store.selectCell(0, 0, "note");
+    mode.onEnter();
+
+    mode.onCC(CC_SELECT, 127); // copies cell (0,0)
+    mode.onPadOn(padRowForStep(5), 3, 90); // destination: track 3, step 5
+
+    const pattern = getSelectedPattern(store.getState().song);
+    expect(pattern.tracks[3].events[5].note).toBe(60);
+    expect(store.getState().cursor).toEqual({ trackIndex: 3, rowIndex: 5, field: "note" });
+    mode.onExit();
+  });
+
+  it("the destination pad lights up as SELECTED_CELL_CURSOR after the paste", () => {
+    const { store, device, mode } = createTestContext({ writeModeActive: true });
+    store.setCell(0, 0, "note", 60);
+    store.selectCell(0, 0, "note");
+    mode.onEnter();
+    mode.onCC(CC_SELECT, 127);
+    device.send.mockClear();
+
+    mode.onPadOn(padRowForStep(2), 4, 90);
+
+    expect(device.send).toHaveBeenCalledWith([0x90, padNote(padRowForStep(2), 4), PALETTE.SELECTED_CELL_CURSOR]);
+    mode.onExit();
+  });
+
+  it("releasing Select ends the interaction — a later plain pad press behaves normally, not as a paste", () => {
+    const { store, mode } = createTestContext({ writeModeActive: true });
+    store.setCell(0, 0, "note", 60);
+    store.selectCell(0, 0, "note");
+    mode.onEnter();
+    mode.onCC(CC_SELECT, 127);
+    mode.onCC(CC_SELECT, 0); // released before any pad press
+
+    mode.onPadOn(padRowForStep(1), 2, 90); // a normal cell-select, not a paste destination
+
+    const pattern = getSelectedPattern(store.getState().song);
+    expect(pattern.tracks[2].events[1].note).toBe(null); // nothing pasted
+    expect(store.getState().cursor).toEqual({ trackIndex: 2, rowIndex: 1, field: "note" }); // plain select happened instead
+    mode.onExit();
+  });
+
+  it("Select takes precedence over Shift — holding both routes the pad press to paste, not range selection", () => {
+    const { store, mode } = createTestContext({ writeModeActive: true });
+    store.setCell(0, 0, "note", 60);
+    store.selectCell(0, 0, "note");
+    mode.onEnter();
+    mode.onCC(CC_SELECT, 127);
+    mode.onCC(CC_SHIFT, 127);
+
+    mode.onPadOn(padRowForStep(4), 4, 90);
+
+    const pattern = getSelectedPattern(store.getState().song);
+    expect(pattern.tracks[4].events[4].note).toBe(60); // pasted, not range-selected
+    expect(store.getSelectionRect()).toEqual({ trackStart: 4, trackEnd: 4, rowStart: 4, rowEnd: 4 }); // single cell, no range
+    mode.onExit();
+  });
+
+  it("no valid current cell: pressing Select does not copy, and a pad press neither pastes the stale clipboard nor falls back to a plain select", () => {
+    const { store, mode } = createTestContext({ writeModeActive: true });
+    store.setCell(0, 0, "note", 60);
+    store.selectCell(0, 0, "note");
+    store.copySelection(); // a real, prior clipboard entry
+    mode.onEnter();
+    store.getState().cursor.trackIndex = 999; // simulate an invalid cursor
+
+    mode.onCC(CC_SELECT, 127);
+    mode.onPadOn(padRowForStep(3), 3, 90);
+
+    const pattern = getSelectedPattern(store.getState().song);
+    expect(pattern.tracks[3].events[3].note).toBe(null); // the stale clipboard was not pasted
+    expect(store.getState().cursor.trackIndex).toBe(999); // no fallback select happened either
+    mode.onExit();
+  });
+
+  it("existing non-write-mode Session/Grid behaviour is unchanged — Select stays inert", () => {
+    const { store, device, mode } = createTestContext({ writeModeActive: false });
+    mode.onEnter();
+
+    mode.onCC(CC_SELECT, 127);
+    mode.onPadOn(padRowForStep(0), 0, 90); // a plain toggle-step press, same as always
+
+    const event = getSelectedPattern(store.getState().song).tracks[0].events[0];
+    expect(event.note).not.toBe(null); // toggled on, exactly like before this feature existed
+    expect(device.send).not.toHaveBeenCalledWith([0xb0, CC_SELECT, FEEDBACK_FULL]);
+    mode.onExit();
+  });
+
+  it("leaving the view resets a stale held/paste-ready state", () => {
+    const { store, mode } = createTestContext({ writeModeActive: true });
+    store.setCell(0, 0, "note", 60);
+    store.selectCell(0, 0, "note");
+    mode.onEnter();
+    mode.onCC(CC_SELECT, 127);
+    mode.onExit();
+
+    mode.onEnter(); // re-entering without a fresh Select press
+    mode.onPadOn(padRowForStep(6), 6, 90);
+
+    const pattern = getSelectedPattern(store.getState().song);
+    expect(pattern.tracks[6].events[6].note).not.toBe(60); // no stray paste from the old held state
     mode.onExit();
   });
 });

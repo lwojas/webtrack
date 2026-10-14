@@ -11,10 +11,21 @@
 // implement. editController.js never needs to know a note came from Push instead of a
 // keyboard — this is the whole point of that contract.
 import { createNoteInputSource } from "../../input/noteInputSource.js";
-import { padNote, PUSH_CHANNEL, CC_ARROW_LEFT, CC_ARROW_RIGHT, CC_ARROW_UP, CC_ARROW_DOWN } from "./constants.js";
+import {
+  padNote,
+  PUSH_CHANNEL,
+  CC_ARROW_LEFT,
+  CC_ARROW_RIGHT,
+  CC_ARROW_UP,
+  CC_ARROW_DOWN,
+  CC_SELECT,
+  FEEDBACK_DIM,
+  FEEDBACK_FULL,
+} from "./constants.js";
 import { PALETTE, RAW } from "./colors.js";
 import { getSelectedPattern } from "../../model/query.js";
 import * as events from "../../state/events.js";
+import { copyCurrentCellToClipboard, pasteClipboardIntoCell } from "./selectCopyPaste.js";
 
 const GRID_SIZE = 8;
 
@@ -38,11 +49,55 @@ export function createPushNoteEntryMode({ device, store, writeMode } = {}) {
   // (below) from clobbering a pad's PRESSED color while the user is still holding it (see
   // restColorForPad's own doc comment).
   const pressedNotes = new Set();
+  // Notes whose onPadOn was redirected into a Select-held paste pick (below) rather than note
+  // entry — their matching onPadOff must be swallowed without emitting a noteOff (no noteOn was
+  // ever emitted for them), but every *other* onPadOff keeps its original, pressedNotes-
+  // independent behavior (test/pushNoteEntryMode.test.js's existing onPadOff-without-a-prior-
+  // onPadOn cases rely on that).
+  const pasteInterceptedNotes = new Set();
+  // Select (CC48) copy/paste (docs/MIDI.md, "Extend Push Write Mode: Cell Copy and Paste") — a
+  // momentary modifier, tracked the same way trackerGridMode.js's own shiftHeld is: selectHeld
+  // is the button's raw physical state; pasteReady is only true once a press has actually
+  // copied a valid cell (copyCurrentCellToClipboard's own return value), so a pad press while
+  // held but without a valid source cell can't fall through to an unrelated stale clipboard
+  // entry.
+  let selectHeld = false;
+  let pasteReady = false;
+  let lastSelectFeedback = null;
 
   function sendPad(note, color) {
     if (lastPadColor.get(note) === color) return;
     lastPadColor.set(note, color);
     device?.send([0x90, note, color]);
+  }
+
+  function sendSelectFeedback(value) {
+    if (lastSelectFeedback === value) return;
+    lastSelectFeedback = value;
+    device?.send([0xb0, CC_SELECT, value]);
+  }
+
+  // Select (CC48): lit while physically held, dim otherwise — same dim/full convention
+  // trackerGridMode.js's own Shift/Duplicate/Select buttons already use. Gated on writeMode
+  // being present at all (not just inactive): Select is purely a write-mode feature, and the
+  // no-writeMode construction (test/pushNoteEntryMode.test.js's plain note-input contract
+  // cases) should never see this button touched, exactly as it never did before this feature.
+  function paintSelect() {
+    if (!writeMode) return;
+    sendSelectFeedback(selectHeld ? FEEDBACK_FULL : FEEDBACK_DIM);
+  }
+
+  // Note Mode's pad grid has no (track, row)-to-pad mapping other than cursorOverlayPad's own
+  // (track=column, row=step-within-window mod 8, no window offset) — reused here, in reverse,
+  // to turn a pad press during Select-held into a destination cell: same column -> track,
+  // same wrap-mod-8 row convention, but keeping the cursor's current "block" of 8 rows (there's
+  // no window/page position in Note Mode to otherwise decide which of the pattern's many
+  // possible rows sharing that mod-8 remainder is meant) so the result moves predictably with
+  // the pad actually pressed, the same way the cursor overlay itself already does.
+  function destinationRowForPadRow(row, currentRowIndex, rowCount) {
+    const stepWithinWindow = padRowForStep(row); // self-inverse formula
+    const blockStart = Math.floor(currentRowIndex / GRID_SIZE) * GRID_SIZE;
+    return wrap(blockStart + stepWithinWindow, rowCount);
   }
 
   // Mirrors trackerGridMode.js's own track=column, row=step-within-window convention exactly
@@ -106,8 +161,28 @@ export function createPushNoteEntryMode({ device, store, writeMode } = {}) {
     if (editStep > 0) store.moveCursor({ row: editStep });
   }
 
+  // Select held (docs/MIDI.md, "Cell Copy and Paste"): a pad press becomes a paste destination
+  // pick instead of note entry — the exact same (track=column, row=wrap-mod-8) mapping the
+  // cursor overlay above already paints, reused rather than a second convention, per the
+  // brief. Never falls through to note entry below, even if pasteReady is false (no valid
+  // source cell was under the cursor when Select was pressed): while held, the grid is
+  // dedicated to this interaction only.
   function onPadOn(row, column, velocity) {
     const note = padNote(row, column);
+
+    if (writeMode?.isActive() && selectHeld) {
+      pasteInterceptedNotes.add(note);
+      if (pasteReady) {
+        const { cursor, song } = store.getState();
+        const pattern = getSelectedPattern(song);
+        if (pattern) {
+          const destRow = destinationRowForPadRow(row, cursor.rowIndex, pattern.rowCount);
+          pasteClipboardIntoCell(store, column, destRow, cursor.field);
+        }
+      }
+      return;
+    }
+
     pressedNotes.add(note);
     sendPad(note, PALETTE.NOTE_MODE_PRESSED);
     source.emitNoteOn({ note, velocity, channel: PUSH_CHANNEL });
@@ -116,6 +191,7 @@ export function createPushNoteEntryMode({ device, store, writeMode } = {}) {
 
   function onPadOff(row, column) {
     const note = padNote(row, column);
+    if (pasteInterceptedNotes.delete(note)) return; // no matching noteOn was ever emitted for this pad
     pressedNotes.delete(note);
     // restColorForPad, not a hardcoded NOTE_MODE_BASE — releasing the exact pad the write-mode
     // cursor overlay is currently pointing at must land back on SELECTED_CELL_CURSOR, not amber.
@@ -132,7 +208,23 @@ export function createPushNoteEntryMode({ device, store, writeMode } = {}) {
   // as a side effect — not what a dedicated track axis move wants here). A no-op while write
   // mode is off, same as before this feature existed (CC44-47 were already unclaimed in Note
   // Mode — see constants.js's own doc comment on CC_ARROW_LEFT/RIGHT's dual use).
+  // Select (CC48) needs its own release too, same reason trackerGridMode.js's Shift does — the
+  // momentary copy/paste interaction (docs/MIDI.md) must end the instant the button is
+  // physically released, not behave like a one-shot toggle. Handled before the blanket
+  // value-0/write-mode guard below for exactly that reason.
   function onCC(cc, value) {
+    if (cc === CC_SELECT) {
+      if (!writeMode?.isActive() || !store) {
+        selectHeld = false;
+        pasteReady = false;
+        return;
+      }
+      selectHeld = value > 0;
+      pasteReady = selectHeld ? copyCurrentCellToClipboard(store) : false;
+      paintSelect();
+      return;
+    }
+
     if (value === 0 || !writeMode?.isActive() || !store) return;
     const { cursor, song } = store.getState();
 
@@ -165,6 +257,10 @@ export function createPushNoteEntryMode({ device, store, writeMode } = {}) {
 
   function onEnter() {
     lastPadColor.clear(); // another mode may have painted these same physical LEDs since we last ran
+    selectHeld = false; // physical Select state is unknown at this point — assume not held, never carry a stale paste-ready state across a view switch
+    pasteReady = false;
+    lastSelectFeedback = null;
+    paintSelect();
     paint();
     // The write-mode cursor overlay (restColorForPad above) is purely positional — it needs
     // repainting whenever the selected cell moves, same as trackerGridMode.js's own
@@ -179,6 +275,10 @@ export function createPushNoteEntryMode({ device, store, writeMode } = {}) {
     unsubscribes.forEach((unsubscribe) => unsubscribe());
     unsubscribes = [];
     pressedNotes.clear();
+    pasteInterceptedNotes.clear();
+    selectHeld = false;
+    pasteReady = false;
+    paintSelect();
     darkenAll();
   }
 
@@ -191,6 +291,8 @@ export function createPushNoteEntryMode({ device, store, writeMode } = {}) {
   // disappears immediately rather than waiting for the next cursor move.
   function refresh() {
     lastPadColor.clear();
+    lastSelectFeedback = null;
+    paintSelect();
     paint();
   }
 

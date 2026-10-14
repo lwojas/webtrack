@@ -97,6 +97,13 @@ export const CC_DEVICES = 110;
 // no factory meaning for that on the User Port), just a CC number this project has chosen to
 // listen on. Monochrome dim/full feedback, same family as Play/Shift above.
 export const CC_DUPLICATE = 88;
+// Write mode's own momentary cell copy/paste button, "Select" (docs/MIDI.md) — specified
+// directly by the brief that drove that feature, the same kind of physical-button repurposing
+// as CC_DUPLICATE/CC_ENCODER_MODE_FX above (not the SELECT_CC array, which is the unrelated
+// right-hand column of 8 buttons; this is a single dedicated button). Not independently
+// hardware-confirmed as "Select" — just a CC number this project has chosen to listen on.
+// Monochrome dim/full feedback, same family as Shift/Duplicate above.
+export const CC_SELECT = 48;
 
 // 0 = off, 1 = dim steady, 2-3 = dim blink, 4 = full steady, 5-6 = full blink; 7+ clamps to
 // full (hardware behavior, not a webtrack choice) — confirmed on Play/Shift.
