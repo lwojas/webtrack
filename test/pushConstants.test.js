@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { padNote, padCoordinates, encoderDelta, lcdSysex, LCD_LINE_ID, LCD_LINE_LENGTH } from "../src/midi/push/constants.js";
+import {
+  padNote,
+  padCoordinates,
+  encoderDelta,
+  lcdSysex,
+  LCD_LINE_ID,
+  LCD_LINE_LENGTH,
+  LCD_SEGMENT_WIDTH,
+  LCD_SEGMENT_OFFSETS,
+} from "../src/midi/push/constants.js";
 import { RAW, PALETTE } from "../src/midi/push/colors.js";
 
 describe("padNote", () => {
@@ -71,6 +80,31 @@ describe("lcdSysex", () => {
     const longText = "x".repeat(LCD_LINE_LENGTH + 10);
     const message = lcdSysex(2, longText);
     expect(message).toHaveLength(8 + LCD_LINE_LENGTH + 1);
+  });
+});
+
+describe("LCD_SEGMENT_OFFSETS", () => {
+  it("has 8 offsets, one per encoder, matching midi-core's confirmed 8*i + floor(i/2) formula", () => {
+    expect(LCD_SEGMENT_OFFSETS).toHaveLength(8);
+    LCD_SEGMENT_OFFSETS.forEach((offset, i) => {
+      expect(offset).toBe(LCD_SEGMENT_WIDTH * i + Math.floor(i / 2));
+    });
+  });
+
+  it("groups encoders into pairs 17 characters apart — one physical display unit per pair", () => {
+    for (let unit = 0; unit < 4; unit++) {
+      expect(LCD_SEGMENT_OFFSETS[unit * 2 + 1] - LCD_SEGMENT_OFFSETS[unit * 2]).toBe(LCD_SEGMENT_WIDTH);
+    }
+    for (let unit = 0; unit < 3; unit++) {
+      const nextUnitStart = LCD_SEGMENT_OFFSETS[(unit + 1) * 2];
+      const thisUnitEnd = LCD_SEGMENT_OFFSETS[unit * 2 + 1] + LCD_SEGMENT_WIDTH;
+      expect(nextUnitStart - thisUnitEnd).toBe(1); // the spare, un-rendered column between units
+    }
+  });
+
+  it("every segment fits within the 68-character line", () => {
+    const lastOffset = LCD_SEGMENT_OFFSETS[LCD_SEGMENT_OFFSETS.length - 1];
+    expect(lastOffset + LCD_SEGMENT_WIDTH).toBeLessThanOrEqual(LCD_LINE_LENGTH);
   });
 });
 

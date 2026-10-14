@@ -119,6 +119,17 @@ export function encoderDelta(value) {
 export const LCD_LINE_ID = [0x18, 0x19, 0x1a, 0x1b];
 export const LCD_LINE_LENGTH = 68;
 
+// The 68 columns are not one continuous strip: the hardware has 4 physical display units (one
+// dot-matrix segment per pair of encoders), and each unit is a 17-character cell — two 8-wide
+// encoder segments plus one spare, unrendered column between them. Ported from midi-core's own
+// `PUSH_MK1_DISPLAY.segments` (`devices/push-mk1.ts`): "segment i starts at 8*i + floor(i/2)" —
+// only the 17-character cell structure is the well-known Push 1 layout; the exact placement of
+// the spare column is unconfirmed on real hardware, but packing all 8 segments contiguously
+// (ignoring the spare columns) is confirmed wrong — it drifts out of alignment with the physical
+// encoders by one column per display unit crossed.
+export const LCD_SEGMENT_WIDTH = 8;
+export const LCD_SEGMENT_OFFSETS = [0, 8, 17, 25, 34, 42, 51, 59];
+
 // text is padded/truncated to exactly LCD_LINE_LENGTH so every call fully overwrites the line
 // (a shorter previous message can never leave stray characters at the end).
 export function lcdSysex(lineIndex, text) {

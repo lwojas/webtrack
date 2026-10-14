@@ -19,6 +19,7 @@ import {
   PUSH_CHANNEL,
   FEEDBACK_DIM,
   FEEDBACK_FULL,
+  LCD_SEGMENT_WIDTH,
   lcdSysex,
 } from "./constants.js";
 import { formatBar, buildEncoderLine, centerColumn } from "./lcd.js";
@@ -28,7 +29,10 @@ import * as events from "../../state/events.js";
 
 const STATUS_CC = 0xb0 | PUSH_CHANNEL;
 const LCD_LINES = 4;
-const COLUMN_WIDTH = 8;
+// Each encoder's bar/name/value content is formatted to the hardware's own per-segment width
+// (constants.js#LCD_SEGMENT_WIDTH), then buildEncoderLine places it at that encoder's actual
+// physical segment offset — not a contiguous index*width slot.
+const COLUMN_WIDTH = LCD_SEGMENT_WIDTH;
 
 // Reuses the exact min/max src/control/contract.js's own "track.*.volume" control already
 // documents, rather than re-hardcoding a second copy of webtrack's volume range here.

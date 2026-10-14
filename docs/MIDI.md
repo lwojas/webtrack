@@ -378,6 +378,15 @@ and a value row (`model/fxParams.js#formatFxValue`). Repaints on an encoder turn
 from the React UI, a track switch, or an FX-module page turn alike — never a second
 representation of the same state.
 
+Each encoder's 8-character column is placed at its real physical offset, not at `index * 8`: the
+68 columns aren't one continuous strip — the hardware has 4 dot-matrix display units, one per
+pair of encoders, and each is a 17-character cell (two 8-wide encoder segments plus one spare,
+unrendered column between them). `constants.js#LCD_SEGMENT_OFFSETS` (`[0, 8, 17, 25, 34, 42, 51,
+59]`, ported from `midi-core`'s `PUSH_MK1_DISPLAY.segments`) is this geometry; `lcd.js#buildEncoderLine`
+positions every bar/name/value column against it. Packing all 8 columns contiguously (the
+original implementation) drifts one column out of alignment with the physical encoder at every
+display-unit boundary crossed, visible as a growing gap by the rightmost pair.
+
 ### `transportController.js` — the Play button
 
 Also attached independently of the grid-mode dispatch. Reflects `store`'s `playing` flag as

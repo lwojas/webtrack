@@ -4,7 +4,10 @@
 // the same split colors.js/trackerGridMode.js already draw between "hardware facts" and "how
 // webtrack chooses to use them." Only printable ASCII 32-126 is confirmed to render (constants.js's
 // own doc comment), and only `[ ] - =` are sanctioned for level-bar glyphs — never block
-// characters.
+// characters. buildEncoderLine does read constants.js's LCD_SEGMENT_OFFSETS/LCD_LINE_LENGTH below
+// — hardware geometry it positions against, not protocol data it owns.
+import { LCD_LINE_LENGTH, LCD_SEGMENT_OFFSETS, LCD_SEGMENT_WIDTH } from "./constants.js";
+
 export function padColumn(text, width) {
   return text.slice(0, width).padEnd(width);
 }
@@ -25,8 +28,24 @@ export function formatBar(ratio, width = 8) {
   return `[${"=".repeat(filled)}${"-".repeat(innerWidth - filled)}]`;
 }
 
-// Joins up to 8 fixed-width columns into one line — constants.js#lcdSysex pads/truncates to its
-// own LCD_LINE_LENGTH (68) afterward, so this only needs to produce the 8*width content itself.
-export function buildEncoderLine(columns, width = 8) {
-  return columns.map((column) => padColumn(column ?? "", width)).join("");
+// Places up to 8 encoder columns at their actual physical segment offsets
+// (constants.js#LCD_SEGMENT_OFFSETS) rather than packing them contiguously. The hardware groups
+// the 8 encoder segments into 4 physical display units of 17 characters (two 8-wide segments
+// plus one spare column between them), so a naive `index * width` placement works for the first
+// pair and then drifts one column further out of alignment with the physical encoder at every
+// display-unit boundary crossed — by encoder 7/8 that's visibly offset from its display unit.
+// Encoder index beyond LCD_SEGMENT_OFFSETS' length (only ever 8 for this hardware) is dropped
+// rather than throwing, the same "extra columns are simply unassigned" convention
+// encoderController.js#fxColumns already uses for a too-short param list.
+export function buildEncoderLine(columns, width = LCD_SEGMENT_WIDTH) {
+  const line = new Array(LCD_LINE_LENGTH).fill(" ");
+  columns.forEach((column, index) => {
+    const offset = LCD_SEGMENT_OFFSETS[index];
+    if (offset === undefined) return;
+    const text = padColumn(column ?? "", width);
+    for (let i = 0; i < text.length && offset + i < LCD_LINE_LENGTH; i++) {
+      line[offset + i] = text[i];
+    }
+  });
+  return line.join("");
 }

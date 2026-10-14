@@ -10,8 +10,33 @@ import {
   CC_ARROW_RIGHT,
   FEEDBACK_DIM,
   FEEDBACK_FULL,
+  LCD_LINE_ID,
+  LCD_SEGMENT_OFFSETS,
+  LCD_SEGMENT_WIDTH,
   lcdSysex,
 } from "../src/midi/push/constants.js";
+
+// Decodes a sent LCD SysEx message's text payload back to a plain string, so a test can read
+// off what actually landed at a given column rather than re-deriving it from the input text.
+function decodeLcdText(message) {
+  return String.fromCharCode(...message.slice(8, message.length - 1));
+}
+
+// The most recent text sent to LCD line `lineIndex`, reading straight off device.send's call
+// history rather than reconstructing it — so the test only passes if the real positioning logic
+// produced it, not because the test duplicated that logic. Last match, not first: sendLcdLine's
+// own diff cache means a line is only resent when its content actually changes, so an earlier
+// (now-stale) paint of the same line can still be in the call history.
+function sentLcdLine(device, lineIndex) {
+  const calls = device.send.mock.calls.filter(([message]) => message[4] === LCD_LINE_ID[lineIndex]);
+  const lastCall = calls[calls.length - 1];
+  return lastCall ? decodeLcdText(lastCall[0]) : null;
+}
+
+function segmentAt(lineText, encoderIndex) {
+  const offset = LCD_SEGMENT_OFFSETS[encoderIndex];
+  return lineText.slice(offset, offset + LCD_SEGMENT_WIDTH);
+}
 
 function createFakeDevice() {
   const listeners = new Set();
@@ -172,6 +197,56 @@ describe("createPushEncoderController — FX mode", () => {
     controller.attach(); // stays in volume mode
 
     expect(() => device.fireMessage([CC_ON, CC_ARROW_RIGHT, 127])).not.toThrow();
+  });
+});
+
+describe("createPushEncoderController — LCD alignment", () => {
+  it("every one of the 8 tracks' name lands in its own encoder's physical segment, volume mode", () => {
+    const { device, controller } = createTestContext();
+    controller.attach();
+
+    const nameLine = sentLcdLine(device, 2);
+    for (let i = 0; i < 8; i++) {
+      // Default track names are "TRK 1".."TRK 8" (model/trackChannel.js) — distinct per encoder,
+      // so a column landing in the wrong segment (the bug this guards) shows up as a mismatch.
+      expect(segmentAt(nameLine, i).trim()).toBe(`TRK ${i + 1}`);
+    }
+  });
+
+  it("the rightmost pair (encoders 6/7) lines up correctly — this is where contiguous packing drifted worst", () => {
+    const { device, controller } = createTestContext();
+    controller.attach();
+
+    const nameLine = sentLcdLine(device, 2);
+    expect(segmentAt(nameLine, 6).trim()).toBe("TRK 7");
+    expect(segmentAt(nameLine, 7).trim()).toBe("TRK 8");
+    // The spare column between display unit 3 (encoders 4/5) and unit 4 (encoders 6/7) must stay
+    // blank, not swallowed into either segment's content.
+    expect(nameLine[50]).toBe(" ");
+  });
+
+  it("a boolean FX parameter's ON/OFF centers within its own encoder's segment, not a neighbor's", () => {
+    const { store, device, controller } = createTestContext();
+    store.addTrackFx(0, "filter"); // filter.cutoff, filter.resonance, filter.mode (boolean) — encoder 2
+    controller.attach();
+    device.fireMessage([CC_ON, CC_ENCODER_MODE_FX, 127]);
+
+    const barLine = sentLcdLine(device, 1);
+    expect(segmentAt(barLine, 2)).toBe("  OFF   ");
+    // Neighboring encoders (continuous bars) must not bleed into encoder 2's segment or vice versa.
+    expect(segmentAt(barLine, 1)).toMatch(/^\[[=-]+\]$/);
+    expect(segmentAt(barLine, 3)).toBe(" ".repeat(LCD_SEGMENT_WIDTH)); // unassigned — no 4th filter param
+  });
+
+  it("a short and a long parameter name both stay confined to their own segment", () => {
+    const { store, device, controller } = createTestContext();
+    store.addTrackFx(0, "compressor"); // Threshold, Ratio, Attack, Release, Knee, Makeup
+    controller.attach();
+    device.fireMessage([CC_ON, CC_ENCODER_MODE_FX, 127]);
+
+    const nameLine = sentLcdLine(device, 2);
+    expect(segmentAt(nameLine, 0).trim()).toBe("Threshol"); // long name, truncated within its own 8-wide segment
+    expect(segmentAt(nameLine, 1).trim()).toBe("Ratio"); // short name, not pulled into a neighbor's offset
   });
 });
 
