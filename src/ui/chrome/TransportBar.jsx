@@ -1,14 +1,15 @@
+import { useState } from "react";
 import { useStore } from "../../state/useStore.js";
 import * as events from "../../state/events.js";
 import { getSelectedPattern } from "../../model/query.js";
-import { barsForRowCount, MAX_BARS } from "../../model/timing.js";
+import { barsForRowCount, MAX_BARS, RESAMPLE_STEP_OPTIONS } from "../../model/timing.js";
 
 // Ordinary stateful forms-and-buttons UI with no rendering-performance requirement — exactly
 // where React earns its keep (ECS-156 plan §3). Reads the same store the vanilla grid modules
 // mutate; nothing here touches grid DOM directly. Pattern selection/creation lives in the
 // Pattern Manager tab (ui/chrome/PatternManager.jsx) — this bar only shows which pattern is
 // currently selected and lets its length be changed.
-export default function TransportBar({ store, playbackController, onSaveProject, onLoadProjectFile, onOpenSettings }) {
+export default function TransportBar({ store, playbackController, onSaveProject, onLoadProjectFile, onOpenSettings, onResample }) {
   const playing = useStore(store, events.TRANSPORT_CHANGED, (s) => s.playing);
   const bpm = useStore(store, events.TRANSPORT_CHANGED, (s) => s.song.bpm);
   const swing = useStore(store, events.TRANSPORT_CHANGED, (s) => s.song.swing);
@@ -18,6 +19,10 @@ export default function TransportBar({ store, playbackController, onSaveProject,
     barsForRowCount(getSelectedPattern(s.song).rowCount),
   );
   const projectName = useStore(store, events.PROJECT_NAME_CHANGED, (s) => s.song.name ?? "");
+  const resampleStatus = useStore(store, events.RESAMPLE_STATUS_CHANGED, (s) => s.resampleStatus);
+  const resampleError = useStore(store, events.RESAMPLE_STATUS_CHANGED, (s) => s.resampleError);
+  const [resampleSteps, setResampleSteps] = useState(16);
+  const resampleBusy = resampleStatus === "armed" || resampleStatus === "processing";
 
   function togglePlay() {
     if (playing) playbackController.stop();
@@ -77,6 +82,32 @@ export default function TransportBar({ store, playbackController, onSaveProject,
           ))}
         </select>
       </label>
+
+      <div className="transport-bar__group transport-bar__resample">
+        <button
+          className={`transport-bar__chip${resampleBusy ? " transport-bar__chip--active" : ""}`}
+          onClick={() => onResample?.(resampleSteps)}
+          disabled={!playing || resampleBusy}
+          title={playing ? "Capture the next steps of what's currently playing as a new instrument" : "Play something first"}
+        >
+          RESAMPLE
+        </button>
+        <select value={resampleSteps} onChange={(e) => setResampleSteps(Number(e.target.value))} disabled={resampleBusy}>
+          {RESAMPLE_STEP_OPTIONS.map((steps) => (
+            <option key={steps} value={steps}>
+              {steps} STEPS
+            </option>
+          ))}
+        </select>
+        {resampleStatus === "armed" && <span className="transport-bar__pending">ARMED</span>}
+        {resampleStatus === "processing" && <span className="transport-bar__pending">PROCESSING</span>}
+        {resampleStatus === "complete" && <span className="transport-bar__pending transport-bar__pending--ok">DONE</span>}
+        {resampleStatus === "error" && (
+          <span className="transport-bar__pending transport-bar__pending--error" title={resampleError ?? undefined}>
+            ERROR
+          </span>
+        )}
+      </div>
 
       <div className="transport-bar__project">
         <input

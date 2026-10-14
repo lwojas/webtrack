@@ -153,6 +153,101 @@ describe("serializeProject / deserializeProject", () => {
     expect(restored.instruments[0].output).toEqual({ type: "sample", channel: null });
   });
 
+  it("embeds a resample-origin instrument's bytes on an explicit save, exactly like an import", async () => {
+    const instruments = [
+      createInstrumentSlot({
+        id: 0,
+        name: "Resample 16st-01",
+        origin: "resample",
+        localAssetId: "local-abc",
+        sampleAsset: { buffer: makeBuffer([9, 9, 9]), mimeType: "audio/wav", fileName: "Resample 16st-01.wav" },
+      }),
+    ];
+
+    const serialized = serializeProject({ song: createSong(), instruments, ui: {} }, { embedSampleBytes: true });
+
+    expect(serialized.instruments[0].origin).toBe("resample");
+    expect(serialized.instruments[0].sample.dataBase64).toBeTruthy();
+    expect(serialized.instruments[0].sample).not.toHaveProperty("localAssetId");
+
+    const restored = await deserializeProject(serialized, { loadSampleBytes: async () => "fresh-id" });
+
+    expect(restored.instruments[0].origin).toBe("resample");
+    expect(restored.instruments[0].sampleId).toBe("fresh-id");
+    expect(new Uint8Array(restored.instruments[0].sampleAsset.buffer)).toEqual(new Uint8Array([9, 9, 9]));
+  });
+
+  it("references either origin's instrument by localAssetId instead of embedding it when embedSampleBytes is false (persistence/recovery.js's snapshot)", async () => {
+    const instruments = [
+      createInstrumentSlot({
+        id: 0,
+        name: "Kick",
+        origin: "import",
+        localAssetId: "local-kick",
+        sampleAsset: { buffer: makeBuffer([1, 2]), mimeType: "audio/wav", fileName: "kick.wav" },
+      }),
+      createInstrumentSlot({
+        id: 1,
+        name: "Resample 16st-01",
+        origin: "resample",
+        localAssetId: "local-resample",
+        sampleAsset: { buffer: makeBuffer([9, 9]), mimeType: "audio/wav", fileName: "r.wav" },
+      }),
+    ];
+
+    const serialized = serializeProject({ song: createSong(), instruments, ui: {} }, { embedSampleBytes: false });
+
+    expect(serialized.instruments[0].sample).not.toHaveProperty("dataBase64");
+    expect(serialized.instruments[0].sample.localAssetId).toBe("local-kick");
+    expect(serialized.instruments[1].sample).not.toHaveProperty("dataBase64");
+    expect(serialized.instruments[1].sample.localAssetId).toBe("local-resample");
+
+    const loadLocalAssetCalls = [];
+    const restored = await deserializeProject(serialized, {
+      loadSampleBytes: async () => "fresh-id",
+      loadLocalAssetBytes: async (id) => {
+        loadLocalAssetCalls.push(id);
+        return makeBuffer([9]);
+      },
+    });
+
+    expect(loadLocalAssetCalls).toEqual(["local-kick", "local-resample"]);
+    expect(restored.instruments[0].sampleId).toBe("fresh-id");
+    expect(restored.instruments[1].sampleId).toBe("fresh-id");
+  });
+
+  it("degrades to an empty-but-named slot when a referenced local asset isn't in this browser's storage", async () => {
+    const instruments = [
+      createInstrumentSlot({
+        id: 0,
+        name: "Resample 16st-01",
+        origin: "resample",
+        localAssetId: "local-missing",
+        sampleAsset: { buffer: makeBuffer([9]), mimeType: "audio/wav", fileName: "r.wav" },
+      }),
+    ];
+    const serialized = serializeProject({ song: createSong(), instruments, ui: {} }, { embedSampleBytes: false });
+
+    const restored = await deserializeProject(serialized, {
+      loadSampleBytes: async () => "should-not-be-called",
+      loadLocalAssetBytes: async () => undefined, // not found in this browser's IndexedDB
+    });
+
+    expect(restored.instruments[0].name).toBe("Resample 16st-01");
+    expect(restored.instruments[0].sampleId).toBe(null);
+    expect(restored.instruments[0].localAssetId).toBe("local-missing");
+  });
+
+  it("defaults origin to import on a project saved before resample existed", async () => {
+    const instruments = [createInstrumentSlot({ id: 0, name: "Kick", sampleId: "x" })];
+    const serialized = serializeProject({ song: createSong(), instruments, ui: {} });
+    delete serialized.instruments[0].origin; // simulate a file saved before Instrument.origin existed
+
+    const restored = await deserializeProject(serialized, { loadSampleBytes: async () => "fresh-id" });
+
+    expect(restored.instruments[0].origin).toBe("import");
+  });
+
   it("rejects an unsupported format version", async () => {
     await expect(deserializeProject({ formatVersion: 999, instruments: [] }, { loadSampleBytes: async () => null })).rejects.toThrow();
   });

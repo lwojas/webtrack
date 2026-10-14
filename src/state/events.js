@@ -30,3 +30,9 @@ export const MASTER_FX_CHANGED = "MASTER_FX_CHANGED";
 // CURSOR_MOVED rather than a dedicated event, since the rect is derived from cursor + anchor,
 // not stored separately — this one exists because copying doesn't move the cursor at all.
 export const CLIPBOARD_CHANGED = "CLIPBOARD_CHANGED";
+// audio/resampleController.js's status ("idle" | "armed" | "capturing" | "processing" |
+// "complete" | "error") changed — fired a handful of times per resample, never per-frame, so
+// ui/chrome/TransportBar.jsx subscribes to this instead of polling (contrast
+// ui/grid/playheadLayer.js's own rAF loop, which is right for something that changes every
+// frame; this doesn't).
+export const RESAMPLE_STATUS_CHANGED = "RESAMPLE_STATUS_CHANGED";

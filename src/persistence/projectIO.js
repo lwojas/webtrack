@@ -22,3 +22,17 @@ export async function readProjectFile(file) {
   const text = await file.text();
   return JSON.parse(text);
 }
+
+// ui/chrome/InstrumentPanel.jsx's per-slot DOWNLOAD button — saves an instrument's own sample
+// bytes (import or resample origin alike, no distinction made here or in the UI — see
+// docs/RESAMPLE.md's "What this doesn't do") as a standalone file, same Blob/anchor-click/
+// revoke shape as downloadProjectFile above.
+export function downloadBytes(buffer, mimeType, fileName) {
+  const blob = new Blob([buffer], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(url);
+}

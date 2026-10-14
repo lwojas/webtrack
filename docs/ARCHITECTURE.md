@@ -77,7 +77,7 @@ this app's Song/Pattern model instead of webdsp's generic example shape.
 | Directory | Owns | Imports from |
 |---|---|---|
 | `src/model/` | Song/Pattern/Track/Row/Event — plain factory functions and mutators, no classes | nothing else in `src/` |
-| `src/audio/` | Compiling the model to `webdsp` calls, the lookahead player, sample loading, transport | `model/`, `webdsp` |
+| `src/audio/` | Compiling the model to `webdsp` calls, the lookahead player, sample loading, transport, resample capture (`resampleController.js`), WAV encoding (`wav.js`) | `model/`, `webdsp` |
 | `src/state/` | The pub/sub store, event names, the React bridge hook | `model/` (for mutation helpers) |
 | `src/input/` | Keyboard → musical note events, transport keys, cursor/hex-digit editing | `model/`, `audio/preview.js`, `state/` (via the store it's given) |
 | `src/ui/grid/` | The vanilla-DOM grid, playhead, cursor, cell formatting, the React mount boundary | `model/`, `state/` |
@@ -86,7 +86,7 @@ this app's Song/Pattern model instead of webdsp's generic example shape.
 | `src/control/` | A small external control-surface contract/registry — unused by the app itself | `state/`, `audio/` |
 | `src/debug/` | Render/mutation instrumentation | nothing (pure counters) |
 | `src/demo/` | The bundled demo song/instruments | `model/` |
-| `src/persistence/` | Project save/load — explicit versioned format (`projectFile.js`) plus browser file I/O (`projectIO.js`) | `model/` (`createInstrumentSlot`) |
+| `src/persistence/` | Project save/load — explicit versioned format (`projectFile.js`) plus browser file I/O (`projectIO.js`); local asset storage and the debounced recovery cache (`localAssetStore.js`, `recovery.js` — see [`RESAMPLE.md`](RESAMPLE.md)) | `model/` (`createInstrumentSlot`) |
 | `src/appContext.js` | **The composition root** — the only file that wires `state/`, `audio/`, and `input/` together | all of the above |
 
 `src/appContext.js` is deliberately the one place that breaks the "layers don't know about
@@ -494,3 +494,7 @@ implemented; see `src/persistence/`, `ui/grid/gridView.js`'s `onCellClick`, `Eve
 and Gotcha #8 above respectively. MIDI I/O (live input, MIDI-output instruments, and an
 Ableton Push Mk1 controller surface) is also now implemented — see
 [`docs/MIDI.md`](MIDI.md), which this doc's own `Event.note`/swing seams above anticipated.
+Resampling the tracker's own playback into a new instrument, local (IndexedDB-backed) storage
+for that generated audio, and a debounced local recovery cache for unsaved edits are also now
+implemented, built directly on this doc's lookahead-scheduler timing model and `webdsp`'s own
+`armCapture()` primitive — see [`docs/RESAMPLE.md`](RESAMPLE.md).

@@ -50,14 +50,37 @@ function migrateSongV1ToV2(oldSong, ui) {
   };
 }
 
-function serializeInstrument(instrument) {
-  const sample = instrument.sampleAsset
-    ? {
-        fileName: instrument.sampleAsset.fileName,
-        mimeType: instrument.sampleAsset.mimeType,
-        dataBase64: arrayBufferToBase64(instrument.sampleAsset.buffer),
-      }
-    : null;
+// Whether an instrument's sample should embed its raw bytes as base64 in the project JSON
+// itself, vs. only ever reference them by localAssetId (persistence/localAssetStore.js's
+// IndexedDB-backed store — see model/instrument.js's origin doc comment). embedSampleBytes:
+// true (the default, what an explicit Save always uses) embeds *every* instrument's bytes,
+// "resample"-origin ones included — if a saved project is reopened by someone else, or on a
+// different browser/profile, a resampled instrument should come back exactly as playable as an
+// imported one, not as an empty slot; the brief behind this feature was explicit that a project
+// file shouldn't silently lose generated audio just because of where it came from.
+// embedSampleBytes: false (persistence/recovery.js's lightweight local-recovery snapshot)
+// references every instrument by localAssetId instead, regardless of origin, since the
+// recovery cache is local-only, never shared, and the whole point of that path is to stay
+// cheap to write on every debounce tick — see recovery.js's own module doc comment.
+function serializeInstrument(instrument, embedSampleBytes) {
+  let sample = null;
+  if (instrument.sampleAsset) {
+    sample = embedSampleBytes
+      ? {
+          fileName: instrument.sampleAsset.fileName,
+          mimeType: instrument.sampleAsset.mimeType,
+          dataBase64: arrayBufferToBase64(instrument.sampleAsset.buffer),
+        }
+      : instrument.localAssetId
+        ? {
+            fileName: instrument.sampleAsset.fileName,
+            mimeType: instrument.sampleAsset.mimeType,
+            localAssetId: instrument.localAssetId,
+          }
+        : null; // no local reference to fall back on — shouldn't happen once every load path
+    // (appContext.js#applyInstrumentSample) assigns one, but better an empty slot on reload
+    // than a thrown error during save.
+  }
 
   // sampleId is deliberately dropped here — it's a handle into the *current* AudioRuntime
   // session (webdsp doesn't persist samples across sessions), so saving it would be
@@ -69,6 +92,7 @@ function serializeInstrument(instrument) {
     gain: instrument.gain,
     rootNote: instrument.rootNote,
     output: instrument.output,
+    origin: instrument.origin,
     sample,
   };
 }
@@ -172,13 +196,16 @@ function ensureFxChains(song) {
   }
 }
 
-// song/instruments/ui come straight from state/store.js's state shape.
-export function serializeProject({ song, instruments, ui }) {
+// song/instruments/ui come straight from state/store.js's state shape. embedSampleBytes: true
+// (the default) is what appContext.js#saveProject's explicit Save always uses; false is
+// persistence/recovery.js's lightweight local-recovery snapshot — see
+// shouldEmbedSampleBytes()'s doc comment above for exactly what each does and doesn't embed.
+export function serializeProject({ song, instruments, ui }, { embedSampleBytes = true } = {}) {
   return {
     formatVersion: PROJECT_FORMAT_VERSION,
     savedAt: new Date().toISOString(),
     song,
-    instruments: instruments.map(serializeInstrument),
+    instruments: instruments.map((instrument) => serializeInstrument(instrument, embedSampleBytes)),
     ui: {
       selectedInstrumentIndex: ui.selectedInstrumentIndex,
       octave: ui.octave,
@@ -190,8 +217,13 @@ export function serializeProject({ song, instruments, ui }) {
 
 // loadSampleBytes: (arrayBuffer, fileName) => Promise<sampleId> — injected by the caller
 // (appContext.js, backed by audio/instrumentLoader.js#loadSample) so this module never
-// imports audio/ or webdsp directly.
-export async function deserializeProject(parsed, { loadSampleBytes }) {
+// imports audio/ or webdsp directly. loadLocalAssetBytes: (localAssetId) =>
+// Promise<ArrayBuffer | undefined> — injected the same way, backed by
+// persistence/localAssetStore.js#getLocalAsset, resolving a referenced-not-embedded sample's
+// bytes (see serializeInstrument's own doc comment). Optional: existing callers that only ever
+// load projects with embedded samples (every project saved before this feature, or a test that
+// never exercises the reference path) don't need to supply it.
+export async function deserializeProject(parsed, { loadSampleBytes, loadLocalAssetBytes }) {
   if (parsed?.formatVersion === 1) {
     parsed = { ...parsed, formatVersion: 2, song: migrateSongV1ToV2(parsed.song, parsed.ui) };
   }
@@ -207,28 +239,42 @@ export async function deserializeProject(parsed, { loadSampleBytes }) {
 
   const instruments = await Promise.all(
     parsed.instruments.map(async (def) => {
+      const base = { id: def.id, name: def.name, gain: def.gain, rootNote: def.rootNote, output: def.output, origin: def.origin };
+
       // output is purely additive (a project saved before it existed has no def.output at
       // all) — createInstrumentSlot's own default parameter applies whenever the destructured
       // value is undefined, same as gain/rootNote already rely on just below, so an old
-      // project loads as "sample" output, exactly how it already behaved.
-      if (!def.sample) {
-        return createInstrumentSlot({ id: def.id, name: def.name, gain: def.gain, rootNote: def.rootNote, output: def.output });
+      // project loads as "sample" output, exactly how it already behaved. origin is purely
+      // additive the same way: undefined on any project saved before this feature existed, and
+      // createInstrumentSlot's own default ("import") applies.
+      if (!def.sample) return createInstrumentSlot(base);
+
+      let buffer;
+      if (def.sample.dataBase64) {
+        buffer = base64ToArrayBuffer(def.sample.dataBase64);
+      } else if (def.sample.localAssetId) {
+        buffer = await loadLocalAssetBytes?.(def.sample.localAssetId);
+        if (!buffer) {
+          // The referenced local asset isn't in *this* browser's storage (a different
+          // profile/machine, or the user cleared site data) — degrade to an empty slot that
+          // still shows its name and keeps the reference, rather than throwing and failing the
+          // whole project load over one missing sample.
+          return createInstrumentSlot({ ...base, localAssetId: def.sample.localAssetId });
+        }
+      } else {
+        return createInstrumentSlot(base);
       }
 
-      const buffer = base64ToArrayBuffer(def.sample.dataBase64);
       // Hand the loader a copy — loadSample() may transfer/detach the buffer it's given, and
       // the original needs to survive on sampleAsset so a reload-then-resave round-trips
       // without the user having to re-pick the file.
       const sampleId = await loadSampleBytes(buffer.slice(0), def.sample.fileName);
 
       return createInstrumentSlot({
-        id: def.id,
-        name: def.name,
-        gain: def.gain,
-        rootNote: def.rootNote,
-        output: def.output,
+        ...base,
         sampleId,
         sampleAsset: { buffer, mimeType: def.sample.mimeType, fileName: def.sample.fileName },
+        localAssetId: def.sample.localAssetId ?? null,
       });
     }),
   );

@@ -3,6 +3,7 @@ import * as events from "../../state/events.js";
 import { loadSample } from "../../audio/instrumentLoader.js";
 import { initRuntime } from "../../audio/runtime.js";
 import { toHex } from "../../model/notes.js";
+import { downloadBytes } from "../../persistence/projectIO.js";
 
 // Instrument gain's own musical range — same scale as model/fxParams.js's "bus.gain" entry
 // (0..2, step 0.01, unit "x") so the two read consistently wherever a user sees both, even
@@ -17,6 +18,7 @@ const GAIN_STEP = 0.01;
 function InstrumentSlotRow({ store, instrumentController, index }) {
   const name = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.name ?? "");
   const hasSample = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.sampleId != null);
+  const isResample = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.origin === "resample");
   const isMidiOutput = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.output?.type === "midi");
   const selected = useStore(store, events.CURSOR_MOVED, (s) => s.selectedInstrumentIndex === index);
   // A MIDI-output slot is "configured" without ever needing a sample — see InstrumentEditor's
@@ -40,14 +42,31 @@ function InstrumentSlotRow({ store, instrumentController, index }) {
     e.target.value = "";
   }
 
+  // Saves this slot's own sample bytes back out as a standalone file — works identically for an
+  // imported or a resampled sample, no distinction made (see docs/RESAMPLE.md's "What this
+  // doesn't do" for why no restriction is applied here). Reads sampleAsset directly off the
+  // store rather than through a useStore selector: it's only ever needed at click time, not on
+  // every render, and sampleAsset is a mutable object the in-place-mutation gotcha
+  // (docs/ARCHITECTURE.md) already warns against selecting for re-renders.
+  function handleDownload() {
+    const instrument = store.getState().instruments[index];
+    if (!instrument?.sampleAsset) return;
+    downloadBytes(instrument.sampleAsset.buffer, instrument.sampleAsset.mimeType, instrument.sampleAsset.fileName);
+  }
+
   return (
     <div className={`instrument-slot${selected ? " instrument-slot--selected" : ""}`}>
       <button className="instrument-slot__select" onClick={() => store.selectInstrument(index)} title="Select for note entry">
         {toHex(index)}
       </button>
       <span className={`instrument-slot__name${isConfigured ? "" : " instrument-slot__name--empty"}`}>
-        {isConfigured ? `${name}${isMidiOutput ? " · MIDI" : ""}` : "(empty)"}
+        {isConfigured ? `${name}${isMidiOutput ? " · MIDI" : ""}${isResample ? " · R" : ""}` : "(empty)"}
       </span>
+      {hasSample && (
+        <button className="instrument-slot__download" onClick={handleDownload} title="Download this slot's sample as a file">
+          ↓
+        </button>
+      )}
       <label className="instrument-slot__load">
         LOAD
         <input type="file" accept="audio/*" onChange={handleFileChange} hidden />

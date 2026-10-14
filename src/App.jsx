@@ -16,9 +16,24 @@ const TABS = [
   { id: "patterns", label: "PATTERNS" },
 ];
 
+// Formats a recovery record's savedAt (an ISO string, see persistence/recovery.js) as "a
+// moment ago" / "N minutes ago" — just enough precision for a one-line restore prompt, not a
+// general-purpose relative-time utility.
+function timeAgo(isoString) {
+  const seconds = Math.max(0, Math.round((Date.now() - new Date(isoString).getTime()) / 1000));
+  if (seconds < 60) return "moments ago";
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  const hours = Math.round(minutes / 60);
+  return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState("tracker");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // null while unchecked/dismissed, the stored record while a restore prompt should show — see
+  // persistence/recovery.js for what checkForRecovery()/restoreFromRecovery() do.
+  const [recoveryRecord, setRecoveryRecord] = useState(null);
   const {
     store,
     playbackController,
@@ -33,7 +48,29 @@ export default function App() {
     midiController,
     saveProject,
     loadProjectFromFile,
+    resample,
+    checkForRecovery,
+    restoreFromRecovery,
+    dismissRecovery,
   } = useMemo(() => createAppContext(), []);
+
+  // One-time startup check (src/persistence/recovery.js) — deliberately independent of the
+  // user-gesture-gated audio bootstrap below: showing (or not showing) the prompt needs no
+  // AudioContext at all, so it shouldn't wait on one.
+  useEffect(() => {
+    checkForRecovery().then(setRecoveryRecord);
+  }, [checkForRecovery]);
+
+  async function handleRestoreRecovery() {
+    if (!recoveryRecord) return;
+    await restoreFromRecovery(recoveryRecord);
+    setRecoveryRecord(null);
+  }
+
+  function handleDismissRecovery() {
+    dismissRecovery();
+    setRecoveryRecord(null);
+  }
 
   useEffect(() => {
     const detachNoteSources = noteSources.map((noteSource) => noteSource.attach());
@@ -77,7 +114,24 @@ export default function App() {
         onSaveProject={saveProject}
         onLoadProjectFile={loadProjectFromFile}
         onOpenSettings={() => setSettingsOpen(true)}
+        onResample={resample}
       />
+      {recoveryRecord && (
+        <div className="recovery-banner" role="alert">
+          <span>
+            Recovered unsaved work{recoveryRecord.projectName ? ` from "${recoveryRecord.projectName}"` : ""} —{" "}
+            {timeAgo(recoveryRecord.savedAt)}.
+          </span>
+          <div className="recovery-banner__actions">
+            <button className="transport-bar__chip" onClick={handleRestoreRecovery}>
+              RESTORE
+            </button>
+            <button className="transport-bar__chip" onClick={handleDismissRecovery}>
+              DISCARD
+            </button>
+          </div>
+        </div>
+      )}
       <SettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} midiController={midiController} />
       <div className="app__tabs" role="tablist" aria-label="View">
         {TABS.map((tab) => (

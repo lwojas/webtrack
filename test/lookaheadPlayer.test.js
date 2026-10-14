@@ -245,6 +245,35 @@ describe("createLookaheadPlayer — one shared transport, independent per-track 
     player.stop();
   });
 
+  it("onStepScheduled reports each step's unswung grid time, never the swing-delayed scheduledTime (audio/resampleController.js's own capture window depends on this)", () => {
+    vi.useFakeTimers();
+    const runtime = createFakeRuntime();
+    const reported = [];
+    const player = createLookaheadPlayer({
+      runtime,
+      compileRow: () => [],
+      getStepDurationSeconds: () => 1,
+      getSwing: () => 100, // maximum swing — would expose a bug if this hook read scheduledTime
+      onStepScheduled: (stepTime, stepDuration) => reported.push([stepTime, stepDuration]),
+    });
+    const pattern = makePattern({ rowCount: 16, trackLengths: [4] });
+
+    player.start({ initialPattern: pattern, initialTrackChannels: [], initialInstruments: [], startAt: 0 });
+    for (let i = 0; i < 3; i++) {
+      runtime.advance(1);
+      vi.advanceTimersByTime(25);
+    }
+
+    expect(reported).toEqual([
+      [0, 1],
+      [1, 1],
+      [2, 1],
+      [3, 1],
+    ]);
+
+    player.stop();
+  });
+
   it("getTrackPlayheadRow is -1 for an unknown track index or while stopped", () => {
     const runtime = createFakeRuntime();
     const player = createLookaheadPlayer({ runtime, compileRow: () => [], getStepDurationSeconds: () => 1 });

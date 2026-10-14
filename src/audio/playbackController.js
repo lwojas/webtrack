@@ -1,5 +1,6 @@
 import { initRuntime, ensureTrackBuses, getRuntime } from "./runtime.js";
 import { createLookaheadPlayer } from "./lookaheadPlayer.js";
+import { createResampleController } from "./resampleController.js";
 import { compileRow, compileRowFx } from "./compile.js";
 import { setTrackFxParam, isFxBypassed } from "./fx.js";
 import { voiceTracker } from "./voiceTracker.js";
@@ -28,6 +29,9 @@ export function createPlaybackController({
   onTrackFxChange,
 }) {
   let player = null;
+  // Lazily created alongside player, in play() below, for the same reason: both need the
+  // resolved runtime object, which only exists once initRuntime() has resolved.
+  let resampleController = null;
 
   function getStepDurationSeconds() {
     return 60 / getBpm() / STEPS_PER_BEAT;
@@ -82,7 +86,11 @@ export function createPlaybackController({
           if (!isFxBypassed(fxChain, paramId)) setTrackFxParam(trackIndex, paramId, value);
           onTrackFxChange?.(trackIndex, paramId, value);
         },
+        onStepScheduled: (stepTime, stepDuration) => resampleController?.onStepScheduled(stepTime, stepDuration),
       });
+    }
+    if (!resampleController) {
+      resampleController = createResampleController({ runtime, isPlaying: () => player.isPlaying() });
     }
     const { pattern, queueIndex } = initialQueueEntry();
     player.start({
@@ -95,8 +103,22 @@ export function createPlaybackController({
   }
 
   function stop() {
+    resampleController?.cancel("Resample cancelled: playback stopped.");
     player?.stop();
     onTransportChange?.({ playing: false });
+  }
+
+  // ui/chrome/TransportBar.jsx's Resample button, via appContext.js's handleResample — see
+  // audio/resampleController.js's own doc comment for the arm/capture flow. Refused
+  // synchronously (no resampleController yet, since play() hasn't run) before playback has ever
+  // started once.
+  function armResample(steps) {
+    if (!resampleController) return { ok: false, reason: "Nothing is playing." };
+    return resampleController.arm(steps, getStepDurationSeconds());
+  }
+
+  function getResampleStatus() {
+    return resampleController?.getStatus() ?? "idle";
   }
 
   // While playing, the switch is deferred to the next loop boundary (see lookaheadPlayer.js),
@@ -158,5 +180,16 @@ export function createPlaybackController({
     return player?.getQueueIndex() ?? -1;
   }
 
-  return { play, stop, switchPattern, isPlaying, getPlayheadRow, getTrackPlayheadRow, getPlayingQueueIndex, syncTrackMuting };
+  return {
+    play,
+    stop,
+    switchPattern,
+    isPlaying,
+    getPlayheadRow,
+    getTrackPlayheadRow,
+    getPlayingQueueIndex,
+    syncTrackMuting,
+    armResample,
+    getResampleStatus,
+  };
 }

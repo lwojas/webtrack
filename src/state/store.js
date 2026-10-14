@@ -80,6 +80,11 @@ export function createStore({ song, instruments }) {
     selectedInstrumentIndex: 0,
     playing: false,
     patternSwitchPending: false,
+    // audio/resampleController.js's own status, mirrored here purely for the UI (see
+    // RESAMPLE_STATUS_CHANGED) — this store never arms/cancels a resample itself, it only
+    // reflects whatever appContext.js#handleResample reports.
+    resampleStatus: "idle",
+    resampleError: null,
   };
 
   function getState() {
@@ -471,12 +476,18 @@ export function createStore({ song, instruments }) {
   // sampleId comes from audio/instrumentLoader.js's loadSample() result — store.js stays
   // free of any webdsp import either way (appContext.js/InstrumentPanel.jsx call the loader,
   // then hand this just the resulting id), matching the audio/↔state/ layering rule.
-  function setInstrumentSample(index, sampleId, name, sampleAsset) {
+  // { origin, localAssetId } — appContext.js#applyInstrumentSample's own bookkeeping (see
+  // model/instrument.js's origin doc comment); undefined fields are left untouched rather than
+  // reset, so existing call sites that don't pass this at all (none remain, but a future direct
+  // store caller might) can't accidentally blank out an instrument's provenance.
+  function setInstrumentSample(index, sampleId, name, sampleAsset, { origin, localAssetId } = {}) {
     const instrument = state.instruments[index];
     if (!instrument) return;
     instrument.sampleId = sampleId;
     if (name !== undefined) instrument.name = name;
     if (sampleAsset !== undefined) instrument.sampleAsset = sampleAsset;
+    if (origin !== undefined) instrument.origin = origin;
+    if (localAssetId !== undefined) instrument.localAssetId = localAssetId;
     emitter.emit(events.INSTRUMENTS_CHANGED, { index });
   }
 
@@ -514,6 +525,18 @@ export function createStore({ song, instruments }) {
     emitter.emit(events.PATTERN_SWITCH_PENDING, { pending });
   }
 
+  // appContext.js#handleResample's one entry point for reporting resample progress —
+  // "idle" | "armed" | "processing" | "complete" | "error". "armed" covers both
+  // audio/resampleController.js's own "armed" (waiting for the next step boundary) and
+  // "capturing" (the engine is actually recording) sub-phases: the user doesn't need to tell
+  // them apart, both just mean "resample in progress, please wait." error is only ever
+  // non-null alongside status === "error" (ui/chrome/TransportBar.jsx's tooltip).
+  function setResampleStatus(status, error = null) {
+    state.resampleStatus = status;
+    state.resampleError = error;
+    emitter.emit(events.RESAMPLE_STATUS_CHANGED, { status, error });
+  }
+
   // Wholesale project replacement (src/persistence/*, appContext.js#loadProjectFromFile).
   // Reassigns state's properties rather than the state object itself — every getter/useStore
   // closure elsewhere reads store.getState() live, so this never orphans anything (see
@@ -533,6 +556,8 @@ export function createStore({ song, instruments }) {
     state.selectedInstrumentIndex = ui.selectedInstrumentIndex ?? 0;
     state.playing = false;
     state.patternSwitchPending = false;
+    state.resampleStatus = "idle";
+    state.resampleError = null;
 
     emitter.emit(events.PATTERN_QUEUE_CHANGED, {});
     emitter.emit(events.PATTERN_SELECTED, { patternId: state.song.selectedPatternId });
@@ -544,6 +569,7 @@ export function createStore({ song, instruments }) {
     emitter.emit(events.INSTRUMENTS_CHANGED, {});
     emitter.emit(events.CURSOR_MOVED, state.cursor);
     emitter.emit(events.PATTERN_SWITCH_PENDING, { pending: false });
+    emitter.emit(events.RESAMPLE_STATUS_CHANGED, { status: "idle", error: null });
   }
 
   return {
@@ -595,6 +621,7 @@ export function createStore({ song, instruments }) {
     setInstrumentOutput,
     addInstrumentSlot,
     setPatternSwitchPending,
+    setResampleStatus,
     loadProject,
   };
 }

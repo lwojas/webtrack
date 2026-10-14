@@ -44,6 +44,13 @@ export function createLookaheadPlayer({
   onPatternSwitched,
   getNextQueueEntry,
   onTrackFxChange,
+  // Reports each step's own unswung grid time/duration, once per step, right before that
+  // step's notes are compiled — audio/resampleController.js's onStepScheduled is what actually
+  // uses this (see its own doc comment for why the *grid* time, not the swing-delayed
+  // scheduledTime below, is what a resample capture window is built from). Deliberately
+  // optional: this file stays agnostic of what "resample" even means, the same way it already
+  // doesn't know what onTrackFxChange's caller does with a value.
+  onStepScheduled,
   // Overridable for tests; production wiring shares the one app-wide voiceTracker instance
   // with audio/preview.js's manual-audition path (see voiceTracker.js's own doc comment on why
   // that has to be a shared instance, not one scoped to this player).
@@ -109,6 +116,7 @@ export function createLookaheadPlayer({
       // docs/ARCHITECTURE.md's "logical sequencer position -> ... -> swing adjustment ->
       // event scheduling" flow.
       const stepTime = startTime + stepCounter * duration;
+      onStepScheduled?.(stepTime, duration);
       const scheduledTime = stepTime + swingDelaySeconds(stepCounter, duration, getSwing());
       // The pattern-relative position, not the raw stepCounter — compileRow folds it into each
       // track's own loop length (model/pattern.js#trackLocalStep), and it's this, not the raw

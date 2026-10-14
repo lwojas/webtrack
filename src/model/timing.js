@@ -7,6 +7,14 @@ export const STEPS_PER_BAR = STEPS_PER_BEAT * BEATS_PER_BAR; // 16
 
 export const MAX_BARS = 8;
 
+// ui/chrome/TransportBar.jsx's resample length dropdown (audio/resampleController.js) — tracker-
+// native step counts rather than a free-form duration picker, per STEPS_PER_BAR above: 4 steps
+// is a beat, 16 a bar, 64 four bars. 64 is the current ceiling (ECS-? resample brief) — safely
+// under webdsp's 30s armCapture() capacity for every BPM this app's transport bar allows
+// (40-300bpm; 64 steps even at the slowest, 40bpm, is 24s), so there's no technical reason to
+// go further without a real request for it.
+export const RESAMPLE_STEP_OPTIONS = [4, 8, 16, 32, 64];
+
 export function rowCountForBars(bars) {
   return bars * STEPS_PER_BAR;
 }

@@ -16,6 +16,18 @@
 // Lives on the instrument, not the track, because Event.instrument — not the track — is what
 // already selects which voice renders a given cell (a track's cells can reference different
 // instrument slots), so this is the smallest-diff place for output type to live.
+//
+// origin: "import" (a file the user picked) or "resample" (captured from the tracker's own
+// playback via audio/resampleController.js) — purely provenance/display (the Instrument Panel's
+// origin badge), never read by audio/compile.js: a resampled instrument behaves exactly like an
+// imported one once it exists. localAssetId is the key this sample's raw bytes are stored under
+// in persistence/localAssetStore.js's IndexedDB-backed store (set by appContext.js#
+// applyInstrumentSample for every sample load, either origin) — distinct from sampleId, which is
+// only a handle into the *current* AudioRuntime session, and from sampleAsset, which is the
+// in-memory copy of the same bytes. See persistence/projectFile.js for why a "resample"-origin
+// instrument's sample is never embedded as base64 in the project JSON the way an "import"-origin
+// one is: resample bytes are addressed by localAssetId only, in both the explicit save and the
+// local recovery cache.
 export function createInstrumentSlot({
   id,
   name = "Empty",
@@ -24,6 +36,8 @@ export function createInstrumentSlot({
   rootNote = 60,
   sampleAsset = null,
   output = { type: "sample", channel: null },
+  origin = "import",
+  localAssetId = null,
 } = {}) {
-  return { id, name, sampleId, gain, rootNote, sampleAsset, output };
+  return { id, name, sampleId, gain, rootNote, sampleAsset, output, origin, localAssetId };
 }

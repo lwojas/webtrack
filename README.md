@@ -50,6 +50,11 @@ Two views, switched with the tabs just under the transport bar:
 | **LEN** | The selected pattern's length, 1–8 bars. Resizes the grid; existing notes are preserved when growing, and notes past the new boundary are dropped when shrinking |
 | **SAVE** | Downloads the current project (song, instruments + loaded samples, mixer/cursor state) as a single `.json` file |
 | **LOAD** | Opens a previously saved project file and restores it in place |
+| **RESAMPLE** + steps (4/8/16/32/64) | Captures exactly that many tracker steps of whatever's currently playing into a new instrument slot, synced to the tracker grid — see [`docs/RESAMPLE.md`](docs/RESAMPLE.md) |
+
+> **Unsaved work is recovered automatically.** A debounced local cache (separate from SAVE/LOAD)
+> offers to restore your latest edits if you reload or reopen the tab without saving — see
+> [`docs/RESAMPLE.md`](docs/RESAMPLE.md#the-local-recovery-cache-persistencerecoveryjs).
 
 > **Switching the selected pattern while playing doesn't cut over immediately.** It shows
 > "SWITCH QUEUED" and takes effect at the start of the next loop, not mid-pattern — this is
@@ -116,7 +121,8 @@ properties on an empty cell is meaningless.
 
 Click a slot's hex id to select it — new notes you type get stamped with whichever slot is
 currently selected. Click **LOAD** to replace that slot's sample with your own audio file.
-**+ ADD SLOT** adds another empty instrument slot.
+**+ ADD SLOT** adds another empty instrument slot. A slot created by RESAMPLE (above) shows a
+`· R` badge next to its name.
 
 ### Debug
 
@@ -133,8 +139,10 @@ length, a bar/beat legend, a redesigned horizontal mixer, a Pattern Manager that
 original bank-based pattern storage with an explicit pattern pool + queue (see
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#data-model)), per-track polymetric playback
 length, per-track/master FX buses with sparse cell-level automation (see
-[`docs/FX.md`](docs/FX.md)), and MIDI I/O including an Ableton Push Mk1 controller surface (see
-[`docs/MIDI.md`](docs/MIDI.md)). What's explicitly **not** built yet — mostly by design, with
+[`docs/FX.md`](docs/FX.md)), MIDI I/O including an Ableton Push Mk1 controller surface (see
+[`docs/MIDI.md`](docs/MIDI.md)), and resampling the tracker's own playback into a new
+instrument with local (IndexedDB-backed) asset storage and a debounced local recovery cache
+(see [`docs/RESAMPLE.md`](docs/RESAMPLE.md)). What's explicitly **not** built yet — mostly by design, with
 the seams left open rather than closed off — is listed in
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#explicitly-out-of-scope): a Canvas renderer,
 send/aux buses, playing the pattern queue in order, tracker FX columns consuming the FX
@@ -155,7 +163,8 @@ src/
   control/      a small external control-surface contract (not yet consumed by anything)
   debug/        render/mutation instrumentation
   demo/         the bundled demo song
-  persistence/  project save/load — explicit versioned format + browser file I/O
+  persistence/  project save/load (explicit versioned format + browser file I/O), local asset
+                storage, and the debounced recovery cache — see docs/RESAMPLE.md
 public/samples/  the two synthesized demo WAVs
 test/            vitest suites for model/, audio/compile.js, control/registry.js, persistence/
 ```

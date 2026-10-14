@@ -540,6 +540,51 @@ textarea {
   align-items: center;
 }
 
+/* --- transport bar resample control (audio/resampleController.js) --- */
+
+.transport-bar__resample {
+  align-items: center;
+}
+
+.transport-bar__resample select {
+  background: var(--surface-1);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.transport-bar__resample select:hover {
+  border-color: var(--border-active);
+}
+
+.transport-bar__pending--ok {
+  color: var(--emerald);
+}
+
+.transport-bar__pending--error {
+  color: var(--crimson);
+}
+
+/* --- startup local-recovery banner (persistence/recovery.js, App.jsx) --- */
+
+.recovery-banner {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--surface-2);
+  border: 1px solid var(--amber);
+  color: var(--text);
+  font-size: var(--text-label);
+}
+
+.recovery-banner__actions {
+  display: flex;
+  gap: var(--space-xs);
+  flex-shrink: 0;
+}
+
 /* --- mixer: compact horizontal channel strips, below the grid (see App.jsx) --- */
 
 .mixer {
@@ -941,6 +986,24 @@ textarea {
 
 .instrument-slot__name--empty {
   color: var(--text-dim);
+}
+
+.instrument-slot__download {
+  flex-shrink: 0;
+  width: 2.5ch;
+  font-size: var(--text-label);
+  color: var(--text-dim);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition:
+    color var(--transition-fast),
+    border-color var(--transition-fast);
+}
+
+.instrument-slot__download:hover {
+  color: var(--cyan);
+  border-color: var(--cyan);
 }
 
 .instrument-slot__load {
