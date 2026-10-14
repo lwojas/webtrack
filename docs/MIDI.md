@@ -192,8 +192,9 @@ src/midi/
     noteEntryMode.js       "note" content — pads behave like a keyboard
     trackerGridMode.js     "session.tracker" content — the tracker grid controller
     patternGridModeStub.js "session.pattern" content — a placeholder (Pattern view isn't built)
-    encoderController.js    the 8 encoders + LCD — volume/FX modes, independent of gridContent
+    encoderController.js    the 8 encoders + LCD — volume/FX/cellEdit modes, independent of gridContent
     transportController.js  the Play button — also independent of gridContent
+    writeMode.js             the CC86/Record toggle — also independent of gridContent
 ```
 
 ### `pushDevice.js` — the User Port, never the Live Port
@@ -395,6 +396,134 @@ play/stop entry point the keyboard shortcut uses, so Push's Play button can't st
 ahead of `ensureDemoInstrumentsLoaded()` finishing (the autoplay-gesture + demo-kit-load race,
 `ARCHITECTURE.md`'s Gotcha #4) by routing around it.
 
+### `writeMode.js` + write mode — Push as a hardware cell editor
+
+CC86 (Record) toggles **write mode**, a cross-cutting piece of Push-surface state deliberately
+kept independent of `modeController.js`'s own `pushMode`/`sessionView` — it stays on across a
+Note ↔ Session/Grid switch, exactly like Play or the encoder mode buttons are already
+independent of grid content. `writeMode.js` owns only the boolean and Record's own LED
+(`FEEDBACK_DIM` off, `FEEDBACK_FULL_BLINK` on — the hardware blinks on its own once sent that
+value, no JS timer) plus an `onChange(fn)` subscriber list; `appContext.js` wires that one
+subscriber to flip `encoderController.js`'s display mode and force a repaint of whichever grid
+content is active, the same composition-root role `pushDevice.js`'s own `onConnectionChange` →
+`refreshPushState()` wiring already established. `noteEntryMode.js`/`trackerGridMode.js` never
+get notified — they just call `writeMode.isActive()` lazily from inside their own existing
+pad/CC handlers.
+
+There is no second "selected cell" concept anywhere in this feature — write mode reads and
+writes `state/store.js`'s own `cursor` (`store.selectCell`/`store.setCell`, the exact mutators
+the grid/mouse and `ui/chrome/NoteEditor.jsx` already use), so Push's notion of "the selected
+cell" and the webtrack UI's are, by construction, the same value, synchronized through the same
+`CURSOR_MOVED`/`CELL_CHANGED` events every other subscriber already reacts to.
+
+**Note Mode, write mode on** (`noteEntryMode.js`): a pad press still emits the same
+`noteInputSource.js` event it always has (so audition/scale behavior is unchanged), and
+additionally commits straight into the selected cell via `store.setCell` — note/instrument
+(the currently selected one)/velocity, then an `editStep`-driven cursor advance, mirroring
+`input/editController.js#handleNoteOn`'s own write+advance so a note entered from Push lands
+exactly where the same note typed on a keyboard while editing would. CC44-47 move the selected
+cell through the actual (track, row) coordinates — not constrained to any visible window, since
+Note Mode's pad grid has no windowing concept at all (it's a piano-style note layout). Each axis
+wraps independently via `store.selectCell`, not `store.moveCursor`'s `delta.field` (which also
+cycles `field`/wraps into a neighboring track as a side effect that doesn't apply to a dedicated
+track-axis move).
+
+Note Mode's own pad grid still gets a `PALETTE.SELECTED_CELL_CURSOR` highlight, reusing
+`trackerGridMode.js`'s own track=column, row=step-within-window mapping *exactly* (not a
+separate one) — so the cursor lands on the same physical pad for the same selected cell
+regardless of which Push view is showing it. (An earlier version of this highlighted whichever
+pad matched the *note already in* the selected cell instead, reasoning that Note Mode's grid is
+a piano layout with no (track, row) position of its own to paint — wrong in practice: it didn't
+move predictably with CC44-47, since two cells rarely hold adjacent note values, and gave no
+indication at all for an empty cell. Fixed by reusing the real mapping.) Note Mode has no
+window-offset of its own to page with (the piano layout never scrolls), so `rowIndex` wraps onto
+the 8-row grid every 8 rows via a plain modulo instead of a tracked window position. Repaints on
+`CURSOR_MOVED` only now (not `CELL_CHANGED` — the overlay no longer depends on what a cell
+contains, only on the cursor's own position), and is skipped for any pad currently held down so
+a store write mid-press (`writePressedNote`'s own `store.setCell` calls, which fire
+`CELL_CHANGED`, and the `editStep` auto-advance's `CURSOR_MOVED`) can't clobber the
+`NOTE_MODE_PRESSED` feedback the user is still looking at. No highlight shows when write mode is
+off.
+
+**Session/Grid, write mode on** (`trackerGridMode.js`): a pad press selects that tracker cell
+(`store.selectCell`, preserving the cursor's own `field`) instead of toggling a step on/off —
+loading the cell's properties onto the encoders/LCD and lighting the cursor color both follow
+for free from the `CURSOR_MOVED` this emits, no separate "push to Push" step. The selected
+cell's own pad is painted `PALETTE.SELECTED_CELL_CURSOR` (colors.js) — a new priority tier ahead
+of both the playhead and has-note coloring in `cellColor()`, since knowing exactly which cell
+Push is about to write into matters more, while editing, than briefly seeing the playhead pass
+through it. CC44-47 keep their existing (write-mode-independent) behavior: Up/Down still page
+the visible step window (`pageSteps` — viewport paging, not cell selection, so it doesn't
+compete with pads as the brief's "one selection mechanism" requirement), Left/Right stay
+unclaimed exactly as before this feature existed.
+
+**Session/Grid range selection and Duplicate** (`trackerGridMode.js`, CC49 Shift / CC88
+Duplicate): extends the single-cell behavior above with a range-selection/duplicate operation,
+built entirely on `state/store.js`'s existing selection rect (`cursor` + `selectionAnchor`, the
+same shape a desktop shift+click/drag already produces) and its existing
+`captureBlock`/`tileBlockIntoRect` primitives — no second selection representation, no second
+copy/paste implementation.
+
+- **Shift (CC49)** is read live: `modeController.js`'s own CC dispatch now forwards *every* CC
+  to the active content's `onCC`, release included (it used to filter to presses only, `data2 >
+  0`, before ever reaching `onCC` — fine for every existing consumer, which already guarded
+  releases itself, but wrong for a button whose LED must track real held/not-held state rather
+  than behave like a one-shot toggle). `trackerGridMode.js`'s own `onCC` handles Shift *before*
+  its usual release guard, for exactly this reason. Lit (`FEEDBACK_FULL`) while physically held,
+  dim otherwise — only meaningful while write mode is on; a plain no-op otherwise (Shift was
+  never wired to anything before this).
+- **Shift + a pad** builds a range from the tracker's own absolute first cell (track 0, row 0)
+  through the pressed pad: `store.selectCell(0, 0, field)` then
+  `store.extendSelectionTo(trackIndex, stepIndex)` — the *exact* pair a desktop shift+click/drag
+  already calls, not a parallel implementation. Every further Shift+pad press repeats this same
+  pair from scratch, replacing rather than extending the previous range, per the brief. A plain
+  (non-shift) pad press always calls the single-cell `store.selectCell(trackIndex, stepIndex,
+  field)` from before this feature — which, as a side effect, collapses any existing range back
+  to one cell, satisfying "a normal press dismisses the selection" for free.
+- **`PALETTE.GRID_SELECTION`** (colors.js, `RAW.DIM_WHITE`) paints every cell inside an active
+  multi-cell range uniformly, in `cellColor()`'s own priority tier *above*
+  `SELECTED_CELL_CURSOR` — the two are deliberately distinct colors/concepts per the brief (a
+  single selected cell vs. a range selected for an operation): the cursor color only shows once
+  a rect has collapsed back to 1x1. `DIM_WHITE` was chosen because every *other* RAW byte is
+  already painted somewhere in the Session/Grid pad context (`OFF`=empty, `GREEN`=has-note,
+  `TEAL`=playhead, `RED`=cursor) — the same "reuse a confirmed byte in a new context" move
+  `SELECTED_CELL_CURSOR`'s own choice of `RED` already made.
+- **Duplicate (CC88)** is lit while `store.getSelectionRect()` spans more than one cell, dim
+  otherwise (`hasRangeSelection()`) — reflecting *any* current selection, not only a Push-made
+  one. A press calls `state/store.js#duplicateSelection()` (new — built from the same
+  `captureBlock`/`tileBlockIntoRect` `copySelection`/`fillSelection` already use, destination rect
+  starting the row right after the selection's own last row, clipped at the pattern's row bound
+  the same way `pasteSelection` already clips near an edge; deliberately never touches
+  `state.clipboard`, unlike `copySelection`, so duplicating can't clobber an unrelated pending
+  paste), then collapses the selection back to the cursor's single cell either way — restoring
+  normal single-cell editing (and the LCD/encoders along with it, via the same `CURSOR_MOVED` the
+  collapse emits).
+- **Provenance, not a second selection:** `pushOwnsSelection` (a plain boolean, not a selection
+  copy) is true only while the *active* range was created by a Push Shift+pad gesture — checked
+  before auto-collapsing a selection on `onExit()` (leaving Session/Grid view) or on `refresh()`
+  once write mode has turned off (`syncSelectionWithWriteMode()`, called from both `onEnter()`
+  and `refresh()` — the hook `appContext.js`'s `pushWriteMode.onChange` → `pushModeController.
+  refresh()` wiring actually fires through). This is what stops Push from clobbering a selection
+  the desktop UI's own mouse drag made independently of it, while still cleaning up anything
+  Push itself started.
+
+**The encoders/LCD** (`encoderController.js`'s `cellEdit` mode, entered via
+`setCellEditMode(true)`/restored via `setCellEditMode(false)`): while write mode is on, the 8
+encoders/4 displays show the same 7 fields `ui/chrome/NoteEditor.jsx` exposes above its CELL FX
+section, in the same order — NOTE, INSTRUMENT, VELOCITY, LENGTH, PAN, FX CMD (`effectCommand`),
+FX PARAM (`effectParam`) — reading/writing the exact same event fields via `store.setCell`, no
+second data model. `effectCommand` is a bounded enum, stepped with the same
+accumulate-until-a-real-turn technique the FX boolean parameter already uses (`handleFxEncoder`'s
+`BOOLEAN_TOGGLE_THRESHOLD`), generalized to a signed index step. `length` steps a whole row per
+tick (a snap-to-grid count, not a continuous parameter) and returns to `null`/"auto" one step
+below 1. Cell FX automation (the sparse, variable-length CELL FX list) isn't represented — it
+doesn't fit a fixed 8-encoder layout, and the brief's own examples ("note, velocity/cell volume,
+length, etc.") don't require covering it; a future stage could page it the same way FX mode
+pages `fxChain` entries. Repaints on `CURSOR_MOVED` (already subscribed, for volume/FX mode) and
+now also `CELL_CHANGED`, so a `NoteEditor.jsx` edit landing on the currently-displayed cell shows
+up on the LCD immediately. Turning write mode off restores whichever of volume/FX was showing
+before, never resetting to a default.
+
 ### `patternGridModeStub.js` — a placeholder, not a feature
 
 Pattern view (the `"session.pattern"` content, reached via Clip/CC113) isn't designed yet. This
@@ -445,14 +574,18 @@ here rather than only in git history.
 ## Testing strategy
 
 No physical hardware for the core suite — every module above is constructed with injectable
-dependencies (`requestMIDIAccess`, `device`, `store`, `playbackController`) the same
+dependencies (`requestMIDIAccess`, `device`, `store`, `playbackController`, `writeMode`) the same
 "overridable for tests" shape already established elsewhere (`audio/lookaheadPlayer.js`'s
 `reserveVoiceSlot`/`registerVoice`). `test/pushDevice.test.js` and `test/midiInputSource.test.js`
 use fake `MIDIAccess`/port objects; `test/pushModeController.test.js`,
-`test/pushTrackerGridMode.test.js`, `test/pushNoteEntryMode.test.js`, and
-`test/patternGridModeStub.test.js` use a fake `device` (`{ onMessage, send }`) and drive a real
-`state/store.js` instance; `test/pushConstants.test.js` and `test/midiOutput.test.js` test pure
-formulas and scheduling logic (the latter with `vi.useFakeTimers()`) respectively.
+`test/pushTrackerGridMode.test.js`, `test/pushNoteEntryMode.test.js`, `test/pushWriteMode.test.js`,
+and `test/patternGridModeStub.test.js` use a fake `device` (`{ onMessage, send }`) and drive a
+real `state/store.js` instance (`trackerGridMode.js`/`noteEntryMode.js`'s own write-mode tests
+pass a minimal fake `writeMode` — `{ isActive: () => bool }` — rather than a real
+`writeMode.js` instance, since isolating "does this content react correctly to write mode" from
+"does CC86 toggle correctly" is the whole point of testing each module separately);
+`test/pushConstants.test.js` and `test/midiOutput.test.js` test pure formulas and scheduling
+logic (the latter with `vi.useFakeTimers()`) respectively.
 
 Hardware was used only to *confirm* already-written, already-tested code — never to
 experimentally discover new mappings from scratch (the one exception, `TRACK_SELECT_CC`, was
@@ -554,3 +687,14 @@ own `attach()` cleanup was built to avoid (see "Lessons from real bugs" #2 below
   "Why no `midi-core` dependency" above. If a second real device is ever integrated, revisit
   whether any of `modeController.js`'s shape is worth generalizing *then*, with two real
   examples in hand instead of one speculative one.
+- **Write mode's `cellEdit` encoder display doesn't cover cell FX automation
+  (`Event.fx`/`ui/chrome/NoteEditor.jsx`'s CELL FX section).** That list is sparse and
+  variable-length per cell/track — it doesn't fit the fixed 8-encoder layout the other 7 fields
+  (note/instrument/velocity/length/pan/effectCommand/effectParam) already use. A future stage
+  could page through it the same way `encoderController.js`'s own FX mode already pages
+  `fxChain` entries, reusing `fxPageIndex`'s precedent rather than inventing a new windowing
+  scheme.
+- **Write mode never auto-scrolls `trackerGridMode.js`'s step window** to bring a newly selected
+  cell into view (e.g. a UI-driven cursor move to a step outside the current 8-step page) — the
+  selected-cell cursor color simply isn't visible until the user pages there themselves, same as
+  the playhead already behaves outside the visible window.

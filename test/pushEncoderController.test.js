@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createPushEncoderController } from "../src/midi/push/encoderController.js";
 import { createStore } from "../src/state/store.js";
 import { createSong } from "../src/model/song.js";
+import { getSelectedPattern } from "../src/model/query.js";
 import {
   ENCODER_CC,
   CC_ENCODER_MODE_VOLUME,
@@ -247,6 +248,146 @@ describe("createPushEncoderController — LCD alignment", () => {
     const nameLine = sentLcdLine(device, 2);
     expect(segmentAt(nameLine, 0).trim()).toBe("Threshol"); // long name, truncated within its own 8-wide segment
     expect(segmentAt(nameLine, 1).trim()).toBe("Ratio"); // short name, not pulled into a neighbor's offset
+  });
+});
+
+describe("createPushEncoderController — write mode: cellEdit mode", () => {
+  it("setCellEditMode(true) switches the LCD header to CELL EDIT and dims both CC114/CC115", () => {
+    const { device, controller } = createTestContext();
+    controller.attach();
+
+    controller.setCellEditMode(true);
+
+    expect(device.send).toHaveBeenCalledWith(lcdSysex(0, "CELL EDIT  TRK1  ROW1"));
+    expect(device.send).toHaveBeenCalledWith([CC_ON, CC_ENCODER_MODE_VOLUME, FEEDBACK_DIM]);
+    expect(device.send).toHaveBeenCalledWith([CC_ON, CC_ENCODER_MODE_FX, FEEDBACK_DIM]);
+  });
+
+  it("setCellEditMode(false) restores whichever of volume/fx was active before", () => {
+    const { device, controller } = createTestContext();
+    controller.attach();
+    device.fireMessage([CC_ON, CC_ENCODER_MODE_FX, 127]);
+    controller.setCellEditMode(true);
+    device.send.mockClear();
+
+    controller.setCellEditMode(false);
+
+    expect(device.send).toHaveBeenCalledWith(lcdSysex(0, "FX  (no FX enabled)  TRK1"));
+  });
+
+  it("is idempotent — calling setCellEditMode(true) twice doesn't reset accumulators or double-repaint header text", () => {
+    const { device, controller } = createTestContext();
+    controller.attach();
+    controller.setCellEditMode(true);
+    device.send.mockClear();
+
+    expect(() => controller.setCellEditMode(true)).not.toThrow();
+    expect(device.send).not.toHaveBeenCalled();
+  });
+
+  it("turning encoder 0 changes the selected cell's note", () => {
+    const { store, device, controller } = createTestContext();
+    store.setCell(0, 0, "note", 60);
+    controller.attach();
+    controller.setCellEditMode(true);
+
+    device.fireMessage([CC_ON, ENCODER_CC[0], 5]); // delta +5
+
+    expect(getSelectedPattern(store.getState().song).tracks[0].events[0].note).toBe(65);
+  });
+
+  it("turning encoder 1 changes the selected cell's instrument, clamped to 0-255", () => {
+    const { store, device, controller } = createTestContext();
+    store.setCell(0, 0, "note", 60);
+    controller.attach();
+    controller.setCellEditMode(true);
+
+    for (let i = 0; i < 10; i++) device.fireMessage([CC_ON, ENCODER_CC[1], 100]); // negative delta each time
+
+    expect(getSelectedPattern(store.getState().song).tracks[0].events[0].instrument).toBe(0);
+  });
+
+  it("turning encoder 2 changes the selected cell's velocity, clamped to 0-127", () => {
+    const { store, device, controller } = createTestContext();
+    store.setCell(0, 0, "note", 60);
+    controller.attach();
+    controller.setCellEditMode(true);
+
+    for (let i = 0; i < 10; i++) device.fireMessage([CC_ON, ENCODER_CC[2], 40]);
+
+    expect(getSelectedPattern(store.getState().song).tracks[0].events[0].velocity).toBe(127);
+  });
+
+  it("turning encoder 3 steps the selected cell's length by one row per tick, returning to null (auto) below 1", () => {
+    const { store, device, controller } = createTestContext();
+    store.setCell(0, 0, "note", 60);
+    controller.attach();
+    controller.setCellEditMode(true);
+
+    device.fireMessage([CC_ON, ENCODER_CC[3], 5]); // positive delta
+    expect(getSelectedPattern(store.getState().song).tracks[0].events[0].length).toBe(1);
+
+    device.fireMessage([CC_ON, ENCODER_CC[3], 100]); // negative delta -> back to auto
+    expect(getSelectedPattern(store.getState().song).tracks[0].events[0].length).toBe(null);
+  });
+
+  it("turning encoder 4 changes the selected cell's pan, clamped to -1..1", () => {
+    const { store, device, controller } = createTestContext();
+    store.setCell(0, 0, "note", 60);
+    controller.attach();
+    controller.setCellEditMode(true);
+
+    for (let i = 0; i < 100; i++) device.fireMessage([CC_ON, ENCODER_CC[4], 40]);
+
+    expect(getSelectedPattern(store.getState().song).tracks[0].events[0].pan).toBe(1);
+  });
+
+  it("turning encoder 5 steps through effectCommand once accumulated movement crosses the threshold", () => {
+    const { store, device, controller } = createTestContext();
+    store.setCell(0, 0, "note", 60);
+    controller.attach();
+    controller.setCellEditMode(true);
+
+    device.fireMessage([CC_ON, ENCODER_CC[5], 4]); // meets ENUM_STEP_THRESHOLD
+
+    expect(getSelectedPattern(store.getState().song).tracks[0].events[0].effectCommand).toBe("pitch-slide-up");
+  });
+
+  it("turning encoder 6 changes the selected cell's effectParam, clamped to 0-255", () => {
+    const { store, device, controller } = createTestContext();
+    store.setCell(0, 0, "note", 60);
+    controller.attach();
+    controller.setCellEditMode(true);
+
+    for (let i = 0; i < 10; i++) device.fireMessage([CC_ON, ENCODER_CC[6], 40]);
+
+    expect(getSelectedPattern(store.getState().song).tracks[0].events[0].effectParam).toBe(255);
+  });
+
+  it("switching the selected cell (CURSOR_MOVED) repaints the LCD with the new cell's values", () => {
+    const { store, device, controller } = createTestContext();
+    store.setCell(0, 0, "note", 60);
+    store.setCell(1, 0, "note", 72);
+    controller.attach();
+    controller.setCellEditMode(true);
+    device.send.mockClear();
+
+    store.selectCell(1, 0, "note");
+
+    expect(device.send).toHaveBeenCalledWith(lcdSysex(0, "CELL EDIT  TRK2  ROW1"));
+  });
+
+  it("a NoteEditor-style CELL_CHANGED edit on the selected cell repaints the LCD", () => {
+    const { store, device, controller } = createTestContext();
+    store.setCell(0, 0, "note", 60);
+    controller.attach();
+    controller.setCellEditMode(true);
+    device.send.mockClear();
+
+    store.setCell(0, 0, "velocity", 42); // the same mutator NoteEditor.jsx uses
+
+    const valueLine = sentLcdLine(device, 3);
+    expect(segmentAt(valueLine, 2).trim()).toBe("2A"); // toHex(42, 2)
   });
 });
 

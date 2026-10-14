@@ -22,6 +22,7 @@ import { createPushTrackerGridMode } from "./midi/push/trackerGridMode.js";
 import { createPatternGridModeStub } from "./midi/push/patternGridModeStub.js";
 import { createPushEncoderController } from "./midi/push/encoderController.js";
 import { createPushTransportController } from "./midi/push/transportController.js";
+import { createPushWriteMode } from "./midi/push/writeMode.js";
 import { midiDeviceManager } from "./midi/deviceManager.js";
 import { createRenderStats } from "./debug/renderStats.js";
 import { createControlRegistry } from "./control/registry.js";
@@ -261,8 +262,14 @@ export function createAppContext() {
   // Push pad instead of a keyboard). pushTrackerGridMode needs playbackController (already
   // constructed above) for its live playhead LEDs.
   const pushDevice = createPushDevice();
-  const pushNoteEntryMode = createPushNoteEntryMode({ device: pushDevice });
-  const pushTrackerGridMode = createPushTrackerGridMode({ device: pushDevice, store, playbackController });
+  // Write mode (CC86/Record — docs/MIDI.md) is a cross-cutting toggle independent of
+  // modeController.js's own pushMode/sessionView state, so it's constructed up front and handed
+  // into noteEntryMode/trackerGridMode as a plain dependency (the same "pull isActive() lazily"
+  // shape playbackController is already handed into trackerGridMode as) — neither of those two
+  // needs to know write mode toggled; they just check it inside their own pad/CC handlers.
+  const pushWriteMode = createPushWriteMode({ device: pushDevice });
+  const pushNoteEntryMode = createPushNoteEntryMode({ device: pushDevice, store, writeMode: pushWriteMode });
+  const pushTrackerGridMode = createPushTrackerGridMode({ device: pushDevice, store, playbackController, writeMode: pushWriteMode });
   const pushModeController = createPushModeController({
     device: pushDevice,
     gridContent: {
@@ -271,12 +278,23 @@ export function createAppContext() {
       "session.pattern": createPatternGridModeStub({ device: pushDevice }),
     },
   });
-  // Encoders (volume/FX modes + LCD) and the Play button are each a physically separate control
-  // group from the 8x8 pad grid, so they're attached independently of pushModeController rather
-  // than folded into its gridContent dispatch — pushDevice.js already supports more than one
-  // onMessage listener, exactly for this.
+  // Encoders (volume/FX/cellEdit modes + LCD) and the Play button are each a physically
+  // separate control group from the 8x8 pad grid, so they're attached independently of
+  // pushModeController rather than folded into its gridContent dispatch — pushDevice.js already
+  // supports more than one onMessage listener, exactly for this.
   const pushEncoderController = createPushEncoderController({ device: pushDevice, store, fxController });
   const pushTransportController = createPushTransportController({ device: pushDevice, store, togglePlayback });
+
+  // Write mode toggling needs to immediately (a) flip the encoder/LCD surface over to
+  // representing the selected cell and (b) repaint whichever grid content is currently active
+  // (so a Session/Grid cursor highlight appears/disappears the instant Record is pressed, not on
+  // the next unrelated cursor move) — the composition root is where that cross-controller
+  // wiring belongs (docs/ARCHITECTURE.md's module map), the same way pushDevice's own
+  // onConnectionChange is wired to refreshPushState() below.
+  pushWriteMode.onChange((active) => {
+    pushEncoderController.setCellEditMode(active);
+    pushModeController.refresh();
+  });
 
   // The one entry point for "fully resync whatever's currently on the device" — a Push
   // reconnect (wired below via pushDevice.onConnectionChange) and the Settings modal's manual
@@ -285,6 +303,7 @@ export function createAppContext() {
     pushModeController.refresh();
     pushEncoderController.refresh();
     pushTransportController.refresh();
+    pushWriteMode.refresh();
   }
   pushDevice.onConnectionChange((connected) => {
     if (connected) refreshPushState();
@@ -295,7 +314,9 @@ export function createAppContext() {
     const detachController = pushModeController.attach();
     const detachEncoders = pushEncoderController.attach();
     const detachTransport = pushTransportController.attach();
+    const detachWriteMode = pushWriteMode.attach();
     return () => {
+      detachWriteMode();
       detachTransport();
       detachEncoders();
       detachController?.();

@@ -2,7 +2,17 @@ import { describe, expect, it, vi, afterEach } from "vitest";
 import { createPushTrackerGridMode } from "../src/midi/push/trackerGridMode.js";
 import { createStore } from "../src/state/store.js";
 import { createSong } from "../src/model/song.js";
-import { padNote, MUTE_CC, TRACK_SELECT_CC, CC_ARROW_UP, CC_ARROW_DOWN } from "../src/midi/push/constants.js";
+import {
+  padNote,
+  MUTE_CC,
+  TRACK_SELECT_CC,
+  CC_ARROW_UP,
+  CC_ARROW_DOWN,
+  CC_SHIFT,
+  CC_DUPLICATE,
+  FEEDBACK_DIM,
+  FEEDBACK_FULL,
+} from "../src/midi/push/constants.js";
 import { PALETTE, RAW } from "../src/midi/push/colors.js";
 import { getSelectedPattern } from "../src/model/query.js";
 
@@ -13,14 +23,21 @@ function padRowForStep(stepWithinWindow) {
   return 7 - stepWithinWindow;
 }
 
-function createTestContext() {
+function createFakeWriteMode(active) {
+  // Mutable via `.active` so a test can flip it mid-flight (e.g. simulating Record being
+  // pressed off while a Push-made range selection is still active).
+  return { active, isActive() { return this.active; } };
+}
+
+function createTestContext({ writeModeActive = false } = {}) {
   const song = createSong(); // 8 tracks, 64 rows, one empty pattern
   const store = createStore({ song, instruments: [] });
   const device = { send: vi.fn() };
   const trackPlayheadRows = new Array(8).fill(-1);
   const playbackController = { getTrackPlayheadRow: (trackIndex) => trackPlayheadRows[trackIndex] };
-  const mode = createPushTrackerGridMode({ device, store, playbackController });
-  return { store, device, playbackController, trackPlayheadRows, mode };
+  const writeMode = createFakeWriteMode(writeModeActive);
+  const mode = createPushTrackerGridMode({ device, store, playbackController, writeMode });
+  return { store, device, playbackController, trackPlayheadRows, writeMode, mode };
 }
 
 afterEach(() => {
@@ -225,6 +242,353 @@ describe("createPushTrackerGridMode — live playhead LEDs", () => {
     const padSends = device.send.mock.calls.filter(([bytes]) => bytes[0] === 0x90);
     expect(padSends).toHaveLength(1);
 
+    mode.onExit();
+  });
+});
+
+describe("createPushTrackerGridMode — write mode: pad selects a cell instead of toggling it", () => {
+  it("a pad press selects the corresponding tracker cell, leaving the event untouched", () => {
+    const { store, mode } = createTestContext({ writeModeActive: true });
+    mode.onEnter();
+
+    mode.onPadOn(padRowForStep(2), 1, 90); // track 1, step 2
+
+    expect(store.getState().cursor).toEqual({ trackIndex: 1, rowIndex: 2, field: "note" });
+    const event = getSelectedPattern(store.getState().song).tracks[1].events[2];
+    expect(event.note).toBe(null); // no toggle happened — selection only
+    mode.onExit();
+  });
+
+  it("pressing a pad over an already-occupied cell selects it rather than clearing it", () => {
+    const { store, mode } = createTestContext({ writeModeActive: true });
+    store.setCell(0, 0, "note", 64);
+    mode.onEnter();
+
+    mode.onPadOn(padRowForStep(0), 0, 50);
+
+    expect(store.getState().cursor).toEqual({ trackIndex: 0, rowIndex: 0, field: "note" });
+    const event = getSelectedPattern(store.getState().song).tracks[0].events[0];
+    expect(event.note).toBe(64);
+    mode.onExit();
+  });
+
+  it("preserves the cursor's own field, same as TRACK_SELECT_CC selection does", () => {
+    const { store, mode } = createTestContext({ writeModeActive: true });
+    store.selectCell(0, 0, "velocity");
+    mode.onEnter();
+
+    mode.onPadOn(padRowForStep(5), 3, 90);
+
+    expect(store.getState().cursor).toEqual({ trackIndex: 3, rowIndex: 5, field: "velocity" });
+    mode.onExit();
+  });
+});
+
+describe("createPushTrackerGridMode — write mode: selected-cell cursor color", () => {
+  it("paints the cursor's own cell with SELECTED_CELL_CURSOR, ahead of has-note coloring", () => {
+    const { store, device, mode } = createTestContext({ writeModeActive: true });
+    store.setCell(2, 3, "note", 60); // would otherwise paint CELL_HAS_NOTE
+    store.selectCell(2, 3, "note");
+    device.send.mockClear();
+
+    mode.onEnter();
+    mode.paint();
+
+    expect(device.send).toHaveBeenCalledWith([0x90, padNote(padRowForStep(3), 2), PALETTE.SELECTED_CELL_CURSOR]);
+    mode.onExit();
+  });
+
+  it("wins over the playhead when both coincide", () => {
+    const { store, trackPlayheadRows, device, mode } = createTestContext({ writeModeActive: true });
+    store.selectCell(4, 2, "note");
+    trackPlayheadRows[4] = 2;
+    device.send.mockClear();
+
+    mode.onEnter();
+    mode.paint();
+
+    expect(device.send).toHaveBeenCalledWith([0x90, padNote(padRowForStep(2), 4), PALETTE.SELECTED_CELL_CURSOR]);
+    mode.onExit();
+  });
+
+  it("does not paint the cursor color while write mode is off", () => {
+    const { store, device, mode } = createTestContext({ writeModeActive: false });
+    store.selectCell(2, 3, "note");
+    device.send.mockClear();
+
+    mode.onEnter();
+    mode.paint();
+
+    expect(device.send).not.toHaveBeenCalledWith([0x90, padNote(padRowForStep(3), 2), PALETTE.SELECTED_CELL_CURSOR]);
+    mode.onExit();
+  });
+
+  it("repaints the cursor highlight on CURSOR_MOVED (e.g. a webtrack UI selection)", () => {
+    const { store, device, mode } = createTestContext({ writeModeActive: true });
+    mode.onEnter();
+    mode.paint();
+    device.send.mockClear();
+
+    store.selectCell(5, 6, "note"); // the "UI selects a cell" path — same mutator a grid click uses
+
+    expect(device.send).toHaveBeenCalledWith([0x90, padNote(padRowForStep(6), 5), PALETTE.SELECTED_CELL_CURSOR]);
+    mode.onExit();
+  });
+});
+
+describe("createPushTrackerGridMode — write mode: Shift LED (CC49)", () => {
+  it("is dim on entry, full while physically held, dim again on release", () => {
+    const { device, mode } = createTestContext({ writeModeActive: true });
+    mode.onEnter();
+    device.send.mockClear();
+
+    mode.onCC(CC_SHIFT, 127);
+    expect(device.send).toHaveBeenCalledWith([0xb0, CC_SHIFT, FEEDBACK_FULL]);
+
+    device.send.mockClear();
+    mode.onCC(CC_SHIFT, 0);
+    expect(device.send).toHaveBeenCalledWith([0xb0, CC_SHIFT, FEEDBACK_DIM]);
+    mode.onExit();
+  });
+
+  it("does nothing while write mode is off — normal/inert behaviour", () => {
+    const { device, mode } = createTestContext({ writeModeActive: false });
+    mode.onEnter();
+    device.send.mockClear();
+
+    mode.onCC(CC_SHIFT, 127);
+
+    expect(device.send).not.toHaveBeenCalledWith([0xb0, CC_SHIFT, FEEDBACK_FULL]);
+    mode.onExit();
+  });
+});
+
+describe("createPushTrackerGridMode — write mode: grid range selection (Shift + pad)", () => {
+  it("Shift + the first pad selects cell 0 only", () => {
+    const { store, mode } = createTestContext({ writeModeActive: true });
+    mode.onEnter();
+
+    mode.onCC(CC_SHIFT, 127);
+    mode.onPadOn(padRowForStep(0), 0, 90); // track 0, step 0 — the tracker's own first cell
+
+    const rect = store.getSelectionRect();
+    expect(rect).toEqual({ trackStart: 0, trackEnd: 0, rowStart: 0, rowEnd: 0 });
+    mode.onExit();
+  });
+
+  it("Shift + a pad further into the grid selects every cell from 0 through that pad", () => {
+    const { store, mode } = createTestContext({ writeModeActive: true });
+    mode.onEnter();
+
+    mode.onCC(CC_SHIFT, 127);
+    mode.onPadOn(padRowForStep(7), 3, 90); // track 3, step 7
+
+    expect(store.getSelectionRect()).toEqual({ trackStart: 0, trackEnd: 3, rowStart: 0, rowEnd: 7 });
+    mode.onExit();
+  });
+
+  it("a second Shift + pad replaces the previous range rather than extending it", () => {
+    const { store, mode } = createTestContext({ writeModeActive: true });
+    mode.onEnter();
+    mode.onCC(CC_SHIFT, 127);
+    mode.onPadOn(padRowForStep(7), 7, 90); // a big first selection
+
+    mode.onPadOn(padRowForStep(1), 2, 90); // a second, smaller one, still shift-held
+
+    expect(store.getSelectionRect()).toEqual({ trackStart: 0, trackEnd: 2, rowStart: 0, rowEnd: 1 });
+    mode.onExit();
+  });
+
+  it("without Shift, a pad press dismisses an existing selection and selects that single cell", () => {
+    const { store, mode } = createTestContext({ writeModeActive: true });
+    mode.onEnter();
+    mode.onCC(CC_SHIFT, 127);
+    mode.onPadOn(padRowForStep(5), 4, 90);
+    mode.onCC(CC_SHIFT, 0);
+
+    mode.onPadOn(padRowForStep(2), 1, 90); // plain press, no shift
+
+    expect(store.getSelectionRect()).toEqual({ trackStart: 1, trackEnd: 1, rowStart: 2, rowEnd: 2 });
+    mode.onExit();
+  });
+
+  it("the range selection paints every cell within it as GRID_SELECTION", () => {
+    const { device, mode } = createTestContext({ writeModeActive: true });
+    mode.onEnter();
+    device.send.mockClear();
+
+    mode.onCC(CC_SHIFT, 127);
+    mode.onPadOn(padRowForStep(1), 1, 90); // rect: tracks 0-1, rows 0-1 — the CURSOR_MOVED this
+    // triggers already repaints the grid automatically (same subscription every other cursor
+    // move goes through), so there's no separate mode.paint() call needed to see the result.
+
+    expect(device.send).toHaveBeenCalledWith([0x90, padNote(padRowForStep(0), 0), PALETTE.GRID_SELECTION]);
+    expect(device.send).toHaveBeenCalledWith([0x90, padNote(padRowForStep(1), 1), PALETTE.GRID_SELECTION]);
+    // Outside the rect: ordinary empty-cell coloring, not the range color.
+    expect(device.send).toHaveBeenCalledWith([0x90, padNote(padRowForStep(0), 2), RAW.OFF]);
+    mode.onExit();
+  });
+
+  it("a 1x1 selection still shows SELECTED_CELL_CURSOR, not GRID_SELECTION", () => {
+    const { device, mode } = createTestContext({ writeModeActive: true });
+    mode.onEnter();
+    device.send.mockClear();
+
+    mode.onCC(CC_SHIFT, 127);
+    mode.onPadOn(padRowForStep(0), 0, 90); // rect collapses to exactly cell (0,0)
+
+    expect(device.send).toHaveBeenCalledWith([0x90, padNote(padRowForStep(0), 0), PALETTE.SELECTED_CELL_CURSOR]);
+    mode.onExit();
+  });
+});
+
+describe("createPushTrackerGridMode — write mode: Duplicate (CC88)", () => {
+  it("LED is dim without a selection, full once a range selection exists", () => {
+    const { device, mode } = createTestContext({ writeModeActive: true });
+    mode.onEnter();
+    mode.paint();
+
+    expect(device.send).toHaveBeenCalledWith([0xb0, CC_DUPLICATE, FEEDBACK_DIM]);
+
+    device.send.mockClear();
+    mode.onCC(CC_SHIFT, 127);
+    mode.onPadOn(padRowForStep(1), 1, 90);
+
+    expect(device.send).toHaveBeenCalledWith([0xb0, CC_DUPLICATE, FEEDBACK_FULL]);
+    mode.onExit();
+  });
+
+  it("pressing Duplicate without a selection is a no-op", () => {
+    const { store, mode } = createTestContext({ writeModeActive: true });
+    mode.onEnter();
+
+    expect(() => mode.onCC(CC_DUPLICATE, 127)).not.toThrow();
+    expect(store.getState().song.patterns[0].tracks[0].events[1].note).toBe(null);
+    mode.onExit();
+  });
+
+  it("pressing Duplicate duplicates the selection below itself via the existing store functionality", () => {
+    const { store, mode } = createTestContext({ writeModeActive: true });
+    store.setCell(1, 0, "note", 60);
+    mode.onEnter();
+    mode.onCC(CC_SHIFT, 127);
+    mode.onPadOn(padRowForStep(0), 1, 90); // selects rect: tracks 0-1, row 0
+
+    mode.onCC(CC_DUPLICATE, 127);
+
+    const pattern = getSelectedPattern(store.getState().song);
+    expect(pattern.tracks[1].events[1].note).toBe(60); // duplicated directly below row 0
+    mode.onExit();
+  });
+
+  it("restores the normal single-cell cursor state and dims Duplicate after duplicating", () => {
+    const { store, device, mode } = createTestContext({ writeModeActive: true });
+    store.setCell(1, 0, "note", 60);
+    mode.onEnter();
+    mode.onCC(CC_SHIFT, 127);
+    mode.onPadOn(padRowForStep(0), 1, 90);
+    device.send.mockClear();
+
+    mode.onCC(CC_DUPLICATE, 127);
+
+    const rect = store.getSelectionRect();
+    expect(rect).toEqual({ trackStart: 1, trackEnd: 1, rowStart: 0, rowEnd: 0 }); // collapsed to the cursor's own cell
+    expect(device.send).toHaveBeenCalledWith([0xb0, CC_DUPLICATE, FEEDBACK_DIM]);
+    mode.onExit();
+  });
+
+  it("does nothing while write mode is off", () => {
+    const { store, mode } = createTestContext({ writeModeActive: false });
+    store.selectCell(0, 0, "note");
+    store.extendSelectionTo(1, 1);
+    mode.onEnter();
+
+    mode.onCC(CC_DUPLICATE, 127);
+
+    const pattern = getSelectedPattern(store.getState().song);
+    expect(pattern.tracks[0].events[2].note).toBe(null); // no duplication happened
+    mode.onExit();
+  });
+});
+
+describe("createPushTrackerGridMode — write mode: selection lifecycle across mode/write-mode transitions", () => {
+  it("onExit dismisses a Push-made range selection", () => {
+    const { store, mode } = createTestContext({ writeModeActive: true });
+    mode.onEnter();
+    mode.onCC(CC_SHIFT, 127);
+    mode.onPadOn(padRowForStep(3), 2, 90);
+
+    mode.onExit();
+
+    const rect = store.getSelectionRect();
+    expect(rect.trackStart).toBe(rect.trackEnd);
+    expect(rect.rowStart).toBe(rect.rowEnd);
+  });
+
+  it("onExit never touches a selection the desktop UI made independently of Push", () => {
+    const { store, mode } = createTestContext({ writeModeActive: true });
+    store.selectCell(2, 0, "note");
+    store.extendSelectionTo(4, 3); // the same pair a mouse shift+click/drag would call
+    mode.onEnter();
+
+    mode.onExit();
+
+    expect(store.getSelectionRect()).toEqual({ trackStart: 2, trackEnd: 4, rowStart: 0, rowEnd: 3 });
+  });
+
+  it("refresh() dismisses a Push-made selection once write mode has turned off", () => {
+    const { store, writeMode, mode } = createTestContext({ writeModeActive: true });
+    mode.onEnter();
+    mode.onCC(CC_SHIFT, 127);
+    mode.onPadOn(padRowForStep(3), 2, 90);
+    writeMode.active = false; // Record pressed — write mode off, still in this view
+
+    mode.refresh();
+
+    const rect = store.getSelectionRect();
+    expect(rect.trackStart).toBe(rect.trackEnd);
+    expect(rect.rowStart).toBe(rect.rowEnd);
+    mode.onExit();
+  });
+
+  it("refresh() leaves a desktop-made selection alone even after write mode turns off", () => {
+    const { store, writeMode, mode } = createTestContext({ writeModeActive: true });
+    store.selectCell(2, 0, "note");
+    store.extendSelectionTo(4, 3);
+    mode.onEnter();
+    writeMode.active = false;
+
+    mode.refresh();
+
+    expect(store.getSelectionRect()).toEqual({ trackStart: 2, trackEnd: 4, rowStart: 0, rowEnd: 3 });
+    mode.onExit();
+  });
+
+  it("re-entering with write mode still active has no stale range selection left over", () => {
+    const { store, mode } = createTestContext({ writeModeActive: true });
+    mode.onEnter();
+    mode.onCC(CC_SHIFT, 127);
+    mode.onPadOn(padRowForStep(3), 2, 90);
+    mode.onExit(); // leaving the view dismisses the Push-made selection
+
+    mode.onEnter(); // returning, write mode still on
+
+    const rect = store.getSelectionRect();
+    expect(rect.trackStart).toBe(rect.trackEnd);
+    expect(rect.rowStart).toBe(rect.rowEnd);
+    mode.onExit();
+  });
+
+  it("existing non-write-mode Session/Grid behaviour is unchanged — Shift/Duplicate stay inert", () => {
+    const { store, device, mode } = createTestContext({ writeModeActive: false });
+    mode.onEnter();
+
+    mode.onCC(CC_SHIFT, 127);
+    mode.onPadOn(padRowForStep(0), 0, 90); // a plain toggle-step press, same as always
+
+    const event = getSelectedPattern(store.getState().song).tracks[0].events[0];
+    expect(event.note).not.toBe(null); // toggled on, exactly like before this feature existed
+    expect(device.send).not.toHaveBeenCalledWith([0x90, expect.anything(), PALETTE.GRID_SELECTION]);
     mode.onExit();
   });
 });

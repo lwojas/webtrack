@@ -100,11 +100,19 @@ export function createPushModeController({ device, gridContent = {} }) {
   function handleMessage(bytes) {
     const [status, data1, data2] = bytes;
 
-    if (messageType(status) === STATUS_CC && data2 > 0) {
-      if (data1 === CC_MODE_NOTE) return switchTo("note");
-      if (data1 === CC_MODE_SESSION) return switchTo("session");
-      if (data1 === CC_MODE_TRACK) return switchTo("session", "tracker");
-      if (data1 === CC_MODE_CLIP) return switchTo("session", "pattern");
+    // Mode-switch buttons only ever act on a press (data2 > 0) — a release of one of these four
+    // is simply not a mode change. Every *other* CC (onCC's catch-all) is forwarded regardless
+    // of press or release: most existing onCC consumers (mute strip, track-select, arrows) only
+    // ever cared about presses and already guard `value === 0` themselves, but write mode's own
+    // Shift LED (trackerGridMode.js) genuinely needs the release too, to track the button's real
+    // held/not-held state rather than behaving like a one-shot toggle.
+    if (messageType(status) === STATUS_CC) {
+      if (data2 > 0) {
+        if (data1 === CC_MODE_NOTE) return switchTo("note");
+        if (data1 === CC_MODE_SESSION) return switchTo("session");
+        if (data1 === CC_MODE_TRACK) return switchTo("session", "tracker");
+        if (data1 === CC_MODE_CLIP) return switchTo("session", "pattern");
+      }
       activeContent()?.onCC?.(data1, data2);
       return;
     }

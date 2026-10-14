@@ -137,6 +137,31 @@ describe("createPushModeController — mode button state machine", () => {
     expect(tracker.onCC).toHaveBeenCalledWith(102, 127);
     expect(note.onCC).not.toHaveBeenCalled();
   });
+
+  it("also forwards a non-mode CC's release (value 0) to the active content's onCC — write mode's Shift LED needs it", () => {
+    const device = createFakeDevice();
+    const tracker = createFakeContent();
+    tracker.onCC = vi.fn();
+    const controller = createPushModeController({ device, gridContent: { "session.tracker": tracker } });
+    controller.attach();
+
+    device.fireMessage([CC_ON, 49, 0]); // Shift release
+
+    expect(tracker.onCC).toHaveBeenCalledWith(49, 0);
+  });
+
+  it("a mode button's own release (value 0) never reaches onCC as a mode switch, but is still forwarded", () => {
+    const device = createFakeDevice();
+    const tracker = createFakeContent();
+    tracker.onCC = vi.fn();
+    const controller = createPushModeController({ device, gridContent: { "session.tracker": tracker } });
+    controller.attach();
+
+    device.fireMessage([CC_ON, CC_MODE_NOTE, 0]);
+
+    expect(controller.getState().pushMode).toBe("session"); // unchanged — not a press
+    expect(tracker.onCC).toHaveBeenCalledWith(CC_MODE_NOTE, 0);
+  });
 });
 
 describe("createPushModeController — gridContent dispatch", () => {

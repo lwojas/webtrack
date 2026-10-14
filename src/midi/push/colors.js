@@ -51,4 +51,29 @@ export const PALETTE = {
   // everything else above. AMBER is provisional (see RAW's own caveat); GREEN is confirmed.
   NOTE_MODE_BASE: RAW.AMBER,
   NOTE_MODE_PRESSED: RAW.GREEN,
+  // Write mode's own selected-cell cursor (writeMode.js/trackerGridMode.js/noteEntryMode.js) —
+  // marks the pad at the selected cell's own (track, row) position. trackerGridMode.js's
+  // Session/Grid view paints it directly, winning its own composite priority rule ahead of
+  // both the playhead and has-note coloring (while actively editing, knowing exactly which cell
+  // Push is about to write into matters more than briefly seeing the playhead pass through it).
+  // noteEntryMode.js's Note Mode reuses the exact same (track, row)-to-pad mapping
+  // trackerGridMode.js established (its own doc comment explains why: the two views must put
+  // the cursor on the same physical pad for the same selected cell, not two different
+  // conventions) rather than, say, highlighting whichever pad matches the *note* already in the
+  // cell — that alternative was tried first and didn't move predictably with CC44-47, since two
+  // cells rarely hold adjacent note values. RAW.RED, not RAW.AMBER: AMBER is already Note Mode's
+  // own resting pad color (NOTE_MODE_BASE above), so using it here would make the overlay
+  // invisible against the rest of the grid in exactly the view that most needs it. RED is
+  // otherwise only ever sent on the mute strip's CCs, never on a pad's Note On/Off, so there's
+  // no ambiguity reusing it here — confirmed hardware byte, unlike AMBER.
+  SELECTED_CELL_CURSOR: RAW.RED,
+  // Write mode's grid *range* selection (Shift+pad, trackerGridMode.js) — deliberately a
+  // different color from SELECTED_CELL_CURSOR above: a single selected cell and a multi-cell
+  // range selected for an operation (Duplicate) are two distinct concepts the brief explicitly
+  // calls out, so every cell within an active range shows this color uniformly instead of the
+  // single-cell cursor color. RAW.DIM_WHITE: every other RAW byte is already claimed somewhere
+  // in the Session/Grid pad context (OFF=empty, GREEN=has-note, TEAL=playhead, RED=cursor) —
+  // DIM_WHITE is the one byte never painted on a pad today, the same "reuse a confirmed byte in
+  // a new context" move SELECTED_CELL_CURSOR's own choice of RED already made.
+  GRID_SELECTION: RAW.DIM_WHITE,
 };

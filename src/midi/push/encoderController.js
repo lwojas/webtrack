@@ -25,6 +25,9 @@ import {
 import { formatBar, buildEncoderLine, centerColumn } from "./lcd.js";
 import { getFxParamsForType, getFxType, formatFxValue } from "../../model/fxParams.js";
 import { CONTROLS } from "../../control/contract.js";
+import { getSelectedPattern } from "../../model/query.js";
+import { EFFECT_COMMANDS } from "../../model/effects.js";
+import { noteNumberToName, toHex } from "../../model/notes.js";
 import * as events from "../../state/events.js";
 
 const STATUS_CC = 0xb0 | PUSH_CHANNEL;
@@ -46,13 +49,106 @@ const VOLUME_RANGE = { min: VOLUME_CONTROL?.min ?? 0, max: VOLUME_CONTROL?.max ?
 // while still being flippable in a few ticks either direction.
 const BOOLEAN_TOGGLE_THRESHOLD = 4;
 
+// Write mode's "cellEdit" encoder mode (docs/MIDI.md) — the same 7 fields
+// ui/chrome/NoteEditor.jsx exposes above its CELL FX section, in the same order, reading from
+// and writing to the exact same event object via store.setCell. No second data model: `field`
+// is the literal model/event.js property name store.setCell already accepts. Cell FX automation
+// (the variable-length CELL FX list) isn't represented here — it's sparse/dynamic in a way that
+// doesn't fit a fixed 8-encoder layout, and the brief's own examples ("note, velocity/cell
+// volume, length, etc.") don't require covering it; see docs/MIDI.md's own note on this.
+//
+// `apply` computes the next raw value from the current one and a relative encoder delta;
+// `effectCommand` is a bounded enum instead (handled by handleEnumEncoder below, not `apply`).
+// Numeric fields close to NoteEditor.jsx's own hex/numeric granularity use the raw delta
+// directly (same single-tick feel as a hex digit bump); pan is scaled by the same
+// range/100-per-tick convention the continuous volume/FX encoders already use, since it's a
+// continuous -1..1 float, not a narrow integer range; length steps by a whole row per tick
+// (a "snap to grid" count, not a continuous parameter), with a downward step from 1 returning to
+// null ("auto").
+function clampValue(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+const CELL_EDIT_FIELDS = [
+  {
+    field: "note",
+    label: "NOTE",
+    format: (v) => noteNumberToName(v),
+    ratio: (v) => (v == null ? 0 : v / 127),
+    apply: (current, delta) => clampValue((current ?? 60) + delta, 0, 127),
+  },
+  {
+    field: "instrument",
+    label: "INSTR",
+    format: (v) => toHex(v, 2),
+    ratio: (v) => (v == null ? 0 : v / 255),
+    apply: (current, delta) => clampValue((current ?? 0) + delta, 0, 255),
+  },
+  {
+    field: "velocity",
+    label: "VEL",
+    format: (v) => toHex(v, 2),
+    ratio: (v) => (v == null ? 0 : v / 127),
+    apply: (current, delta) => clampValue((current ?? 100) + delta, 0, 127),
+  },
+  {
+    field: "length",
+    label: "LENGTH",
+    format: (v) => (v == null ? "AUTO" : String(v)),
+    ratio: (v, pattern) => (v == null ? 0 : v / pattern.rowCount),
+    apply: (current, delta, pattern) => {
+      const next = (current ?? 0) + Math.sign(delta);
+      return next <= 0 ? null : clampValue(next, 1, pattern.rowCount);
+    },
+  },
+  {
+    field: "pan",
+    label: "PAN",
+    format: (v) => (v == null ? "0.00" : v.toFixed(2)),
+    ratio: (v) => ((v ?? 0) + 1) / 2,
+    apply: (current, delta) => clampValue((current ?? 0) + delta * (2 / 100), -1, 1),
+  },
+  {
+    field: "effectCommand",
+    label: "FX CMD",
+    isEnum: true,
+    format: (v) => (v == null ? "---" : EFFECT_COMMANDS.find((c) => c.id === v)?.code ?? "---"),
+    ratio: (v) => {
+      const index = EFFECT_COMMAND_IDS.indexOf(v);
+      return EFFECT_COMMAND_IDS.length <= 1 ? 0 : Math.max(0, index) / (EFFECT_COMMAND_IDS.length - 1);
+    },
+  },
+  {
+    field: "effectParam",
+    label: "FX PRM",
+    format: (v) => toHex(v, 2),
+    ratio: (v) => (v == null ? 0 : v / 255),
+    apply: (current, delta) => clampValue((current ?? 0) + delta, 0, 255),
+  },
+];
+
+const EFFECT_COMMAND_IDS = [null, ...EFFECT_COMMANDS.map((c) => c.id)];
+
+// A relative encoder has no absolute position, so stepping through a bounded enum (effectCommand)
+// needs the same "accumulate until it's a real turn, then move one step" treatment
+// BOOLEAN_TOGGLE_THRESHOLD already established for filter.mode above — generalized here to a
+// signed step (+1/-1) instead of a single flip. Deliberately the same magnitude as
+// BOOLEAN_TOGGLE_THRESHOLD for a consistent "feel" across every discrete (non-continuous) Push
+// control.
+const ENUM_STEP_THRESHOLD = 4;
+
 export function createPushEncoderController({ device, store, fxController }) {
-  let encoderMode = "volume"; // "volume" | "fx"
+  let encoderMode = "volume"; // "volume" | "fx" | "cellEdit"
+  // Which of volume/fx was active before write mode switched the encoders over to cellEdit —
+  // restored by setCellEditMode(false), the same "remember what to go back to" shape
+  // modeController.js's own sessionView persistence (independent of pushMode) established.
+  let modeBeforeCellEdit = null;
   // This module's own windowing state — which fxChain entry the 8 encoders currently show for
   // the selected track — the same "Push-surface-local, not application state" precedent
   // trackerGridMode.js's own stepOffset already established, not a new state/store.js field.
   let fxPageIndex = 0;
   const booleanAccumulator = new Map(); // paramId -> accumulated |delta|
+  const enumAccumulator = new Map(); // field -> accumulated signed delta
   let lastButtonFeedback = { volume: null, fx: null };
   let lastLcdLines = new Array(LCD_LINES).fill(null);
   let unsubscribes = [];
@@ -134,9 +230,33 @@ export function createPushEncoderController({ device, store, fxController }) {
     });
   }
 
+  // The selected cell's own event, read straight off the same pattern/cursor
+  // ui/chrome/NoteEditor.jsx reads — never a second copy of its fields.
+  function cellEditEvent() {
+    const { trackIndex, rowIndex } = store.getState().cursor;
+    const pattern = getSelectedPattern(store.getState().song);
+    return { pattern, trackIndex, rowIndex, event: pattern?.tracks[trackIndex]?.events[rowIndex] };
+  }
+
+  function cellEditColumns() {
+    const { pattern, event } = cellEditEvent();
+    if (!event) return [];
+    return CELL_EDIT_FIELDS.map((def) => ({
+      isBoolean: false,
+      ratio: def.ratio(event[def.field], pattern),
+      name: def.label,
+      valueText: def.format(event[def.field]),
+    }));
+  }
+
   function buildHeader() {
     const trackIndex = currentTrackIndex();
     if (encoderMode === "volume") return "VOLUME";
+    if (encoderMode === "cellEdit") {
+      const { rowIndex, event } = cellEditEvent();
+      if (!event) return "CELL EDIT  (no cell)";
+      return `CELL EDIT  TRK${trackIndex + 1}  ROW${rowIndex + 1}`;
+    }
     const chain = getEnabledFxChain(trackIndex);
     if (chain.length === 0) return `FX  (no FX enabled)  TRK${trackIndex + 1}`;
     const entry = chain[fxPageIndex] ?? chain[0];
@@ -145,7 +265,7 @@ export function createPushEncoderController({ device, store, fxController }) {
   }
 
   function paintLcd() {
-    const columns = encoderMode === "volume" ? volumeColumns() : fxColumns();
+    const columns = encoderMode === "volume" ? volumeColumns() : encoderMode === "fx" ? fxColumns() : cellEditColumns();
     const barLine = buildEncoderLine(
       columns.map((c) => (c.isBoolean ? centerColumn(c.boolOn ? "ON" : "OFF", COLUMN_WIDTH) : formatBar(c.ratio ?? 0, COLUMN_WIDTH))),
     );
@@ -215,11 +335,62 @@ export function createPushEncoderController({ device, store, fxController }) {
     fxController.setTrackFxParam(trackIndex, param.id, clamp(current + delta * step, param.min, param.max));
   }
 
+  // effectCommand is a bounded enum, not a continuous/hex value — reads exactly like
+  // handleFxEncoder's own boolean branch, just stepping a signed index instead of flipping one
+  // bit, and writing through the same store.setCell every other field here uses.
+  function handleEnumEncoder(def, trackIndex, rowIndex, event, accumulated) {
+    const ids = EFFECT_COMMAND_IDS;
+    const currentIndex = Math.max(0, ids.indexOf(event[def.field]));
+    const nextIndex = clampValue(currentIndex + Math.sign(accumulated), 0, ids.length - 1);
+    store.setCell(trackIndex, rowIndex, def.field, ids[nextIndex]);
+  }
+
+  function handleCellEditEncoder(encoderIndex, delta) {
+    const def = CELL_EDIT_FIELDS[encoderIndex];
+    if (!def) return;
+    const { pattern, trackIndex, rowIndex, event } = cellEditEvent();
+    if (!event) return;
+
+    if (def.isEnum) {
+      const accumulated = (enumAccumulator.get(def.field) ?? 0) + delta;
+      if (Math.abs(accumulated) < ENUM_STEP_THRESHOLD) {
+        enumAccumulator.set(def.field, accumulated);
+        return;
+      }
+      enumAccumulator.set(def.field, 0);
+      handleEnumEncoder(def, trackIndex, rowIndex, event, accumulated);
+      return;
+    }
+
+    store.setCell(trackIndex, rowIndex, def.field, def.apply(event[def.field], delta, pattern));
+  }
+
   function handleEncoderTurn(encoderIndex, delta) {
     if (delta === 0) return;
     if (encoderMode === "volume") handleVolumeEncoder(encoderIndex, delta);
-    else handleFxEncoder(encoderIndex, delta);
+    else if (encoderMode === "fx") handleFxEncoder(encoderIndex, delta);
+    else handleCellEditEncoder(encoderIndex, delta);
     paintLcd();
+  }
+
+  // Write mode's own entry point (wired by appContext.js to pushWriteMode.js's onChange) —
+  // switches the 8-encoder/4-display surface over to representing the selected tracker cell
+  // (docs/MIDI.md) while write mode is on, and restores whichever of volume/fx was showing
+  // before once it's off. Deliberately never touches fxPageIndex/encoderMode's own volume-vs-fx
+  // choice — turning write mode off lands exactly back where the encoders were, not reset to a
+  // default.
+  function setCellEditMode(active) {
+    if (active) {
+      if (encoderMode === "cellEdit") return;
+      modeBeforeCellEdit = encoderMode;
+      encoderMode = "cellEdit";
+    } else {
+      if (encoderMode !== "cellEdit") return;
+      encoderMode = modeBeforeCellEdit ?? "volume";
+    }
+    booleanAccumulator.clear();
+    enumAccumulator.clear();
+    paint();
   }
 
   function onCC(cc, value) {
@@ -245,6 +416,10 @@ export function createPushEncoderController({ device, store, fxController }) {
       store.subscribe(events.TRACK_CHANNEL_CHANGED, paintLcd),
       store.subscribe(events.TRACK_FX_CHANGED, paintLcd),
       store.subscribe(events.CURSOR_MOVED, paintLcd),
+      // cellEdit mode's own fields live on the event CELL_CHANGED already covers (e.g. a
+      // ui/chrome/NoteEditor.jsx edit landing on the selected cell while Push is showing it) —
+      // harmless to also repaint volume/FX mode, which just redraws the same unrelated content.
+      store.subscribe(events.CELL_CHANGED, paintLcd),
     ];
     lastButtonFeedback = { volume: null, fx: null };
     lastLcdLines = new Array(LCD_LINES).fill(null);
@@ -268,5 +443,5 @@ export function createPushEncoderController({ device, store, fxController }) {
     paint();
   }
 
-  return { attach, refresh };
+  return { attach, refresh, setCellEditMode };
 }

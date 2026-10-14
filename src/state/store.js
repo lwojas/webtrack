@@ -285,6 +285,29 @@ export function createStore({ song, instruments }) {
     emitCellChangedInRect(rect);
   }
 
+  // Push's Duplicate button (CC88, docs/MIDI.md): duplicates the current selection directly
+  // below itself — the destination rect starts the row right after the selection's own last row
+  // (`rowEnd`) and is the same width/height, built from the exact same captureBlock/
+  // tileBlockIntoRect primitives copySelection/fillSelection already use above, not a second
+  // copy/paste implementation. Deliberately never touches state.clipboard (unlike
+  // copySelection) — duplicating a selection shouldn't clobber whatever's already on the
+  // clipboard for a later, unrelated paste. Clips at the pattern's own row bound the same way
+  // pasteSelection already does near an edge, rather than wrapping or erroring.
+  function duplicateSelection() {
+    const pattern = getSelectedPattern(state.song);
+    const rect = getSelectionRect();
+    const block = captureBlock(pattern, rect);
+    const height = rect.rowEnd - rect.rowStart + 1;
+    const destRect = {
+      trackStart: rect.trackStart,
+      trackEnd: rect.trackEnd,
+      rowStart: Math.min(rect.rowEnd + 1, pattern.rowCount - 1),
+      rowEnd: Math.min(rect.rowEnd + height, pattern.rowCount - 1),
+    };
+    tileBlockIntoRect(pattern, destRect, block);
+    emitCellChangedInRect(destRect);
+  }
+
   // One entry in a cell's sparse FX automation map (model/event.js#fx; ui/chrome/NoteEditor.jsx
   // is the editing surface) — value === null removes that entry. Reuses CELL_CHANGED, the same
   // event every other per-cell write already emits, rather than a dedicated event (see
@@ -591,6 +614,7 @@ export function createStore({ song, instruments }) {
     copySelection,
     pasteSelection,
     fillSelection,
+    duplicateSelection,
     setCellFx,
     setTrackFxParam,
     setMasterFxParam,

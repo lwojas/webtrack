@@ -90,6 +90,13 @@ export const CC_MASTER = 28;
 export const CC_VOLUME = 114;
 export const CC_SCALES = 58;
 export const CC_DEVICES = 110;
+// Write mode's own Duplicate button (docs/MIDI.md) — specified directly by the brief that drove
+// that feature, the same kind of physical-button repurposing CC_MODE_NOTE/SESSION/TRACK/CLIP and
+// CC_ENCODER_MODE_FX above already are (see those doc comments and
+// feedback_hardware_cc_specs.md): not independently hardware-confirmed as "Duplicate" (there's
+// no factory meaning for that on the User Port), just a CC number this project has chosen to
+// listen on. Monochrome dim/full feedback, same family as Play/Shift above.
+export const CC_DUPLICATE = 88;
 
 // 0 = off, 1 = dim steady, 2-3 = dim blink, 4 = full steady, 5-6 = full blink; 7+ clamps to
 // full (hardware behavior, not a webtrack choice) — confirmed on Play/Shift.
