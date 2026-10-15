@@ -6,6 +6,7 @@ import { EFFECT_COMMANDS } from "../../model/effects.js";
 import { FX_PARAMS, getFxParam, getFxInstanceLabel, formatFxValue } from "../../model/fxParams.js";
 import { formatBarBeat } from "../../model/timing.js";
 import { noteNumberToName, parseNoteName, toHex } from "../../model/notes.js";
+import { rangeFillStyle } from "../rangeFill.js";
 
 // Mirrors the local-draft-state + commit-on-blur/Enter, revert-on-Escape pattern
 // ui/chrome/PatternManager.jsx's pattern-rename field already uses: typing updates only this
@@ -326,6 +327,7 @@ export default function NoteEditor({ store }) {
               step={param.step}
               value={value}
               onChange={(e) => handleCellFxChange(instanceId, paramId, Number(e.target.value))}
+              style={rangeFillStyle(value, param.min, param.max)}
             />
             <span className="note-editor__fx-value">{formatFxValue(value, param)}</span>
             <button type="button" className="note-editor__fx-remove" onClick={() => handleCellFxRemove(instanceId, paramId)} title="Remove">

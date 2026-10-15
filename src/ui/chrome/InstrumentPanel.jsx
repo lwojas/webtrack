@@ -6,6 +6,7 @@ import { toHex } from "../../model/notes.js";
 import { ENVELOPE_PARAMS, formatEnvelopeValue } from "../../model/envelopeParams.js";
 import { SYNTH_KINDS, getSynthParams, formatSynthParamValue } from "../../model/instrumentParams.js";
 import { downloadBytes } from "../../persistence/projectIO.js";
+import { rangeFillStyle } from "../rangeFill.js";
 
 // Instrument gain's own musical range — same scale as model/fxParams.js's "bus.gain" entry
 // (0..2, step 0.01, unit "x") so the two read consistently wherever a user sees both, even
@@ -260,6 +261,7 @@ function InstrumentEditor({ store, instrumentController }) {
                 step={param.step}
                 value={synthParamValues[param.id]}
                 onChange={(e) => instrumentController.setInstrumentParam(index, param.id, Number(e.target.value))}
+                style={rangeFillStyle(synthParamValues[param.id], param.min, param.max)}
               />
               <span className="fx-module__value">{formatSynthParamValue(synthParamValues[param.id], param)}</span>
             </label>
@@ -279,6 +281,7 @@ function InstrumentEditor({ store, instrumentController }) {
                 step={GAIN_STEP}
                 value={gain}
                 onChange={(e) => instrumentController.setGain(index, Number(e.target.value))}
+                style={rangeFillStyle(gain, GAIN_MIN, GAIN_MAX)}
               />
               <span className="fx-module__value">{gain.toFixed(2)}x</span>
             </label>
@@ -302,6 +305,7 @@ function InstrumentEditor({ store, instrumentController }) {
                   step={param.step}
                   value={envelopeValues[param.id]}
                   onChange={(e) => instrumentController.setEnvelope(index, { [param.id]: Number(e.target.value) })}
+                  style={rangeFillStyle(envelopeValues[param.id], param.min, param.max)}
                 />
                 <span className="fx-module__value">{formatEnvelopeValue(envelopeValues[param.id], param)}</span>
               </label>

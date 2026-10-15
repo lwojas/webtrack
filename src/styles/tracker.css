@@ -95,6 +95,83 @@ textarea {
   box-shadow: var(--focus-glow);
 }
 
+/* Every slider in the app (mixer volume/pan, FX module params, instrument editor gain/envelope/
+   synth params, note editor fields) is this same flat phosphor fader — one definition here
+   instead of per-component, since nothing distinguishes them visually today. Unstyled range
+   inputs fall back to the native OS thumb/track, which clashes with this system's flat,
+   zero-radius, zero-shadow surfaces (see DESIGN.md's "Parameter Sliders & Encoders"/"Shapes").
+   Needs the vendor-prefixed pseudo-elements since range styling still has no standard syntax.
+   Sized via custom properties (--range-track-h/--range-thumb-w/--range-thumb-h) so a handful of
+   bigger faders (the mixer's track volume, below) can override just the size without repeating
+   the rest — the default here is the "small" variant most sliders in the app use. */
+input[type="range"] {
+  --range-track-h: 2px;
+  --range-thumb-w: 6px;
+  --range-thumb-h: 9px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  height: var(--range-thumb-h);
+  cursor: pointer;
+}
+
+/* The filled portion left of the thumb, so e.g. a channel's volume level reads at a glance
+   instead of requiring a look at the thumb's exact position. --range-progress (0%-100% of the
+   control's own min/max range) is set inline per-instance by the component that renders it
+   (ui/rangeFill.js's rangeFillStyle) — a slider that never sets it (the bipolar pan controls,
+   which don't have a meaningful "fill from one edge") simply renders unfilled, the plain flat
+   track below. Firefox gets this for free via ::-moz-range-progress; Chromium/WebKit have no
+   equivalent pseudo-element, hence the gradient split at the same percentage instead. */
+input[type="range"]::-webkit-slider-runnable-track {
+  height: var(--range-track-h);
+  background: linear-gradient(
+    to right,
+    var(--cyan) 0%,
+    var(--cyan) var(--range-progress, 0%),
+    var(--border) var(--range-progress, 0%),
+    var(--border) 100%
+  );
+}
+
+input[type="range"]::-moz-range-track {
+  height: var(--range-track-h);
+  background: var(--border);
+  border: none;
+}
+
+input[type="range"]::-moz-range-progress {
+  height: var(--range-track-h);
+  background: var(--cyan);
+  border: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: var(--range-thumb-w);
+  height: var(--range-thumb-h);
+  margin-top: calc((var(--range-track-h) - var(--range-thumb-h)) / 2);
+  background: var(--cyan);
+  border: none;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: var(--range-thumb-w);
+  height: var(--range-thumb-h);
+  background: var(--cyan);
+  border: none;
+  border-radius: 0;
+}
+
+input[type="range"]:hover::-webkit-slider-thumb,
+input[type="range"]:hover::-moz-range-thumb {
+  background: var(--text);
+}
+
+input[type="range"]:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
 /* Flat, hairline scrollbars matching the surface/border palette instead of the OS default —
    applied to every panel that scrolls internally (grid host, side column, mixer). */
 .tracker-grid-host::-webkit-scrollbar,
@@ -624,15 +701,27 @@ textarea {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
+  width: 26px;
   height: 100px;
 }
 
 .channel-strip__volume {
   width: 100px;
-  height: 20px;
+  height: 22px;
   margin: 0;
   transform: rotate(-90deg);
+}
+
+/* The one "large" fader in the app — a wider knob and thicker track than every other slider
+   (input[type="range"]'s own default size above), since this is the primary, most-watched
+   control in the mixer strip rather than one of many compact parameter rows. Needs the
+   `input[type="range"]` prefix, not just the class alone: that base rule's selector combines an
+   element and an attribute selector, which already out-specifies a single class, so a bare
+   `.range-lg { ... }` override would silently lose to it regardless of source order. */
+input[type="range"].range-lg {
+  --range-track-h: 4px;
+  --range-thumb-w: 16px;
+  --range-thumb-h: 22px;
 }
 
 .channel-strip__pan-track {
@@ -926,6 +1015,25 @@ textarea {
   min-width: 0;
 }
 
+/* Non-range controls in this same field grid (InstrumentEditor's MIDI Channel number input and
+   Output Bus select) — otherwise unstyled and falling back to the native browser control, unlike
+   every other themed input/select in the app. Same treatment .note-editor__field already gives
+   its own inputs/selects below. */
+.fx-module__field input:not([type="range"]),
+.fx-module__field select {
+  width: 100%;
+  min-width: 0;
+  background: var(--surface-1);
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-size: var(--text-micro);
+}
+
+.fx-module__field input:not([type="range"]):hover,
+.fx-module__field select:hover {
+  border-color: var(--border-active);
+}
+
 .fx-module__value {
   color: var(--text);
   text-align: right;
@@ -1087,6 +1195,15 @@ textarea {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* .fx-module__field's 9ch label column is sized for the FX panel's own longest label (see that
+   rule's doc comment) — too narrow for this panel's own synth-param labels ("Pitch Drop",
+   "Pitch Decay") and "Output Bus", which clip to "Pitch D…"/"Output …". Scoped to this panel
+   rather than widening the shared rule, since the FX panel's fixed 196px module width is tuned
+   against the narrower 9ch column and has no labels longer than 9 chars to begin with. */
+.instrument-editor .fx-module__field {
+  grid-template-columns: 11ch 1fr 7ch;
 }
 
 /* --- note editor: the complete per-event editing surface (see ui/chrome/NoteEditor.jsx) --- */

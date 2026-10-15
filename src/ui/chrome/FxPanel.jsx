@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useStore } from "../../state/useStore.js";
 import * as events from "../../state/events.js";
 import { FX_TYPES, getFxType, getFxParam, getFxParamsForType, getFxInstanceLabel, formatFxValue, isFxBooleanOn } from "../../model/fxParams.js";
+import { rangeFillStyle } from "../rangeFill.js";
 
 // bus.gain (model/fxParams.js) isn't one of FX_TYPES' toggleable nodes — it's the bus's own
 // always-present output stage, so it gets a pinned module below instead of living in the
@@ -38,7 +39,15 @@ function FxParamField({ param, value, onChange }) {
       <span className="fx-module__field-label" title={param.label}>
         {param.label}
       </span>
-      <input type="range" min={param.min} max={param.max} step={param.step} value={value} onChange={(e) => onChange(Number(e.target.value))} />
+      <input
+        type="range"
+        min={param.min}
+        max={param.max}
+        step={param.step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        style={rangeFillStyle(value, param.min, param.max)}
+      />
       <span className="fx-module__value">{formatFxValue(value, param)}</span>
     </label>
   );

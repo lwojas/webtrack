@@ -1,5 +1,6 @@
 import { useStore } from "../../state/useStore.js";
 import * as events from "../../state/events.js";
+import { rangeFillStyle } from "../rangeFill.js";
 
 // model/mutations.js mutates a trackChannel object in place (same reference before/after —
 // see ARCHITECTURE.md's in-place-mutation gotcha) — useSyncExternalStore compares snapshots
@@ -29,7 +30,7 @@ function ChannelStrip({ store, fxController, trackIndex }) {
       <span className="channel-strip__name">{name}</span>
       <div className="channel-strip__volume-track">
         <input
-          className="channel-strip__volume"
+          className="channel-strip__volume range-lg"
           type="range"
           min={0}
           max={1.5}
@@ -37,6 +38,7 @@ function ChannelStrip({ store, fxController, trackIndex }) {
           value={volume}
           onChange={(e) => store.setTrackChannelVolume(trackIndex, Number(e.target.value))}
           title={`Volume: ${volume.toFixed(2)}`}
+          style={rangeFillStyle(volume, 0, 1.5)}
         />
       </div>
       <div className="channel-strip__pan-track">
