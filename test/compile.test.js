@@ -271,6 +271,40 @@ describe("compileEvent — synthesized instrument output (webdsp Kick/Snare/Clap
     expect(compiled.pitch).toBe(7);
   });
 
+  it("never sets a duration on a drum — a timed release would choke the one-shot", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 60);
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "instrument", 0);
+    const event = getSelectedPattern(song).tracks[0].events[0];
+
+    expect(compileEvent(event, song.trackChannels[0], makeSynthInstruments(), 1.0, 0.5)).not.toHaveProperty("duration");
+  });
+
+  it("gives the sustained Bass its note length as duration, and a short audition length when untimed", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 45); // A-2: 12 above A-1 root
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "instrument", 0);
+    const event = getSelectedPattern(song).tracks[0].events[0];
+    const bass = [
+      createInstrumentSlot({
+        id: 0,
+        name: "Bass",
+        rootNote: 33,
+        output: { type: "instrument", channel: null, kind: "bass" },
+        engineInstrumentId: 9,
+      }),
+    ];
+
+    const timed = compileEvent(event, song.trackChannels[0], bass, 1.0, 0.25);
+    expect(timed.duration).toBe(0.25);
+    expect(timed.pitch).toBe(12);
+
+    const preview = compileEvent(event, song.trackChannels[0], bass);
+    expect(preview.duration).toBeGreaterThan(0);
+  });
+
   it("scales velocity by track volume into a 0..1 level, same scalar sample output uses for gain", () => {
     const song = createSong();
     const patternId = song.patterns[0].id;

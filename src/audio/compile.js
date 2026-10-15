@@ -2,6 +2,10 @@
 // shape — no AudioRuntime calls in this file, so it's testable with plain assertions (see
 // ECS-156 plan §6).
 import { trackLocalStep } from "../model/pattern.js";
+import { isSustainedSynthKind } from "../model/instrumentParams.js";
+
+// How long an un-timed (preview/audition) note of a sustained synth kind is held.
+const SUSTAINED_PREVIEW_SECONDS = 0.5;
 
 // How many steps a note holds for. An explicit Event.length wins (set via the note editor —
 // see ui/chrome/NoteEditor.jsx); otherwise falls back to the original auto behavior: hold
@@ -78,9 +82,13 @@ export function compileEvent(event, trackChannel, instruments, time, durationSec
   // already uses (see node_modules/webdsp's docs/percussion-instruments.md's "Note pitch").
   // rootNote defaults to 60 (C-4), so an untouched slot playing cells on C-4 gets pitch: 0 —
   // this is what keeps existing Kick projects (authored before webdsp had a pitch field at
-  // all, when this branch never read event.note) sounding unchanged. There's no `duration` —
-  // webdsp's instruments are one-shot/self-ending; durationSeconds is simply unused on this
-  // branch, same as it would be for any other instrument kind with no note-length concept.
+  // all, when this branch never read event.note) sounding unchanged. `duration` is only set for
+  // *sustained* kinds (the Bass — model/instrumentParams.js#isSustainedSynthKind): webdsp's
+  // drums are one-shot/self-ending, and a duration would choke them with a short release. For
+  // a sustained kind, webdsp counts the note length on the audio thread from the frame the note
+  // starts and releases it itself (node_modules/webdsp's docs/bass-client-guide.md), so there
+  // is no JS timer. Without a given length (preview) it falls back to a short audition note
+  // rather than holding forever.
   if (instrument.output?.type === "instrument") {
     if (instrument.engineInstrumentId === null || instrument.engineInstrumentId === undefined) return null;
     const level = Math.max(0, Math.min(1, (velocity / 127) * trackChannel.volume));
@@ -88,6 +96,9 @@ export function compileEvent(event, trackChannel, instruments, time, durationSec
     const compiled = { kind: "instrument", instrumentId: instrument.engineInstrumentId, velocity: level, pitch };
     if (time !== undefined) compiled.time = time;
     if (event.pan !== null && event.pan !== undefined) compiled.pan = event.pan;
+    if (isSustainedSynthKind(instrument.output.kind)) {
+      compiled.duration = durationSeconds ?? SUSTAINED_PREVIEW_SECONDS;
+    }
     return compiled;
   }
 

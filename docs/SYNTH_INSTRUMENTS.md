@@ -1,4 +1,4 @@
-# Synthesized instruments (Kick, Snare, Clap, Tom, Hi-Hat)
+# Synthesized instruments (Kick, Snare, Clap, Tom, Hi-Hat, Bass)
 
 How webtracker consumes `webdsp`'s synthesized-instrument API (`AudioRuntime.createInstrument`
 et al. — Kick, Snare, Clap, Tom, Hi-Hat today) as a third kind of instrument output, alongside
@@ -16,7 +16,7 @@ opinionated, purpose-built sound machine with its own small control set (see
 ```
 output.type === "sample"     → sampleId/rootNote/gain/envelope (existing)
 output.type === "midi"       → channel (existing)
-output.type === "instrument" → kind ("kick"/"snare"/"clap"/"tom"/"hihat") + instrumentParams + engineInstrumentId
+output.type === "instrument" → kind ("kick"/"snare"/"clap"/"tom"/"hihat"/"bass") + instrumentParams + engineInstrumentId
 ```
 
 Conceptually, per the brief this was built from:
@@ -311,3 +311,32 @@ redesign, and the webtrack side needed no new abstractions to absorb four more k
   `*_PARAMS` catalogs here are, the same "exists as a catalog, not yet consumed by every possible
   surface" gap `docs/ARCHITECTURE.md`'s "Explicitly out of scope" section already notes for
   `FX_PARAMS` itself.
+
+## Bass (the first sustained kind)
+
+`bass` is a synthesized kind like the drums — same slot, same editor, same bridge — with three
+differences that come from it being a held, pitched bass voice rather than a one-shot hit:
+
+- **Its own ADSR and filter are instrument params.** `BASS_PARAMS` (`tune`, `body`, `bite`,
+  `cutoff`, `resonance`, `attack`, `decay`, `sustain`, `release`) mirror webdsp's
+  `docs/bass-instrument.md`. They are ordinary sliders in the instrument's own control list,
+  like the drums' controls.
+- **Note length is sent as `duration`.** `SYNTH_KINDS` carries `sustained: true` for it
+  (`isSustainedSynthKind`), and `audio/compile.js` sets `duration` (the cell's length to the next
+  note/off, in seconds) only for sustained kinds. `audio/lookaheadPlayer.js` and
+  `audio/preview.js` forward it to `runtime.instrumentNoteOn`. webdsp counts it on the audio
+  thread and releases the note sample-accurately, so there are no JS timers. Drums never get one
+  (it would choke the one-shot). An un-timed preview/audition note is held 0.5 s.
+- **Its own root note.** The Bass tune defaults to 55 Hz (A-1, note 33), so `SYNTH_KINDS` gives
+  it `rootNote: 33` and `state/store.js#setInstrumentOutput` applies it when a slot switches to
+  Bass (and restores 60 when switching to another kind). `event.note - rootNote` is still the
+  note `pitch`, so a bass line is entered at its real pitch.
+
+Mono per instance: a new note on the slot is a continuous retrigger. For chords or layers, use
+more slots.
+
+Adding another sustained kind is the same recipe as "Adding another synthesized instrument
+kind": a params table, a `SYNTH_KINDS` row (set `sustained: true` and, if its tune is not near
+C-4, `rootNote`), and the enum entries in `audio/instrument.js`. The editor needs one more
+`useStore` line per new param id in `ui/chrome/InstrumentPanel.jsx` (ids that clash with the
+sample envelope fields, such as `attack`, are aliased `synth*` there).

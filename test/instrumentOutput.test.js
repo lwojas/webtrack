@@ -48,4 +48,27 @@ describe("store.setInstrumentOutput — switching synth kind", () => {
 
     expect(store.getState().instruments[0].instrumentParams.snap).toBe(0.9);
   });
+
+  it("gives the Bass its own root note (A-1), and restores the default when leaving it", () => {
+    const store = createStore({ song: createSong(), instruments: [createInstrumentSlot({ id: 0 })] });
+
+    store.setInstrumentOutput(0, { type: "instrument", channel: null, kind: "kick" });
+    expect(store.getState().instruments[0].rootNote).toBe(60); // drums keep C-4
+
+    store.setInstrumentOutput(0, { type: "instrument", channel: null, kind: "bass" });
+    expect(store.getState().instruments[0].rootNote).toBe(33);
+    expect(store.getState().instruments[0].instrumentParams.cutoff).toBe(400);
+
+    store.setInstrumentOutput(0, { type: "instrument", channel: null, kind: "snare" });
+    expect(store.getState().instruments[0].rootNote).toBe(60);
+  });
+
+  it("leaves a hand-set rootNote alone when switching between drum kinds", () => {
+    const store = createStore({ song: createSong(), instruments: [createInstrumentSlot({ id: 0, rootNote: 48 })] });
+
+    store.setInstrumentOutput(0, { type: "instrument", channel: null, kind: "kick" });
+    store.setInstrumentOutput(0, { type: "instrument", channel: null, kind: "tom" });
+
+    expect(store.getState().instruments[0].rootNote).toBe(48);
+  });
 });

@@ -5,7 +5,10 @@ import {
   CLAP_PARAMS,
   TOM_PARAMS,
   HIHAT_PARAMS,
+  BASS_PARAMS,
   SYNTH_KINDS,
+  isSustainedSynthKind,
+  synthKindRootNote,
   getSynthParams,
   getSynthParam,
   defaultSynthParamValues,
@@ -26,7 +29,7 @@ describe("model/instrumentParams.js", () => {
 
   it("getSynthParams resolves 'kick' to KICK_PARAMS and an unknown kind to an empty list", () => {
     expect(getSynthParams("kick")).toBe(KICK_PARAMS);
-    expect(getSynthParams("bass")).toEqual([]);
+    expect(getSynthParams("nope")).toEqual([]);
   });
 
   it("mirrors webdsp's own percussion-instruments.md table for Snare/Clap/Tom/Hi-Hat", () => {
@@ -45,12 +48,33 @@ describe("model/instrumentParams.js", () => {
   });
 
   it("SYNTH_KINDS lists every webdsp instrument kind with a stable id, a display name, and a category", () => {
-    expect(SYNTH_KINDS.map((k) => k.id)).toEqual(["kick", "snare", "clap", "tom", "hihat"]);
-    expect(SYNTH_KINDS.map((k) => k.name)).toEqual(["Kick", "Snare", "Clap", "Tom", "Hi-Hat"]);
+    expect(SYNTH_KINDS.map((k) => k.id)).toEqual(["kick", "snare", "clap", "tom", "hihat", "bass"]);
+    expect(SYNTH_KINDS.map((k) => k.name)).toEqual(["Kick", "Snare", "Clap", "Tom", "Hi-Hat", "Bass"]);
     for (const kind of SYNTH_KINDS) {
-      expect(kind.category).toBe("drum");
+      expect(kind.category).toBe(kind.id === "bass" ? "bass" : "drum");
       expect(getSynthParams(kind.id)).toBe(kind.params);
     }
+  });
+
+  it("mirrors webdsp's bass-instrument.md table — nine params, the Bass's own ADSR included", () => {
+    expect(BASS_PARAMS.map((p) => p.id)).toEqual([
+      "tune", "body", "bite", "cutoff", "resonance", "attack", "decay", "sustain", "release",
+    ]);
+    expect(BASS_PARAMS.map((p) => p.webdspParam)).toEqual([
+      "Tune", "Body", "Bite", "Cutoff", "Resonance", "Attack", "Decay", "Sustain", "Release",
+    ]);
+    for (const param of BASS_PARAMS) {
+      expect(param.min).toBeLessThan(param.max);
+      expect(param.default).toBeGreaterThanOrEqual(param.min);
+      expect(param.default).toBeLessThanOrEqual(param.max);
+    }
+  });
+
+  it("only the Bass is sustained and brings its own root note (A-1 = 33, the note at its 55 Hz tune)", () => {
+    expect(SYNTH_KINDS.filter((k) => isSustainedSynthKind(k.id)).map((k) => k.id)).toEqual(["bass"]);
+    expect(synthKindRootNote("bass")).toBe(33);
+    expect(synthKindRootNote("kick")).toBe(60);
+    expect(synthKindRootNote("nope")).toBe(60);
   });
 
   it("getSynthParam finds one entry by id", () => {
@@ -70,7 +94,7 @@ describe("model/instrumentParams.js", () => {
   });
 
   it("defaultSynthParamValues returns an empty object for an unknown kind", () => {
-    expect(defaultSynthParamValues("bass")).toEqual({});
+    expect(defaultSynthParamValues("nope")).toEqual({});
   });
 
   it("defaultSynthParamValues seeds every param at its catalog default for Tom (pitch-sensitive kind)", () => {

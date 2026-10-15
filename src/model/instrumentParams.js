@@ -52,6 +52,22 @@ export const HIHAT_PARAMS = [
   { id: "tone", webdspParam: "Tone", label: "Tone", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
 ];
 
+// Bass — mirrors webdsp's own docs/bass-instrument.md table. Unlike the drums it is a
+// *sustained* voice with its own internal filter and ADSR (attack/decay/sustain/release are
+// instrument params here, not the sample-style EnvelopeParams), and it is a mono bass line
+// instrument: see SYNTH_KINDS' `sustained`/`rootNote` below.
+export const BASS_PARAMS = [
+  { id: "tune", webdspParam: "Tune", label: "Tune", min: 27.5, max: 110, default: 55, step: 0.5, unit: "Hz" },
+  { id: "body", webdspParam: "Body", label: "Body", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
+  { id: "bite", webdspParam: "Bite", label: "Bite", min: 0, max: 1, default: 0.4, step: 0.01, unit: "" },
+  { id: "cutoff", webdspParam: "Cutoff", label: "Cutoff", min: 40, max: 4000, default: 400, step: 1, unit: "Hz" },
+  { id: "resonance", webdspParam: "Resonance", label: "Resonance", min: 0, max: 1, default: 0.25, step: 0.01, unit: "" },
+  { id: "attack", webdspParam: "Attack", label: "Attack", min: 0.001, max: 0.25, default: 0.003, step: 0.001, unit: "s" },
+  { id: "decay", webdspParam: "Decay", label: "Decay", min: 0.03, max: 2, default: 0.35, step: 0.01, unit: "s" },
+  { id: "sustain", webdspParam: "Sustain", label: "Sustain", min: 0, max: 1, default: 0.6, step: 0.01, unit: "" },
+  { id: "release", webdspParam: "Release", label: "Release", min: 0.01, max: 1.5, default: 0.1, step: 0.01, unit: "s" },
+];
+
 // One entry per webdsp InstrumentKind, mirroring the `{ id, name, category, params }` shape
 // `runtime.getCapabilities().instruments` itself reports (node_modules/webdsp's
 // docs/instruments.md) — model/ stays webdsp-free (docs/EXTENDING.md's layer map) so this is a
@@ -65,12 +81,33 @@ export const SYNTH_KINDS = [
   { id: "clap", name: "Clap", category: "drum", params: CLAP_PARAMS },
   { id: "tom", name: "Tom", category: "drum", params: TOM_PARAMS },
   { id: "hihat", name: "Hi-Hat", category: "drum", params: HIHAT_PARAMS },
+  // `sustained`: the note is held for its tracker note length (compile.js passes `duration`) and
+  // released by the engine, sample-accurately; one-shot drums never get one (it would choke them).
+  // `rootNote`: the tracker note that plays the instrument at its own `tune` (event.note -
+  // rootNote = webdsp's note `pitch`). Bass tune defaults to 55 Hz = A-1 = note 33, so a bass line
+  // is written at its real pitch instead of 27 semitones below a C-4 root.
+  { id: "bass", name: "Bass", category: "bass", params: BASS_PARAMS, sustained: true, rootNote: 33 },
 ];
 
 // Registry of every synthesized-instrument kind's own param catalog, keyed by the same string
 // `Instrument.output.kind` (model/instrument.js) uses. Derived from SYNTH_KINDS above rather
 // than hand-listed again.
 export const SYNTH_PARAMS_BY_KIND = Object.fromEntries(SYNTH_KINDS.map((k) => [k.id, k.params]));
+
+export function getSynthKind(kind) {
+  return SYNTH_KINDS.find((k) => k.id === kind);
+}
+
+export function isSustainedSynthKind(kind) {
+  return getSynthKind(kind)?.sustained === true;
+}
+
+// The tracker root note a synth kind plays at its own tune; 60 (model/instrument.js's default)
+// for kinds that do not specify one.
+export const DEFAULT_ROOT_NOTE = 60;
+export function synthKindRootNote(kind) {
+  return getSynthKind(kind)?.rootNote ?? DEFAULT_ROOT_NOTE;
+}
 
 export function getSynthParams(kind) {
   return SYNTH_PARAMS_BY_KIND[kind] ?? [];

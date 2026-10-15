@@ -139,14 +139,26 @@ function InstrumentEditor({ store, instrumentController }) {
   const damp = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.damp ?? 0.3);
   const metal = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.metal ?? 0.7);
   const tone = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.tone ?? 0.5);
-  const synthParamValues = { tune, decay: synthDecay, pitchDrop, pitchDecay, punch, drive, snap, noise, spread, body, damp, metal, tone };
+  // Bass-only ids. attack/sustain/release are the Bass's own ADSR *instrument params* (its
+  // internal amplitude envelope), not this slot's sample-style EnvelopeParams above, so they get
+  // their own `synth*` names to avoid shadowing envelopeValues' fields.
+  const bite = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.bite ?? 0.4);
+  const cutoff = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.cutoff ?? 400);
+  const resonance = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.resonance ?? 0.25);
+  const synthAttack = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.attack ?? 0.003);
+  const synthSustain = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.sustain ?? 0.6);
+  const synthRelease = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.release ?? 0.1);
+  const synthParamValues = {
+    tune, decay: synthDecay, pitchDrop, pitchDecay, punch, drive, snap, noise, spread, body, damp, metal, tone,
+    bite, cutoff, resonance, attack: synthAttack, sustain: synthSustain, release: synthRelease,
+  };
 
   if (!exists) return null;
 
   // Switching to "midi" needs a channel right away (compileEvent treats a missing channel as
   // "nothing to send" — see audio/compile.js) — default to the last one used, or channel 1.
   // Switching to "instrument" needs a kind, one of model/instrumentParams.js#SYNTH_KINDS
-  // (kick/snare/clap/tom/hihat); state/store.js#setInstrumentOutput (re)seeds instrumentParams
+  // (kick/snare/clap/tom/hihat/bass); state/store.js#setInstrumentOutput (re)seeds instrumentParams
   // with that kind's own catalog defaults, both the first time a slot becomes "instrument" and
   // whenever the kind itself changes. `track` carries over across a kind switch (KICK -> SNARE
   // keeps whatever bus routing was already chosen) but resets to null (MASTER_BUS) switching to

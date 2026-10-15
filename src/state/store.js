@@ -33,7 +33,7 @@ import {
   renamePattern as renamePatternModel,
 } from "../model/mutations.js";
 import { createInstrumentSlot } from "../model/instrument.js";
-import { defaultSynthParamValues } from "../model/instrumentParams.js";
+import { DEFAULT_ROOT_NOTE, defaultSynthParamValues, synthKindRootNote } from "../model/instrumentParams.js";
 import { rowCountForBars, SWING_MIN, SWING_MAX } from "../model/timing.js";
 import { getSelectedPattern } from "../model/query.js";
 import { clearRect, captureBlock, tileBlockIntoRect } from "../model/selectionOps.js";
@@ -613,10 +613,19 @@ export function createStore({ song, instruments }) {
   function setInstrumentOutput(index, output) {
     const instrument = state.instruments[index];
     if (!instrument) return;
+    const previousKind = instrument.output?.type === "instrument" ? instrument.output.kind : null;
     const kindChanged = output.type === "instrument" && output.kind !== instrument.output?.kind;
     instrument.output = output;
     if (output.type === "instrument" && output.kind && (kindChanged || !instrument.instrumentParams)) {
       instrument.instrumentParams = defaultSynthParamValues(output.kind);
+    }
+    // A kind whose own tune sits far from C-4 (the Bass: A-1) brings its own root note, so
+    // event.note - rootNote lands on its real pitch. Switching from such a kind to one without
+    // a root restores the default, rather than leaving a bass root on a kick.
+    if (kindChanged && output.kind) {
+      const hadOwnRoot = previousKind !== null && synthKindRootNote(previousKind) !== DEFAULT_ROOT_NOTE;
+      const ownRoot = synthKindRootNote(output.kind);
+      if (ownRoot !== DEFAULT_ROOT_NOTE || hadOwnRoot) instrument.rootNote = ownRoot;
     }
     emitter.emit(events.INSTRUMENTS_CHANGED, { index });
   }
