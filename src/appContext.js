@@ -506,7 +506,11 @@ export function createAppContext() {
           loadDemoInstrument(0, `${import.meta.env.BASE_URL}samples/kick.wav`, "Kick"),
           loadDemoInstrument(1, `${import.meta.env.BASE_URL}samples/hat.wav`, "Hat"),
         ]);
-      })();
+      })().catch((error) => {
+        // Don't cache a failure — let the veil's RETRY run it again.
+        demoInstrumentsLoaded = null;
+        throw error;
+      });
     }
     return demoInstrumentsLoaded;
   }

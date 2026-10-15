@@ -11,6 +11,9 @@ export function initRuntime() {
     runtimePromise = AudioRuntime.create({ workletModuleUrl: defaultWorkletUrl }).then(async (runtime) => {
       await runtime.resume();
       return runtime;
+    }).catch((error) => {
+      runtimePromise = null; // allow a retry from the next gesture
+      throw error;
     });
   }
   return runtimePromise;

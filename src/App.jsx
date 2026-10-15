@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import TrackerGridHost from "./ui/grid/TrackerGridHost.jsx";
 import TransportBar from "./ui/chrome/TransportBar.jsx";
 import MixerFxPanel from "./ui/chrome/MixerFxPanel.jsx";
@@ -34,6 +34,10 @@ export default function App() {
   // null while unchecked/dismissed, the stored record while a restore prompt should show — see
   // persistence/recovery.js for what checkForRecovery()/restoreFromRecovery() do.
   const [recoveryRecord, setRecoveryRecord] = useState(null);
+  // "idle" → veil with a Start button; "starting" while the AudioContext/demo kit load;
+  // "ready" once audio is running; "error" shows the failure with a retry.
+  const [audioState, setAudioState] = useState("idle");
+  const [audioError, setAudioError] = useState(null);
   const {
     store,
     playbackController,
@@ -72,6 +76,22 @@ export default function App() {
     setRecoveryRecord(null);
   }
 
+  // Android Chrome (and mobile browsers generally) don't grant user activation on a touch's
+  // `pointerdown` — only on pointerup/touchend/click — so a window-level pointerdown listener
+  // calling AudioContext.resume() leaves the context suspended and the resume promise pending
+  // forever. The veil's Start button runs this from a real `click` instead.
+  const startAudio = useCallback(() => {
+    setAudioState("starting");
+    setAudioError(null);
+    return ensureDemoInstrumentsLoaded().then(
+      () => setAudioState("ready"),
+      (error) => {
+        setAudioError(error?.message ?? String(error));
+        setAudioState("error");
+      },
+    );
+  }, [ensureDemoInstrumentsLoaded]);
+
   useEffect(() => {
     const detachNoteSources = noteSources.map((noteSource) => noteSource.attach());
     const detachEditController = editController.attach();
@@ -84,16 +104,14 @@ export default function App() {
       onToggleEditMode: () => store.toggleEditMode(),
     });
 
-    // Loading the demo kit needs a user gesture (browser autoplay policy) but isn't tied to
-    // any one specific control — a note keypress for audition is just as valid a first
-    // gesture as pressing Play. ensureDemoInstrumentsLoaded() is idempotent, so firing it
-    // from the first gesture of either kind is enough; this listener then removes itself.
+    // Loading the demo kit needs a user gesture (browser autoplay policy). Desktop users can
+    // start with any keypress; touch users use the veil's Start button (see startAudio above).
+    // startAudio is idempotent via ensureDemoInstrumentsLoaded()'s cache, and this listener
+    // removes itself after the first keydown.
     function handleFirstGesture() {
-      ensureDemoInstrumentsLoaded();
-      window.removeEventListener("pointerdown", handleFirstGesture);
+      startAudio();
       window.removeEventListener("keydown", handleFirstGesture);
     }
-    window.addEventListener("pointerdown", handleFirstGesture);
     window.addEventListener("keydown", handleFirstGesture);
 
     return () => {
@@ -101,10 +119,9 @@ export default function App() {
       detachEditController();
       detachPush();
       detachTransportKeys();
-      window.removeEventListener("pointerdown", handleFirstGesture);
       window.removeEventListener("keydown", handleFirstGesture);
     };
-  }, [store, playbackController, noteSources, editController, attachPush, ensureDemoInstrumentsLoaded, togglePlayback]);
+  }, [store, playbackController, noteSources, editController, attachPush, startAudio, togglePlayback]);
 
   return (
     <div className="app">
@@ -165,6 +182,20 @@ export default function App() {
         </div>
       )}
       <PerfPanel renderStats={renderStats} playbackController={playbackController} />
+      {audioState !== "ready" && (
+        <div className="gesture-veil" role="dialog" aria-label="Start audio">
+          <div className="gesture-veil__card">
+            <p>
+              {audioState === "error"
+                ? `Audio engine failed to start: ${audioError}`
+                : "Tap to start the audio engine (browser autoplay policy requires a gesture)."}
+            </p>
+            <button className="transport-bar__chip gesture-veil__btn" onClick={startAudio} disabled={audioState === "starting"}>
+              {audioState === "starting" ? "STARTING…" : audioState === "error" ? "RETRY" : "▶ START"}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
