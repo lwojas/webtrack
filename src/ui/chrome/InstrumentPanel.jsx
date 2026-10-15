@@ -4,7 +4,7 @@ import { loadSample } from "../../audio/instrumentLoader.js";
 import { initRuntime } from "../../audio/runtime.js";
 import { toHex } from "../../model/notes.js";
 import { ENVELOPE_PARAMS, formatEnvelopeValue } from "../../model/envelopeParams.js";
-import { SYNTH_KINDS, getSynthParams, formatSynthParamValue } from "../../model/instrumentParams.js";
+import { SYNTH_KINDS, getSynthParams, formatSynthParamValue, synthParamControl } from "../../model/instrumentParams.js";
 import { downloadBytes } from "../../persistence/projectIO.js";
 import { rangeFillStyle } from "../rangeFill.js";
 
@@ -261,23 +261,29 @@ function InstrumentEditor({ store, instrumentController }) {
             </select>
             <span className="fx-module__value" />
           </label>
-          {getSynthParams(outputKind).map((param) => (
-            <label className="fx-module__field" key={param.id}>
-              <span className="fx-module__field-label" title={param.label}>
-                {param.label}
-              </span>
-              <input
-                type="range"
-                min={param.min}
-                max={param.max}
-                step={param.step}
-                value={synthParamValues[param.id]}
-                onChange={(e) => instrumentController.setInstrumentParam(index, param.id, Number(e.target.value))}
-                style={rangeFillStyle(synthParamValues[param.id], param.min, param.max)}
-              />
-              <span className="fx-module__value">{formatSynthParamValue(synthParamValues[param.id], param)}</span>
-            </label>
-          ))}
+          {getSynthParams(outputKind).map((param) => {
+            const control = synthParamControl(param);
+            const sliderValue = control.toSlider(synthParamValues[param.id]);
+            return (
+              <label className="fx-module__field" key={param.id}>
+                <span className="fx-module__field-label" title={param.label}>
+                  {param.label}
+                </span>
+                <input
+                  type="range"
+                  min={control.min}
+                  max={control.max}
+                  step={control.step}
+                  value={sliderValue}
+                  onChange={(e) =>
+                    instrumentController.setInstrumentParam(index, param.id, control.fromSlider(Number(e.target.value)))
+                  }
+                  style={rangeFillStyle(sliderValue, control.min, control.max)}
+                />
+                <span className="fx-module__value">{formatSynthParamValue(synthParamValues[param.id], param)}</span>
+              </label>
+            );
+          })}
         </>
       ) : (
         hasSample && (

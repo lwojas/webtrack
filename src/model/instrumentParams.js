@@ -1,3 +1,6 @@
+import { noteNumberToName } from "./notes.js";
+import { frequencyToNote, noteToFrequency } from "./pitch.js";
+
 // Public control catalog for webdsp's synthesized instruments (AudioRuntime.createInstrument/
 // setInstrumentParameter — node_modules/webdsp's docs/instruments.md). Same shape/conventions
 // as model/fxParams.js's FX_PARAMS and model/envelopeParams.js's ENVELOPE_PARAMS (id/label/
@@ -13,7 +16,7 @@
 // contract (`getInstrumentParams` — the engine self-describes every instrument's controls),
 // so there's no reason to invent different ones here.
 export const KICK_PARAMS = [
-  { id: "tune", webdspParam: "Tune", label: "Tune", min: 30, max: 120, default: 50, step: 1, unit: "Hz" },
+  { id: "tune", webdspParam: "Tune", label: "Tune", min: 30, max: 120, default: 50, step: 1, unit: "Hz", scale: "note" },
   { id: "pitchDrop", webdspParam: "PitchDrop", label: "Pitch Drop", min: 0, max: 4, default: 2.5, step: 0.1, unit: "oct" },
   { id: "pitchDecay", webdspParam: "PitchDecay", label: "Pitch Decay", min: 0.005, max: 0.25, default: 0.04, step: 0.001, unit: "s" },
   { id: "decay", webdspParam: "Decay", label: "Decay", min: 0.05, max: 2, default: 0.45, step: 0.01, unit: "s" },
@@ -24,21 +27,21 @@ export const KICK_PARAMS = [
 // Snare/Clap/Tom/Hi-Hat — mirror webdsp's own docs/percussion-instruments.md table exactly,
 // the same hand-mirroring convention KICK_PARAMS above already follows.
 export const SNARE_PARAMS = [
-  { id: "tune", webdspParam: "Tune", label: "Tune", min: 100, max: 400, default: 185, step: 1, unit: "Hz" },
+  { id: "tune", webdspParam: "Tune", label: "Tune", min: 100, max: 400, default: 185, step: 1, unit: "Hz", scale: "note" },
   { id: "decay", webdspParam: "Decay", label: "Decay", min: 0.05, max: 0.8, default: 0.22, step: 0.01, unit: "s" },
   { id: "snap", webdspParam: "Snap", label: "Snap", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
   { id: "noise", webdspParam: "Noise", label: "Noise", min: 0, max: 1, default: 0.6, step: 0.01, unit: "" },
 ];
 
 export const CLAP_PARAMS = [
-  { id: "tune", webdspParam: "Tune", label: "Tune", min: 600, max: 3000, default: 1300, step: 1, unit: "Hz" },
+  { id: "tune", webdspParam: "Tune", label: "Tune", min: 600, max: 3000, default: 1300, step: 1, unit: "Hz", scale: "note" },
   { id: "decay", webdspParam: "Decay", label: "Decay", min: 0.05, max: 0.8, default: 0.25, step: 0.01, unit: "s" },
   { id: "spread", webdspParam: "Spread", label: "Spread", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
   { id: "snap", webdspParam: "Snap", label: "Snap", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
 ];
 
 export const TOM_PARAMS = [
-  { id: "tune", webdspParam: "Tune", label: "Tune", min: 60, max: 400, default: 120, step: 1, unit: "Hz" },
+  { id: "tune", webdspParam: "Tune", label: "Tune", min: 60, max: 400, default: 120, step: 1, unit: "Hz", scale: "note" },
   { id: "pitchDrop", webdspParam: "PitchDrop", label: "Pitch Drop", min: 0, max: 2, default: 0.6, step: 0.1, unit: "oct" },
   { id: "decay", webdspParam: "Decay", label: "Decay", min: 0.1, max: 1.5, default: 0.45, step: 0.01, unit: "s" },
   { id: "body", webdspParam: "Body", label: "Body", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
@@ -57,7 +60,7 @@ export const HIHAT_PARAMS = [
 // instrument params here, not the sample-style EnvelopeParams), and it is a mono bass line
 // instrument: see SYNTH_KINDS' `sustained`/`rootNote` below.
 export const BASS_PARAMS = [
-  { id: "tune", webdspParam: "Tune", label: "Tune", min: 27.5, max: 110, default: 55, step: 0.5, unit: "Hz" },
+  { id: "tune", webdspParam: "Tune", label: "Tune", min: 27.5, max: 110, default: 55, step: 0.5, unit: "Hz", scale: "note" },
   { id: "body", webdspParam: "Body", label: "Body", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
   { id: "bite", webdspParam: "Bite", label: "Bite", min: 0, max: 1, default: 0.4, step: 0.01, unit: "" },
   { id: "cutoff", webdspParam: "Cutoff", label: "Cutoff", min: 40, max: 4000, default: 400, step: 1, unit: "Hz" },
@@ -128,7 +131,30 @@ function decimalsForStep(step) {
   return dot === -1 ? 0 : text.length - dot - 1;
 }
 
+// Slider-facing view of a param. Hz params flagged `scale: "note"` are driven in note-number
+// (semitone) space so equal slider steps are equal musical intervals; the stored/webdsp value
+// stays Hz. The note range is the catalog's Hz range narrowed to whole notes inside it.
+export function synthParamControl(param) {
+  if (param.scale !== "note") {
+    return { min: param.min, max: param.max, step: param.step, toSlider: (v) => v, fromSlider: (v) => v };
+  }
+  return {
+    min: Math.ceil(frequencyToNote(param.min) - 1e-9),
+    max: Math.floor(frequencyToNote(param.max) + 1e-9),
+    step: 1,
+    toSlider: (hz) => frequencyToNote(hz),
+    fromSlider: (note) => Math.min(param.max, Math.max(param.min, noteToFrequency(note))),
+  };
+}
+
 export function formatSynthParamValue(value, param) {
   if (value === null || value === undefined || !param) return "--";
+  if (param.scale === "note") {
+    const note = frequencyToNote(value);
+    const nearest = Math.round(note);
+    const cents = Math.round((note - nearest) * 100);
+    return cents === 0 ? noteNumberToName(nearest) : `${noteNumberToName(nearest)} ${cents > 0 ? "+" : ""}${cents}c`;
+  }
+  if (param.unit === "st") return `${value > 0 ? "+" : ""}${Number(value).toFixed(decimalsForStep(param.step))} st`;
   return `${Number(value).toFixed(decimalsForStep(param.step))}${param.unit}`;
 }

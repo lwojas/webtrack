@@ -13,6 +13,7 @@ import {
   getSynthParam,
   defaultSynthParamValues,
   formatSynthParamValue,
+  synthParamControl,
 } from "../src/model/instrumentParams.js";
 
 describe("model/instrumentParams.js", () => {
@@ -109,9 +110,39 @@ describe("model/instrumentParams.js", () => {
 
   it("formatSynthParamValue formats with the param's own unit and step precision", () => {
     const tune = getSynthParam("kick", "tune");
-    expect(formatSynthParamValue(50, tune)).toBe("50Hz");
+    expect(formatSynthParamValue(50, tune)).toBe("G-1 +35c"); // stored Hz, shown musically
     const pitchDecay = getSynthParam("kick", "pitchDecay");
     expect(formatSynthParamValue(0.04, pitchDecay)).toBe("0.040s");
     expect(formatSynthParamValue(null, tune)).toBe("--");
+  });
+
+  it("note-scaled tune params convert slider note <-> Hz and stay inside the catalog Hz range", () => {
+    const bass = synthParamControl(getSynthParam("bass", "tune"));
+    expect([bass.min, bass.max, bass.step]).toEqual([21, 45, 1]); // A-0 .. A-2
+    expect(bass.fromSlider(bass.min)).toBeCloseTo(27.5, 6);
+    expect(bass.fromSlider(bass.max)).toBeCloseTo(110, 6);
+    expect(bass.toSlider(55)).toBeCloseTo(33, 9);
+    expect(bass.fromSlider(33)).toBeCloseTo(55, 6);
+    expect(bass.fromSlider(34) / bass.fromSlider(33)).toBeCloseTo(2 ** (1 / 12), 9);
+    expect(bass.fromSlider(45) / bass.fromSlider(33)).toBeCloseTo(2, 9);
+    for (const [kind, id] of [["kick", "tune"], ["snare", "tune"], ["clap", "tune"], ["tom", "tune"]]) {
+      const param = getSynthParam(kind, id);
+      const c = synthParamControl(param);
+      expect(c.fromSlider(c.min)).toBeGreaterThanOrEqual(param.min);
+      expect(c.fromSlider(c.max)).toBeLessThanOrEqual(param.max);
+      // a saved Hz value is untouched until the user moves the slider
+      expect(c.fromSlider(c.toSlider(param.default))).toBeCloseTo(param.default, 6);
+    }
+  });
+
+  it("formats note-scaled tune as a note name (cents only when off-grid) and Hi-Hat tune as signed st", () => {
+    const bass = getSynthParam("bass", "tune");
+    expect(formatSynthParamValue(55, bass)).toBe("A-1");
+    expect(formatSynthParamValue(110, bass)).toBe("A-2");
+    expect(formatSynthParamValue(61.735, bass)).toBe("B-1");
+    const hat = getSynthParam("hihat", "tune");
+    expect(formatSynthParamValue(0, hat)).toBe("0 st");
+    expect(formatSynthParamValue(7, hat)).toBe("+7 st");
+    expect(formatSynthParamValue(-12, hat)).toBe("-12 st");
   });
 });
