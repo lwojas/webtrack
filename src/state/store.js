@@ -33,6 +33,7 @@ import {
   renamePattern as renamePatternModel,
 } from "../model/mutations.js";
 import { createInstrumentSlot } from "../model/instrument.js";
+import { defaultSynthParamValues } from "../model/instrumentParams.js";
 import { rowCountForBars, SWING_MIN, SWING_MAX } from "../model/timing.js";
 import { getSelectedPattern } from "../model/query.js";
 import { clearRect, captureBlock, tileBlockIntoRect } from "../model/selectionOps.js";
@@ -598,12 +599,32 @@ export function createStore({ song, instruments }) {
 
   // Instrument.output (model/instrument.js) — which engine renders this slot's cells.
   // Unlike setInstrumentGain/setInstrumentSample, there's no live engine call to pair this
-  // with: output type/channel is only ever read at compile time (audio/compile.js), never
-  // pushed into webdsp or Web MIDI ahead of time the way a sample's gain is.
+  // with directly: output type/channel is only ever read at compile time (audio/compile.js),
+  // never pushed into webdsp or Web MIDI ahead of time the way a sample's gain is. The one
+  // exception is switching into "instrument" output for the first time — instrumentParams
+  // needs *some* value the instant a param slider can address it, so it's seeded with that
+  // kind's catalog defaults here (model/instrumentParams.js) rather than left null; the actual
+  // live runtime.createInstrument() call is appContext.js#applyInstrumentOutput's job, same
+  // split every other model/audio pairing on this object already has.
   function setInstrumentOutput(index, output) {
     const instrument = state.instruments[index];
     if (!instrument) return;
     instrument.output = output;
+    if (output.type === "instrument" && output.kind && !instrument.instrumentParams) {
+      instrument.instrumentParams = defaultSynthParamValues(output.kind);
+    }
+    emitter.emit(events.INSTRUMENTS_CHANGED, { index });
+  }
+
+  // Synthesized-instrument live control (model/instrument.js#instrumentParams, webdsp's
+  // setInstrumentParameter — node_modules/webdsp's docs/instruments.md) — one control at a
+  // time, the same per-slider granularity setTrackFxInstanceParam already uses for FX. The
+  // model-side half of the pair; the live runtime.setInstrumentParameter() call is
+  // appContext.js#applyInstrumentParam, mirroring applyTrackFxInstanceParam's own split.
+  function setInstrumentParam(index, paramId, value) {
+    const instrument = state.instruments[index];
+    if (!instrument) return;
+    instrument.instrumentParams = { ...instrument.instrumentParams, [paramId]: value };
     emitter.emit(events.INSTRUMENTS_CHANGED, { index });
   }
 
@@ -723,6 +744,7 @@ export function createStore({ song, instruments }) {
     setInstrumentGain,
     setInstrumentEnvelope,
     setInstrumentOutput,
+    setInstrumentParam,
     addInstrumentSlot,
     setPatternSwitchPending,
     setResampleStatus,

@@ -103,7 +103,8 @@ Pattern { id, name, rowCount, tracks: PatternTrack[8] }        // rowCount is pe
 PatternTrack { events: Event[rowCount], length }   // length is the track's own playback loop length — defaults to rowCount, see §8
 Event { note, instrument, velocity, pan, effectCommand, effectParam, length }   // all nullable; empty = all null
 TrackChannel { index, name, muted, solo, volume }   // mixer-level — persists across pattern switches
-Instrument { id, name, sampleId, gain, rootNote, sampleAsset }   // not part of Song — lives in store.instruments
+Instrument { id, name, sampleId, gain, rootNote, sampleAsset, output, origin, localAssetId,
+             envelope, instrumentParams, engineInstrumentId }   // not part of Song — lives in store.instruments
 ```
 
 `Song.patterns` is a pool of patterns, unique by `id`. `Song.patternQueue` is an ordered list
@@ -529,4 +530,6 @@ implemented, built directly on this doc's lookahead-scheduler timing model and `
 independent instances per bus, reorderable, including Phaser/Bitcrusher), track/master stereo
 panning, and a per-instrument ADSR amplitude envelope are also now implemented — see "FX:
 track/master buses, stacked FX instances, and cell automation" and its "ADSR amplitude envelope"
-subsection above, and [`docs/FX.md`](FX.md) for the full FX design.
+subsection above, and [`docs/FX.md`](FX.md) for the full FX design. Synthesized instruments
+(`webdsp`'s `Kick`, as a third `Instrument.output.type` alongside sample and MIDI output) are
+also now implemented — see [`docs/SYNTH_INSTRUMENTS.md`](SYNTH_INSTRUMENTS.md).

@@ -12,6 +12,7 @@ function createFakeRuntime(initialTime = 0) {
     schedule: vi.fn(),
     release: vi.fn(),
     cancelScheduled: vi.fn(),
+    instrumentNoteOn: vi.fn(),
     advance(seconds) {
       time += seconds;
     },
@@ -305,8 +306,8 @@ describe("createLookaheadPlayer — voice-limit wiring (audio/voiceTracker.js)",
       { voiceMode: "mono", maxVoices: 4 },
     ];
     const compileRow = vi.fn(() => [
-      { sampleId: 1, trackIndex: 0 },
-      { sampleId: 2, trackIndex: 1 },
+      { kind: "sample", sampleId: 1, trackIndex: 0 },
+      { kind: "sample", sampleId: 2, trackIndex: 1 },
     ]);
     const reserveCalls = [];
     const reserveVoiceSlot = vi.fn((trackIndex, channel) => {
@@ -460,5 +461,74 @@ describe("createLookaheadPlayer — MIDI output routing (audio/midiOutput.js)", 
 
     expect(runtime.cancelScheduled).toHaveBeenCalledTimes(1);
     expect(cancelMidiScheduled).toHaveBeenCalledTimes(1);
+  });
+});
+
+// compileRow's `kind: "instrument"` events (audio/compile.js, e.g. webdsp's Kick) route to
+// runtime.instrumentNoteOn() instead of runtime.schedule()/scheduleMidiEvents — each webdsp
+// instrument instance is already monophonic/self-stealing engine-side, so unlike sampleEvents
+// there's no voice-limit bookkeeping (reserveVoiceSlot/registerVoice) to wire up here.
+describe("createLookaheadPlayer — synthesized instrument routing (webdsp Kick etc.)", () => {
+  it("routes kind: instrument events to runtime.instrumentNoteOn, never to runtime.schedule", () => {
+    const runtime = createFakeRuntime();
+    runtime.schedule = vi.fn(() => []);
+    const compileRow = vi.fn(() => [{ kind: "instrument", instrumentId: 5, velocity: 0.8, time: 0, trackIndex: 0 }]);
+
+    const player = createLookaheadPlayer({ runtime, compileRow, getStepDurationSeconds: () => 1 });
+    const pattern = makePattern({ trackLengths: [4] });
+
+    player.start({ initialPattern: pattern, initialTrackChannels: [{}], initialInstruments: [], startAt: 0 });
+
+    expect(runtime.schedule).not.toHaveBeenCalled();
+    expect(runtime.instrumentNoteOn).toHaveBeenCalledTimes(1);
+    expect(runtime.instrumentNoteOn).toHaveBeenCalledWith(5, { velocity: 0.8, time: 0 });
+
+    player.stop();
+  });
+
+  it("omits pan from the call when the compiled event has none", () => {
+    const runtime = createFakeRuntime();
+    const compileRow = vi.fn(() => [{ kind: "instrument", instrumentId: 5, velocity: 1, time: 0, trackIndex: 0 }]);
+    const player = createLookaheadPlayer({ runtime, compileRow, getStepDurationSeconds: () => 1 });
+    const pattern = makePattern({ trackLengths: [4] });
+
+    player.start({ initialPattern: pattern, initialTrackChannels: [{}], initialInstruments: [], startAt: 0 });
+
+    expect(runtime.instrumentNoteOn.mock.calls[0][1]).not.toHaveProperty("pan");
+
+    player.stop();
+  });
+
+  it("partitions a mixed row — sample events go to runtime.schedule, instrument events to instrumentNoteOn", () => {
+    const runtime = createFakeRuntime();
+    runtime.schedule = vi.fn(() => [101]);
+    const compileRow = vi.fn(() => [
+      { kind: "sample", sampleId: 1, trackIndex: 0 },
+      { kind: "instrument", instrumentId: 9, velocity: 0.5, pan: 0.2, time: 0, trackIndex: 1 },
+    ]);
+
+    const player = createLookaheadPlayer({ runtime, compileRow, getStepDurationSeconds: () => 1 });
+    const pattern = makePattern({ trackLengths: [4, 4] });
+
+    player.start({ initialPattern: pattern, initialTrackChannels: [{}, {}], initialInstruments: [], startAt: 0 });
+
+    expect(runtime.schedule).toHaveBeenCalledWith([{ sampleId: 1 }]);
+    expect(runtime.instrumentNoteOn).toHaveBeenCalledTimes(1);
+    expect(runtime.instrumentNoteOn).toHaveBeenCalledWith(9, { velocity: 0.5, pan: 0.2, time: 0 });
+
+    player.stop();
+  });
+
+  it("never calls instrumentNoteOn for a row with no instrument-kind events", () => {
+    const runtime = createFakeRuntime();
+    const compileRow = vi.fn(() => [{ kind: "sample", sampleId: 1, trackIndex: 0 }]);
+    const player = createLookaheadPlayer({ runtime, compileRow, getStepDurationSeconds: () => 1 });
+    const pattern = makePattern({ trackLengths: [4] });
+
+    player.start({ initialPattern: pattern, initialTrackChannels: [{}], initialInstruments: [], startAt: 0 });
+
+    expect(runtime.instrumentNoteOn).not.toHaveBeenCalled();
+
+    player.stop();
   });
 });

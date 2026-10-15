@@ -28,6 +28,7 @@ import {
 import { loadSample } from "./audio/instrumentLoader.js";
 import { setInstrumentGain } from "./audio/instrumentGain.js";
 import { setInstrumentEnvelope } from "./audio/instrumentEnvelope.js";
+import { createSynthInstrument, removeSynthInstrument, setSynthInstrumentParam, resyncSynthInstruments } from "./audio/instrument.js";
 import { createDemoSong, createDemoInstruments } from "./demo/demoSong.js";
 import { getSelectedPattern } from "./model/query.js";
 import { createKeyboardNoteSource } from "./input/keyboardNoteMap.js";
@@ -235,6 +236,36 @@ export function createAppContext() {
     store.setInstrumentEnvelope(index, envelope);
     const instrument = store.getState().instruments[index];
     if (instrument?.sampleId != null) setInstrumentEnvelope(instrument.sampleId, envelope);
+  }
+
+  // InstrumentPanel.jsx's output toggle (SAMPLE/MIDI/an "instrument" kind like KICK) — bundles
+  // the model update (store.setInstrumentOutput, which also seeds instrumentParams defaults
+  // the first time a slot switches to "instrument" — see that method's own doc comment) with
+  // the matching live engine change: create this slot's webdsp instrument when switching into
+  // "instrument" output, or free whatever it had when switching away from it (including to a
+  // *different* output, not just back to "sample" — audio/instrument.js#removeSynthInstrument
+  // is a no-op if there's nothing to free).
+  async function applyInstrumentOutput(index, output) {
+    store.setInstrumentOutput(index, output);
+    const instrument = store.getState().instruments[index];
+    if (output.type === "instrument" && output.kind) {
+      await createSynthInstrument(instrument, output.kind);
+    } else {
+      await removeSynthInstrument(instrument);
+    }
+  }
+
+  // Synthesized-instrument control (ui/chrome/InstrumentPanel.jsx's Kick sliders etc.) — same
+  // split as applyInstrumentGain/applyInstrumentEnvelope: update the model, then push live only
+  // if this slot actually has a live engine instrument yet (audio/instrument.js's own "nothing
+  // to address" no-op covers the gap between selecting a kind and createSynthInstrument's
+  // initRuntime() await resolving).
+  function applyInstrumentParam(index, paramId, value) {
+    store.setInstrumentParam(index, paramId, value);
+    const instrument = store.getState().instruments[index];
+    if (instrument?.output?.type === "instrument" && instrument.output.kind) {
+      setSynthInstrumentParam(instrument, instrument.output.kind, paramId, value);
+    }
   }
 
   // The one place a sample gets assigned into an instrument slot (a file picked in
@@ -530,6 +561,7 @@ export function createAppContext() {
         setInstrumentEnvelope(instrument.sampleId, instrument.envelope);
       }
     }
+    await resyncSynthInstruments(instruments);
     await resyncAllFxChains(song.trackChannels, song.masterFxChain, song.masterFx);
   }
 
@@ -598,6 +630,7 @@ export function createAppContext() {
         setInstrumentEnvelope(instrument.sampleId, instrument.envelope);
       }
     }
+    await resyncSynthInstruments(instruments);
     await resyncAllFxChains(song.trackChannels, song.masterFxChain, song.masterFx);
   }
 
@@ -622,7 +655,8 @@ export function createAppContext() {
     setGain: applyInstrumentGain,
     setEnvelope: applyInstrumentEnvelope,
     setSample: applyInstrumentSample,
-    setOutput: store.setInstrumentOutput,
+    setOutput: applyInstrumentOutput,
+    setInstrumentParam: applyInstrumentParam,
   };
 
   return {

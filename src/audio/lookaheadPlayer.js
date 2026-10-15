@@ -123,11 +123,15 @@ export function createLookaheadPlayer({
       // transport, that should restart at 0 on every new pattern instance.
       const patternRelativeStep = stepCounter - patternStartStep;
       const events = compileRow(pattern, trackChannels, instruments, patternRelativeStep, scheduledTime, duration, trackBusIds);
-      // compileEvent's own `kind` tag (audio/compile.js) splits this row's events between
-      // webdsp (sample voices, with all the voice-limit bookkeeping below) and MIDI output
-      // (self-contained — see audio/midiOutput.js's doc comment on why it needs none of that).
-      const sampleEvents = events.filter((event) => event.kind !== "midi");
+      // compileEvent's own `kind` tag (audio/compile.js) splits this row's events three ways:
+      // webdsp sample voices (with all the voice-limit bookkeeping below), MIDI output
+      // (self-contained — see audio/midiOutput.js's doc comment on why it needs none of that),
+      // and webdsp synthesized instruments (self-contained the same way — each instance is
+      // already monophonic/self-stealing on the engine side, so there's no equivalent
+      // voice-limit bookkeeping to do here either).
+      const sampleEvents = events.filter((event) => event.kind === "sample");
       const midiEvents = events.filter((event) => event.kind === "midi");
+      const instrumentEvents = events.filter((event) => event.kind === "instrument");
 
       if (sampleEvents.length > 0) {
         // Voice-limit enforcement (model/trackChannel.js's voiceMode/maxVoices, via
@@ -145,6 +149,20 @@ export function createLookaheadPlayer({
       }
 
       if (midiEvents.length > 0) scheduleMidiEvents(midiEvents, runtime.getCurrentTime());
+
+      // webdsp's own instrumentNoteOn() is the per-note scheduling primitive here (there's no
+      // schedule()-style batch call for instruments — node_modules/webdsp's docs/
+      // instruments.md) — `time` sample-accurately schedules it exactly like runtime.schedule()
+      // does for sampleEvents above. No voice handle is kept (instrumentNoteOn returns none,
+      // and a fresh note on the same instance just restarts it — one instance is one
+      // monophonic machine, by webdsp's own design), so there's nothing to register with
+      // registerVoice/reserveVoiceSlot the way sample voices need.
+      instrumentEvents.forEach((event) => {
+        const params = { velocity: event.velocity };
+        if (event.time !== undefined) params.time = event.time;
+        if (event.pan !== undefined) params.pan = event.pan;
+        runtime.instrumentNoteOn(event.instrumentId, params);
+      });
 
       // Cell FX automation rides the same tick/lookahead cadence as note scheduling above —
       // see audio/fx.js's doc comment on webdsp's setNodeParameter having no timestamp of its

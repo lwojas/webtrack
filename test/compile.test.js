@@ -205,6 +205,99 @@ describe("compileEvent — MIDI output", () => {
   });
 });
 
+describe("compileEvent — synthesized instrument output (webdsp Kick etc.)", () => {
+  function makeSynthInstruments({ engineInstrumentId = 7, rootNote = 72 } = {}) {
+    return [
+      createInstrumentSlot({
+        id: 0,
+        name: "Kick",
+        rootNote, // deliberately non-default, to prove it's never read (see below)
+        output: { type: "instrument", channel: null, kind: "kick" },
+        engineInstrumentId,
+      }),
+    ];
+  }
+
+  it("addresses the instrument's own live engineInstrumentId, ignoring note/pitch entirely", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 60);
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "instrument", 0);
+    const event = getSelectedPattern(song).tracks[0].events[0];
+
+    // rootNote is 72 here specifically to prove it's never read: a sample-output instrument
+    // with the same rootNote would transpose this note by -12 semitones (see the "maps
+    // note-relative-to-rootNote" test above); webdsp's Kick has no per-note pitch at all.
+    const compiled = compileEvent(event, song.trackChannels[0], makeSynthInstruments());
+
+    expect(compiled.kind).toBe("instrument");
+    expect(compiled.instrumentId).toBe(7);
+    expect(compiled).not.toHaveProperty("pitch");
+    expect(compiled).not.toHaveProperty("note");
+  });
+
+  it("scales velocity by track volume into a 0..1 level, same scalar sample output uses for gain", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 60);
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "instrument", 0);
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "velocity", 64);
+    song.trackChannels[0].volume = 0.5;
+    const event = getSelectedPattern(song).tracks[0].events[0];
+
+    const compiled = compileEvent(event, song.trackChannels[0], makeSynthInstruments());
+
+    expect(compiled.velocity).toBeCloseTo((64 / 127) * 0.5);
+  });
+
+  it("carries pan straight through, same as sample output", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 60);
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "instrument", 0);
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "pan", -0.4);
+    const event = getSelectedPattern(song).tracks[0].events[0];
+
+    const compiled = compileEvent(event, song.trackChannels[0], makeSynthInstruments());
+
+    expect(compiled.pan).toBe(-0.4);
+  });
+
+  it("includes time when scheduled, omits it for an unscheduled audition, and never includes duration", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 60);
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "instrument", 0);
+    const event = getSelectedPattern(song).tracks[0].events[0];
+
+    const scheduled = compileEvent(event, song.trackChannels[0], makeSynthInstruments(), 1.5, 0.25);
+    expect(scheduled.time).toBe(1.5);
+    expect(scheduled).not.toHaveProperty("duration"); // webdsp instruments are one-shot/self-ending
+
+    const auditioned = compileEvent(event, song.trackChannels[0], makeSynthInstruments());
+    expect(auditioned).not.toHaveProperty("time");
+  });
+
+  it("returns null when the slot has no live engineInstrumentId yet", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 60);
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "instrument", 0);
+    const event = getSelectedPattern(song).tracks[0].events[0];
+    expect(compileEvent(event, song.trackChannels[0], makeSynthInstruments({ engineInstrumentId: null }))).toBe(null);
+  });
+
+  it("is still gated by a muted track channel, same as sample/MIDI output", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 60);
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "instrument", 0);
+    song.trackChannels[0].muted = true;
+    const event = getSelectedPattern(song).tracks[0].events[0];
+    expect(compileEvent(event, song.trackChannels[0], makeSynthInstruments())).toBe(null);
+  });
+});
+
 describe("noteDurationSteps", () => {
   it("holds until the next non-empty note on the same track", () => {
     const song = createSong();

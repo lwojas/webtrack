@@ -86,6 +86,10 @@ function serializeInstrument(instrument, embedSampleBytes) {
   // session (webdsp doesn't persist samples across sessions), so saving it would be
   // meaningless after a reload. deserializeProject() re-loads `sample`'s bytes and gets a
   // fresh sampleId instead (see docs/EXTENDING.md's own persistence note).
+  // engineInstrumentId is deliberately dropped here too, for the exact same reason sampleId
+  // is: it's a handle into the *current* AudioRuntime session (audio/instrument.js's own doc
+  // comment) — deserializeProject() leaves it null, and whichever load path runs next
+  // (appContext.js's resyncSynthInstruments) creates a fresh one from instrumentParams below.
   return {
     id: instrument.id,
     name: instrument.name,
@@ -94,6 +98,7 @@ function serializeInstrument(instrument, embedSampleBytes) {
     output: instrument.output,
     origin: instrument.origin,
     envelope: instrument.envelope,
+    instrumentParams: instrument.instrumentParams,
     sample,
   };
 }
@@ -341,6 +346,7 @@ export async function deserializeProject(parsed, { loadSampleBytes, loadLocalAss
         output: def.output,
         origin: def.origin,
         envelope: def.envelope,
+        instrumentParams: def.instrumentParams,
       };
 
       // output is purely additive (a project saved before it existed has no def.output at
@@ -348,7 +354,11 @@ export async function deserializeProject(parsed, { loadSampleBytes, loadLocalAss
       // value is undefined, same as gain/rootNote already rely on just below, so an old
       // project loads as "sample" output, exactly how it already behaved. origin is purely
       // additive the same way: undefined on any project saved before this feature existed, and
-      // createInstrumentSlot's own default ("import") applies.
+      // createInstrumentSlot's own default ("import") applies. instrumentParams is additive
+      // for the exact same reason (no project predating "instrument" output has it at all) —
+      // undefined falls through to createInstrumentSlot's own `null` default, and the first
+      // time such a slot is ever switched to an "instrument" output it gets seeded with that
+      // kind's catalog defaults (state/store.js#setInstrumentOutput), same as a brand-new slot.
       if (!def.sample) return createInstrumentSlot(base);
 
       let buffer;

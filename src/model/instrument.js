@@ -10,12 +10,20 @@
 // session (webdsp doesn't persist samples) and project save/load needs the original bytes to
 // re-embed, not the session-local id. See src/persistence/projectFile.js.
 // output: which engine renders a cell that addresses this instrument slot — "sample"
-// (default, today's only behavior, via sampleId/rootNote/gain above) or "midi" (sends the
+// (default, today's only behavior, via sampleId/rootNote/gain above), "midi" (sends the
 // cell's note/velocity out a MIDI channel instead — see audio/compile.js#compileEvent and
-// audio/midiOutput.js). `channel` is only meaningful for "midi" (0-15); null for "sample".
+// audio/midiOutput.js), or "instrument" (renders through one of webdsp's synthesized
+// instruments — see audio/instrument.js and instrumentParams/engineInstrumentId below).
+// `channel` is only meaningful for "midi" (0-15); `kind` only for "instrument" (a string key
+// into model/instrumentParams.js's SYNTH_PARAMS_BY_KIND, e.g. "kick" — webdsp's own
+// InstrumentKind, addressed by name rather than its numeric enum so a saved project stays
+// readable/stable even if webdsp renumbers it). Both are null for the other output type(s).
 // Lives on the instrument, not the track, because Event.instrument — not the track — is what
 // already selects which voice renders a given cell (a track's cells can reference different
-// instrument slots), so this is the smallest-diff place for output type to live.
+// instrument slots), so this is the smallest-diff place for output type to live. A slot's
+// sampleId/rootNote/gain/envelope/sampleAsset stay present (just unused) under "instrument"
+// output, the same way they already go unused under "midi" — no special-casing needed to keep
+// them around across a user flipping the output toggle back and forth.
 //
 // origin: "import" (a file the user picked) or "resample" (captured from the tracker's own
 // playback via audio/resampleController.js) — purely provenance/display (the Instrument Panel's
@@ -46,10 +54,35 @@ export function createInstrumentSlot({
   gain = 1.0,
   rootNote = 60,
   sampleAsset = null,
-  output = { type: "sample", channel: null },
+  output = { type: "sample", channel: null, kind: null },
   origin = "import",
   localAssetId = null,
   envelope = { attack: 0, decay: 0, sustain: 1, release: 0.01 },
+  // instrumentParams: Record<paramId, number> | null — persistent per-instance control values
+  // for an "instrument"-output slot (model/instrumentParams.js's catalog for output.kind),
+  // seeded with that kind's defaults the moment a slot is switched to it (state/store.js#
+  // setInstrumentOutput) — null until then, same "nothing to show yet" shape envelope/gain
+  // don't need (they always have a value) but output.channel already does for an unconfigured
+  // MIDI slot.
+  instrumentParams = null,
+  // engineInstrumentId: webdsp's own InstrumentId for this slot — session-scoped only, exactly
+  // like sampleId above (never persisted; see persistence/projectFile.js). Written by
+  // audio/instrument.js#createSynthInstrument the moment a live webdsp instrument exists for
+  // this slot; audio/compile.js reads it the same inert way it already reads sampleId.
+  engineInstrumentId = null,
 } = {}) {
-  return { id, name, sampleId, gain, rootNote, sampleAsset, output, origin, localAssetId, envelope };
+  return {
+    id,
+    name,
+    sampleId,
+    gain,
+    rootNote,
+    sampleAsset,
+    output,
+    origin,
+    localAssetId,
+    envelope,
+    instrumentParams,
+    engineInstrumentId,
+  };
 }

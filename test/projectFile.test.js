@@ -183,7 +183,46 @@ describe("serializeProject / deserializeProject", () => {
 
     const restored = await deserializeProject(serialized, { loadSampleBytes: async () => "fresh-id" });
 
-    expect(restored.instruments[0].output).toEqual({ type: "sample", channel: null });
+    expect(restored.instruments[0].output).toEqual({ type: "sample", channel: null, kind: null });
+  });
+
+  it("round-trips a synthesized-instrument slot's output kind and instrumentParams, dropping engineInstrumentId", async () => {
+    const instruments = [
+      createInstrumentSlot({
+        id: 0,
+        name: "Kick",
+        output: { type: "instrument", channel: null, kind: "kick" },
+        instrumentParams: { tune: 65, pitchDrop: 3, pitchDecay: 0.05, decay: 0.6, punch: 0.8, drive: 0.2 },
+        engineInstrumentId: 42, // session-only — must not survive the round-trip
+      }),
+    ];
+    const serialized = serializeProject({ song: createSong(), instruments, ui: {} });
+
+    expect(serialized.instruments[0]).not.toHaveProperty("engineInstrumentId");
+    expect(serialized.instruments[0].instrumentParams).toEqual({
+      tune: 65,
+      pitchDrop: 3,
+      pitchDecay: 0.05,
+      decay: 0.6,
+      punch: 0.8,
+      drive: 0.2,
+    });
+
+    const restored = await deserializeProject(serialized, { loadSampleBytes: async () => null });
+
+    expect(restored.instruments[0].output).toEqual({ type: "instrument", channel: null, kind: "kick" });
+    expect(restored.instruments[0].instrumentParams).toEqual(instruments[0].instrumentParams);
+    expect(restored.instruments[0].engineInstrumentId).toBe(null);
+  });
+
+  it("defaults instrumentParams to null on a project saved before synthesized instruments existed", async () => {
+    const instruments = [createInstrumentSlot({ id: 0, name: "Kick", sampleId: "x" })];
+    const serialized = serializeProject({ song: createSong(), instruments, ui: {} });
+    delete serialized.instruments[0].instrumentParams; // simulate a file saved before this field existed
+
+    const restored = await deserializeProject(serialized, { loadSampleBytes: async () => "fresh-id" });
+
+    expect(restored.instruments[0].instrumentParams).toBe(null);
   });
 
   it("embeds a resample-origin instrument's bytes on an explicit save, exactly like an import", async () => {

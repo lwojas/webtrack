@@ -37,12 +37,12 @@ export function noteDurationSteps(track, rowIndex) {
 // audition path, which still just goes straight to the master bus. Only meaningful for a
 // "sample" output — a MIDI output has no webdsp bus to route into.
 //
-// Every compiled event carries a `kind` ("sample" | "midi") so callers (audio/compile.js's
-// own compileRow, audio/lookaheadPlayer.js's tick()) can tell which engine it's destined for
-// without re-deriving it from the instrument again. `kind: "midi"` events are not yet routed
-// anywhere — audio/lookaheadPlayer.js still only ever calls runtime.schedule(), and nothing
-// in the UI can set an instrument's output.type to "midi" yet (InstrumentPanel.jsx's output
-// picker and the lookaheadPlayer-side routing both land together — see the MIDI output
+// Every compiled event carries a `kind` ("sample" | "midi" | "instrument") so callers
+// (audio/compile.js's own compileRow, audio/lookaheadPlayer.js's tick()) can tell which engine
+// it's destined for without re-deriving it from the instrument again. `kind: "midi"` events are
+// not yet routed anywhere — audio/lookaheadPlayer.js still only ever calls runtime.schedule(),
+// and nothing in the UI can set an instrument's output.type to "midi" yet (InstrumentPanel.jsx's
+// output picker and the lookaheadPlayer-side routing both land together — see the MIDI output
 // transport stage of the architecture plan), so this branch is reachable only from a test or
 // a hand-built instrument object today, deliberately, rather than exposing a user-facing
 // control for a path that doesn't fully work yet.
@@ -64,6 +64,27 @@ export function compileEvent(event, trackChannel, instruments, time, durationSec
     const compiled = { kind: "midi", channel: instrument.output.channel, note: event.note, velocity };
     if (time !== undefined) compiled.time = time;
     if (durationSeconds !== undefined) compiled.duration = durationSeconds;
+    return compiled;
+  }
+
+  // A webdsp synthesized instrument (audio/instrument.js, e.g. Kick — see
+  // node_modules/webdsp's docs/instruments.md). `engineInstrumentId` is this slot's live
+  // webdsp InstrumentId (model/instrument.js's own doc comment) — null until
+  // audio/instrument.js#createSynthInstrument has actually created one, same "nothing to
+  // address yet" gate instrument.sampleId === null is below. event.note is deliberately never
+  // read here: webdsp's InstrumentNoteParams has no pitch field at all — the instrument's own
+  // `tune` control (set via setInstrumentParameter, not per-note) is what decides its pitch, a
+  // real difference from a sample's rootNote-relative transposition that this file follows
+  // rather than papering over (see node_modules/webdsp's docs/kick-instrument.md). There's no
+  // `duration` either — webdsp's instruments are one-shot/self-ending; durationSeconds is
+  // simply unused on this branch, same as it would be for any other instrument kind with no
+  // note-length concept.
+  if (instrument.output?.type === "instrument") {
+    if (instrument.engineInstrumentId === null || instrument.engineInstrumentId === undefined) return null;
+    const level = Math.max(0, Math.min(1, (velocity / 127) * trackChannel.volume));
+    const compiled = { kind: "instrument", instrumentId: instrument.engineInstrumentId, velocity: level };
+    if (time !== undefined) compiled.time = time;
+    if (event.pan !== null && event.pan !== undefined) compiled.pan = event.pan;
     return compiled;
   }
 
