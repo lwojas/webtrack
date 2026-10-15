@@ -531,4 +531,33 @@ describe("createLookaheadPlayer — synthesized instrument routing (webdsp Kick 
 
     player.stop();
   });
+
+  // webdsp's InstrumentNoteParams.pitch (semitones on top of the instrument's own tune) —
+  // audio/compile.js derives it from event.note - instrument.rootNote; this just confirms the
+  // player forwards whatever compileRow already computed, same as it already does for pan.
+  it("forwards pitch through to instrumentNoteOn when the compiled event has one — e.g. a Tom fill", () => {
+    const runtime = createFakeRuntime();
+    const compileRow = vi.fn(() => [{ kind: "instrument", instrumentId: 3, velocity: 1, pitch: 7, time: 0, trackIndex: 0 }]);
+    const player = createLookaheadPlayer({ runtime, compileRow, getStepDurationSeconds: () => 1 });
+    const pattern = makePattern({ trackLengths: [4] });
+
+    player.start({ initialPattern: pattern, initialTrackChannels: [{}], initialInstruments: [], startAt: 0 });
+
+    expect(runtime.instrumentNoteOn).toHaveBeenCalledWith(3, { velocity: 1, time: 0, pitch: 7 });
+
+    player.stop();
+  });
+
+  it("omits pitch from the call when the compiled event has none", () => {
+    const runtime = createFakeRuntime();
+    const compileRow = vi.fn(() => [{ kind: "instrument", instrumentId: 5, velocity: 1, time: 0, trackIndex: 0 }]);
+    const player = createLookaheadPlayer({ runtime, compileRow, getStepDurationSeconds: () => 1 });
+    const pattern = makePattern({ trackLengths: [4] });
+
+    player.start({ initialPattern: pattern, initialTrackChannels: [{}], initialInstruments: [], startAt: 0 });
+
+    expect(runtime.instrumentNoteOn.mock.calls[0][1]).not.toHaveProperty("pitch");
+
+    player.stop();
+  });
 });

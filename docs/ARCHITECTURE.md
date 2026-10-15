@@ -531,5 +531,6 @@ independent instances per bus, reorderable, including Phaser/Bitcrusher), track/
 panning, and a per-instrument ADSR amplitude envelope are also now implemented — see "FX:
 track/master buses, stacked FX instances, and cell automation" and its "ADSR amplitude envelope"
 subsection above, and [`docs/FX.md`](FX.md) for the full FX design. Synthesized instruments
-(`webdsp`'s `Kick`, as a third `Instrument.output.type` alongside sample and MIDI output) are
-also now implemented — see [`docs/SYNTH_INSTRUMENTS.md`](SYNTH_INSTRUMENTS.md).
+(`webdsp`'s Kick, Snare, Clap, Tom, and Hi-Hat, as a third `Instrument.output.type` alongside
+sample and MIDI output, including per-note pitch) are also now implemented — see
+[`docs/SYNTH_INSTRUMENTS.md`](SYNTH_INSTRUMENTS.md).

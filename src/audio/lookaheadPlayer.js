@@ -161,6 +161,7 @@ export function createLookaheadPlayer({
         const params = { velocity: event.velocity };
         if (event.time !== undefined) params.time = event.time;
         if (event.pan !== undefined) params.pan = event.pan;
+        if (event.pitch !== undefined) params.pitch = event.pitch;
         runtime.instrumentNoteOn(event.instrumentId, params);
       });
 

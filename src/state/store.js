@@ -601,16 +601,21 @@ export function createStore({ song, instruments }) {
   // Unlike setInstrumentGain/setInstrumentSample, there's no live engine call to pair this
   // with directly: output type/channel is only ever read at compile time (audio/compile.js),
   // never pushed into webdsp or Web MIDI ahead of time the way a sample's gain is. The one
-  // exception is switching into "instrument" output for the first time — instrumentParams
-  // needs *some* value the instant a param slider can address it, so it's seeded with that
-  // kind's catalog defaults here (model/instrumentParams.js) rather than left null; the actual
-  // live runtime.createInstrument() call is appContext.js#applyInstrumentOutput's job, same
-  // split every other model/audio pairing on this object already has.
+  // exception is switching into "instrument" output — instrumentParams needs *some* value the
+  // instant a param slider can address it, so it's seeded with that kind's catalog defaults
+  // here (model/instrumentParams.js) rather than left null; the actual live
+  // runtime.createInstrument() call is appContext.js#applyInstrumentOutput's job, same split
+  // every other model/audio pairing on this object already has. Reseeds (rather than keeping
+  // the previous kind's values) whenever the *kind* itself changes — e.g. an "instrument"-type
+  // slot switching from Kick to Snare — not just the first time a slot becomes "instrument":
+  // without this check, a kind switch would silently keep the old kind's params (wrong ranges,
+  // wrong defaults) until every one of the new kind's sliders happened to be touched by hand.
   function setInstrumentOutput(index, output) {
     const instrument = state.instruments[index];
     if (!instrument) return;
+    const kindChanged = output.type === "instrument" && output.kind !== instrument.output?.kind;
     instrument.output = output;
-    if (output.type === "instrument" && output.kind && !instrument.instrumentParams) {
+    if (output.type === "instrument" && output.kind && (kindChanged || !instrument.instrumentParams)) {
       instrument.instrumentParams = defaultSynthParamValues(output.kind);
     }
     emitter.emit(events.INSTRUMENTS_CHANGED, { index });

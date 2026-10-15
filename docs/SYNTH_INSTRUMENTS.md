@@ -1,38 +1,38 @@
-# Synthesized instruments (webdsp's Kick, and the seam for more)
+# Synthesized instruments (Kick, Snare, Clap, Tom, Hi-Hat)
 
 How webtracker consumes `webdsp`'s synthesized-instrument API (`AudioRuntime.createInstrument`
-et al. — currently just Kick) as a third kind of instrument output, alongside sample playback
-and MIDI output. Read [`ARCHITECTURE.md`](ARCHITECTURE.md) first if you haven't — this assumes
-you know the module map and the Song/Instrument data model.
+et al. — Kick, Snare, Clap, Tom, Hi-Hat today) as a third kind of instrument output, alongside
+sample playback and MIDI output. Read [`ARCHITECTURE.md`](ARCHITECTURE.md) first if you haven't
+— this assumes you know the module map and the Song/Instrument data model.
 
 ## What this is
 
 `webdsp` grew a second kind of audio source beyond sample `Voice`s: an `Instrument` — an
 opinionated, purpose-built sound machine with its own small control set (see
-`node_modules/webdsp`'s `docs/instruments.md`/`docs/kick-instrument.md`). webtrack exposes this
-as a third value for `Instrument.output.type` (`model/instrument.js`), alongside the existing
-`"sample"` and `"midi"`:
+`node_modules/webdsp`'s `docs/instruments.md`/`docs/kick-instrument.md`/
+`docs/percussion-instruments.md`). webtrack exposes this as a third value for
+`Instrument.output.type` (`model/instrument.js`), alongside the existing `"sample"` and `"midi"`:
 
 ```
 output.type === "sample"     → sampleId/rootNote/gain/envelope (existing)
 output.type === "midi"       → channel (existing)
-output.type === "instrument" → kind ("kick") + instrumentParams + engineInstrumentId (this feature)
+output.type === "instrument" → kind ("kick"/"snare"/"clap"/"tom"/"hihat") + instrumentParams + engineInstrumentId
 ```
 
 Conceptually, per the brief this was built from:
 
 ```
-webtrack Instrument slot  →  Instrument.output.kind ("kick")
-                           →  webdsp AudioRuntime.createInstrument(InstrumentKind.Kick)
-                           →  webdsp's own Kick DSP
+webtrack Instrument slot  →  Instrument.output.kind ("kick"/"snare"/"clap"/"tom"/"hihat")
+                           →  webdsp AudioRuntime.createInstrument(InstrumentKind.<Kind>)
+                           →  webdsp's own DSP for that kind
                            →  audio
 ```
 
-webtrack never reimplements the Kick's (or any future synthesized instrument's) DSP — it only
-ever creates/addresses an opaque `webdsp` `InstrumentId` and pushes the public parameter values
-`webdsp` itself advertises. The instrument owns its sound design; webtrack owns selection,
-state, parameter editing, sequencing, and persistence — the same split `ARCHITECTURE.md`'s
-module map already draws between `model/`/`state/`/`ui/` and `audio/`/`webdsp`.
+webtrack never reimplements any synthesized instrument's DSP — it only ever creates/addresses
+an opaque `webdsp` `InstrumentId` and pushes the public parameter values `webdsp` itself
+advertises. The instrument owns its sound design; webtrack owns selection, state, parameter
+editing, sequencing, and persistence — the same split `ARCHITECTURE.md`'s module map already
+draws between `model/`/`state/`/`ui/` and `audio/`/`webdsp`.
 
 **Multiple instances.** `webdsp`'s `createInstrument()` returns a distinct `InstrumentId` per
 call (up to `MAX_INSTRUMENTS`, 64) — "one instance is one monophonic machine," by design, never
@@ -48,22 +48,38 @@ happens to be `"instrument"`.
 
 Same shape/conventions as `model/fxParams.js`'s `FX_PARAMS` and `model/envelopeParams.js`'s
 `ENVELOPE_PARAMS` — `model/` stays `webdsp`-free (`docs/EXTENDING.md`'s layer map), so this file
-hand-mirrors `webdsp`'s own `docs/kick-instrument.md` table rather than importing anything:
+hand-mirrors `webdsp`'s own `docs/kick-instrument.md`/`docs/percussion-instruments.md` tables
+rather than importing anything:
 
 ```js
 export const KICK_PARAMS = [
   { id: "tune", webdspParam: "Tune", label: "Tune", min: 30, max: 120, default: 50, step: 1, unit: "Hz" },
   // ...pitchDrop, pitchDecay, decay, punch, drive
 ];
+export const SNARE_PARAMS = [ /* tune, decay, snap, noise */ ];
+export const CLAP_PARAMS = [ /* tune, decay, spread, snap */ ];
+export const TOM_PARAMS = [ /* tune, pitchDrop, decay, body, damp */ ];
+export const HIHAT_PARAMS = [ /* tune, decay, metal, tone */ ];
 
-export const SYNTH_PARAMS_BY_KIND = { kick: KICK_PARAMS };
+export const SYNTH_KINDS = [
+  { id: "kick", name: "Kick", category: "drum", params: KICK_PARAMS },
+  { id: "snare", name: "Snare", category: "drum", params: SNARE_PARAMS },
+  { id: "clap", name: "Clap", category: "drum", params: CLAP_PARAMS },
+  { id: "tom", name: "Tom", category: "drum", params: TOM_PARAMS },
+  { id: "hihat", name: "Hi-Hat", category: "drum", params: HIHAT_PARAMS },
+];
+
+export const SYNTH_PARAMS_BY_KIND = Object.fromEntries(SYNTH_KINDS.map((k) => [k.id, k.params]));
 ```
 
-`SYNTH_PARAMS_BY_KIND` is keyed by the same string `output.kind` the model uses — today just
-`"kick"`, but the shape is already generic: a future second `webdsp` instrument (its own
-`docs/instruments.md` "intended for future instruments" list — snare, hat, bass...) is one more
-entry here, not a new code path through the Instrument Editor or the audio bridge below. See
-"Adding another synthesized instrument kind" below for the full recipe.
+`SYNTH_KINDS` mirrors the `{ id, name, category, params }` shape `webdsp`'s own
+`runtime.getCapabilities().instruments` reports (`id` is the stable persistence identity, `name`
+is display text, `category` is a free string — currently always `"drum"` — reserved for future
+filtering/taxonomy, not built yet). It's the **one** table UI code needs to iterate over to list
+every synth kind (`ui/chrome/InstrumentPanel.jsx`'s output-type buttons render straight from it)
+— not a second, separately-maintained list of instrument names. `SYNTH_PARAMS_BY_KIND` is
+derived from it, keyed by the same string `output.kind` the model uses. See "Adding another
+synthesized instrument kind" below for the full recipe this table follows.
 
 `getSynthParams(kind)`/`defaultSynthParamValues(kind)`/`formatSynthParamValue(value, param)` are
 the same three helpers `fxParams.js`/`envelopeParams.js` already expose for their own catalogs —
@@ -116,19 +132,31 @@ sample-gain bridging — the one place `createInstrument`/`removeInstrument`/
   a sample (re-obtained by re-loading its bytes), a synth slot has no bytes to reload — it needs
   a fresh `createInstrument()` call plus its saved `instrumentParams` pushed back.
 
-**Routing: every synth instrument instance renders straight to `MASTER_BUS`, never a track's own
-insert bus.** This is a deliberate, documented limitation, not an oversight. `webdsp` bakes an
-instrument's bus in at `createInstrument()` time and has no way to move it afterward (unlike an
-FX chain instance's `moveEffect`) — but `Event.instrument` is a plain index, not bound to one
-track, so a single Kick slot can be triggered from more than one track's cells. Picking
-"whichever track happened to trigger it first" would be an arbitrary, order-dependent choice;
-`MASTER_BUS` is the one answer that's always correct regardless of which track(s) end up using
-the slot. The cost: a synth instrument doesn't get its own track's insert FX chain
-(filter/delay/reverb/etc.) the way a sample voice does — only master FX apply to it, the same
-limitation a MIDI-output slot already has for a different reason (no `webdsp` voice/bus to route
-into at all). If per-track routing is ever needed, the seam is `createInstrument`'s `bus`
-option — the open question to resolve first is what "one instrument slot, two tracks" should
-even mean for FX, not anything technical in webtrack's own code.
+**Routing: a synth instrument instance renders to `MASTER_BUS` by default, or to one specific
+track's own insert bus if the slot's `output.track` names one** (`model/instrument.js`'s own doc
+comment) — `ui/chrome/InstrumentPanel.jsx`'s "Output Bus" selector (MASTER or TRK 1..N), shown
+only while `output.type === "instrument"`. `audio/instrument.js#resolveSynthBus` resolves it to a
+real `BusId` via `audio/runtime.js#ensureTrackBuses`, the exact same helper/shape
+`audio/fx.js#resolveBusId` already uses for FX. Routed into a track, the instrument's output
+passes through that track's own FX chain (filter/delay/reverb/etc.), `BusPan`, and mute/solo/
+volume gating exactly the way a sample voice on that track already does.
+
+`webdsp` bakes an instrument's bus in at `createInstrument()` time and has no way to move it
+afterward (unlike an FX chain instance's `moveEffect`), so changing `output.track` — like
+changing `output.kind` — means tearing down and recreating the live instance;
+`createSynthInstrument` already does an unconditional teardown-then-create on every call, so a
+routing change falls out of the exact same path a kind change already takes, no special-casing
+needed. It's a single either/or choice, not a chain of its own: `webdsp` has no bus-of-a-bus
+summing (every bus — a track's, or whichever one a synth instrument is routed to — sums straight
+into `MASTER_BUS`, never into another non-master bus), so an instrument can be routed into
+*one* track's insert bus, not stacked through several. Because `Event.instrument` is a plain
+index, not bound to one track, routing is the slot's own explicit, persisted choice rather than
+inferred from whichever track happens to trigger it — automatically picking "whichever track
+triggered it first" would be an arbitrary, order-dependent choice if more than one track's cells
+ever addressed the same slot. This is orthogonal to any instrument kind's own *internal* DSP
+(Tom's `damp` low-pass, a future bass synth's own filter as part of its sound design) — that's
+`webdsp`'s own synthesis, not a routing concern; `output.track` only decides which bus the kind's
+already-finished output sums into next.
 
 ## Compiling and scheduling (`audio/compile.js`, `audio/lookaheadPlayer.js`, `audio/preview.js`)
 
@@ -136,26 +164,28 @@ even mean for FX, not anything technical in webtrack's own code.
 third compiled `kind` alongside the existing `"sample"`/`"midi"`:
 
 ```js
-{ kind: "instrument", instrumentId: instrument.engineInstrumentId, velocity, time?, pan? }
+{ kind: "instrument", instrumentId: instrument.engineInstrumentId, velocity, pitch, time?, pan? }
 ```
 
 A few differences from the sample branch are the `webdsp` instrument contract, not a bug:
 
-- **No pitch.** `webdsp`'s `InstrumentNoteParams` has no pitch field at all — a note's pitch
-  isn't derived from `event.note`/`instrument.rootNote` the way a sample's is; Kick's own
-  `tune` control (an `instrumentParams` value, set via `setInstrumentParameter`, not per-note)
-  is what decides its pitch. The tracker's NOTE column still decides *when* a Kick fires, never
-  *what pitch* — follow `webdsp`'s own contract here rather than inventing a transposition
-  scheme it doesn't support. (If a future instrument kind *is* naturally pitched, this branch is
-  exactly where that distinction would need to live — see "Adding another synthesized instrument
-  kind" below.)
+- **Pitch is derived exactly like the sample branch's.** `webdsp`'s `InstrumentNoteParams.pitch`
+  is "semitones on top of the instrument's own `tune`" (`node_modules/webdsp`'s
+  `docs/percussion-instruments.md`, "Note pitch") — the identical convention a sample's
+  `rootNote`-relative pitch already uses, so `compileEvent()` computes it the same way:
+  `pitch = event.note - instrument.rootNote`. `rootNote` defaults to 60 (C-4), so an untouched
+  slot playing cells on C-4 compiles `pitch: 0` — the `tune` control's own value, unshifted —
+  which is what keeps a project authored before `webdsp` had a pitch field at all (when Kick's
+  note value was never read) sounding the same. A Tom is the kind where this matters most: the
+  tracker's NOTE column now genuinely transposes it, exactly the way the FX/parameter brief
+  asked for ("a Tom should be able to respond naturally to different tracker notes").
 - **No duration.** `webdsp` instruments are one-shot/self-ending (`instrumentNoteOff` is only an
   optional early choke) — `durationSeconds` is computed upstream the same way for every branch,
   but simply unused here.
 - **`velocity` is `(event.velocity / 127) * trackChannel.volume`, clamped to 0..1** — the exact
-  same scalar the sample branch already folds into `gain`, so a Kick's loudness responds to the
-  track's mixer volume the same way a sample does. `instrument.gain` (the sample-only field) is
-  never read here, same as it's never read for MIDI output.
+  same scalar the sample branch already folds into `gain`, so loudness responds to the track's
+  mixer volume the same way a sample does. `instrument.gain` (the sample-only field) is never
+  read here, same as it's never read for MIDI output.
 - `instrument.engineInstrumentId === null` (no live instance yet) returns `null`, the identical
   "nothing to address yet" gate `instrument.sampleId === null` already uses for the sample
   branch.
@@ -165,7 +195,7 @@ A few differences from the sample branch are the `webdsp` instrument contract, n
 per-note scheduling primitive directly:
 
 ```js
-runtime.instrumentNoteOn(event.instrumentId, { velocity, time?, pan? });
+runtime.instrumentNoteOn(event.instrumentId, { velocity, time?, pan?, pitch? });
 ```
 
 There's no `schedule()`-style batch call for instruments, and no voice-handle bookkeeping to
@@ -177,19 +207,25 @@ there returns no handle — just a direct, unscheduled `instrumentNoteOn()` call
 
 ## The Instrument Editor (`ui/chrome/InstrumentPanel.jsx`)
 
-A third SAMPLE/MIDI/**KICK** toggle button, reusing the exact existing output-picker pattern
-(`fx-panel__target-btn`) rather than inventing a new control style. While `output.type ===
-"instrument"`, the editor renders one slider per entry in `getSynthParams(output.kind)` — the
-same `fx-module__field` range-input pattern the ADSR envelope section just above it already
-uses, each slider committing its own field
+SAMPLE/MIDI plus one button per `SYNTH_KINDS` entry (KICK/SNARE/CLAP/TOM/HI-HAT today), rendered
+by mapping over the catalog rather than one hand-written button per kind — reusing the exact
+existing output-picker pattern (`fx-panel__target-btn`), not a new control style. While
+`output.type === "instrument"`, the editor renders one slider per entry in
+`getSynthParams(output.kind)` — the same `fx-module__field` range-input pattern the ADSR
+envelope section just above it already uses, each slider committing its own field
 (`instrumentController.setInstrumentParam(index, paramId, value)` — merges, doesn't replace,
-same as `setEnvelope`). Because the slider list is driven entirely by the catalog, a future
-second instrument kind needs no new JSX here — see "Adding another synthesized instrument kind"
-below.
+same as `setEnvelope`). The slider *values* are read with one `useStore` primitive selector per
+**unique param id across every kind's catalog** (`tune`, `decay`, `snap`, `noise`, `spread`,
+`pitchDrop`, `pitchDecay`, `punch`, `drive`, `body`, `damp`, `metal`, `tone` — `docs/
+ARCHITECTURE.md`'s Gotcha #1, the same reason `envelopeValues` is four separate selectors, not
+one `instrument.envelope`), not one per kind: only the ids belonging to the current `outputKind`
+are ever read by `getSynthParams(outputKind).map(...)`, the rest sit unused. Because the slider
+list itself is driven entirely by the catalog, a future kind needs no new JSX for the sliders —
+see "Adding another synthesized instrument kind" below.
 
-The Instrument Panel's slot list shows a `· KICK` badge (`synthKind.toUpperCase()`) next to a
-configured synth slot's name, the same place `· MIDI` and `· R` (resample-origin) badges already
-live.
+The Instrument Panel's slot list shows a `· <NAME>` badge (the kind's display name from
+`SYNTH_KINDS`, uppercased — e.g. `· HI-HAT`, not the raw `hihat` id) next to a configured synth
+slot's name, the same place `· MIDI` and `· R` (resample-origin) badges already live.
 
 ## Persistence (`src/persistence/projectFile.js`)
 
@@ -210,53 +246,68 @@ needs one explicit push" rule the rest of this app's `audio/` layer already foll
 
 ## Testing
 
-`test/instrumentParams.test.js` covers the catalog itself (shape, defaults, formatting) —
-pure, no `webdsp` import, same as `test/fxParams.test.js`. `test/compile.test.js`'s
-`"compileEvent — synthesized instrument output"` block and `test/lookaheadPlayer.test.js`'s
-`"synthesized instrument routing"` block cover the compile/scheduling branches above, following
-the exact same fake-runtime/mock-`compileRow` conventions the pre-existing MIDI-output tests in
-both files already use — a new instrument kind extending `SYNTH_PARAMS_BY_KIND` should extend
-these the same way, not introduce a parallel testing approach (`docs/EXTENDING.md`'s "Testing"
-section).
+`test/instrumentParams.test.js` covers every catalog (shape, defaults, formatting) and
+`SYNTH_KINDS` itself (stable ids, display names, category) — pure, no `webdsp` import, same as
+`test/fxParams.test.js`. `test/compile.test.js`'s `"compileEvent — synthesized instrument
+output"` block (including the pitch-from-rootNote conversion and a Tom-specific case) and
+`test/lookaheadPlayer.test.js`'s `"synthesized instrument routing"` block (including pitch
+passthrough) cover the compile/scheduling branches above, following the exact same
+fake-runtime/mock-`compileRow` conventions the pre-existing MIDI-output tests in both files
+already use. `test/instrumentOutput.test.js` covers `state/store.js#setInstrumentOutput`'s
+kind-reseed behavior (switching an already-`"instrument"` slot from one kind to another reseeds
+`instrumentParams` with the *new* kind's defaults, not the old kind's leftover values —
+unreachable before a second kind existed). `test/projectFile.test.js` round-trips all four new
+kinds by stable `id`. A new instrument kind extending `SYNTH_KINDS` should extend these the same
+way, not introduce a parallel testing approach (`docs/EXTENDING.md`'s "Testing" section).
 
 ## Adding another synthesized instrument kind
 
-Once `webdsp` ships a second kind (its own `docs/instruments.md` lists snare/hat/bass as
-examples of what the framework is built for), the webtrack-side recipe is additive, not a
-redesign:
+This recipe is exactly how Snare/Clap/Tom/Hi-Hat were added on top of Kick — additive, not a
+redesign, and the webtrack side needed no new abstractions to absorb four more kinds:
 
 1. **`webdsp` side first** — pick up whatever `webdsp` release adds `InstrumentKind.<Name>` and
-   its own `<Name>Param` enum (see that repo's own `docs/instruments.md#adding-a-new-instrument`
-   for the engine-side recipe).
+   its own `<Name>Param` enum, plus the `{ id, name, category }` identity on
+   `getCapabilities().instruments` (see that repo's own
+   `docs/instruments.md#adding-a-new-instrument` for the engine-side recipe).
 2. `src/model/instrumentParams.js` — add a `<NAME>_PARAMS` catalog (mirroring that kind's own
-   docs table, same shape as `KICK_PARAMS`) and one more entry in `SYNTH_PARAMS_BY_KIND`.
+   docs table, same shape as `KICK_PARAMS`) and one more entry in `SYNTH_KINDS`
+   (`{ id, name, category, params }`); `SYNTH_PARAMS_BY_KIND` is derived from it automatically.
 3. `src/audio/instrument.js` — add the kind to `ENGINE_KIND_BY_NAME` and
    `WEBDSP_ENUM_BY_KIND` (the two small lookup tables that resolve a string kind to `webdsp`'s
    real enums). Everything else in that file — creation, removal, param pushes, resync — is
    already generic over `kind`.
-4. **UI and persistence need nothing new.** `InstrumentPanel.jsx`'s slider list already renders
-   from `getSynthParams(output.kind)`; `projectFile.js` already round-trips `instrumentParams` as
-   an opaque bag; the output-toggle buttons are the only hand-written UI, and a second synth kind
-   is one more button calling `setOutputType("instrument", "<name>")`.
-5. If the new kind is naturally pitched (unlike Kick), decide — and document in this file — how
-   `audio/compile.js`'s instrument branch should read `event.note`; don't assume Kick's
-   "pitch is instance-level, never per-note" answer generalizes without checking that kind's own
-   `webdsp` contract first.
-6. Extend the tests listed above the same way the Kick ones were added, rather than writing a
-   parallel suite.
+4. **UI and persistence need nothing new.** `InstrumentPanel.jsx`'s output-type buttons and
+   slider list both render straight from `SYNTH_KINDS`/`getSynthParams(output.kind)` — a new kind
+   is one more `SYNTH_KINDS` entry, not a new button or a new code path.
+   (`ui/chrome/InstrumentPanel.jsx`'s per-param `useStore` selectors are the one place that does
+   need a line per *new param id* — see "The Instrument Editor" above — but no new id was needed
+   here since Snare/Clap/Tom/Hi-Hat reuse `tune`/`decay`/`pitchDrop` from Kick's own set plus
+   `snap`/`noise`/`spread`/`body`/`damp`/`metal`/`tone`.) `projectFile.js` already round-trips
+   `instrumentParams` as an opaque bag — no persistence changes at all.
+5. If the new kind is naturally pitched, it already is: `audio/compile.js`'s instrument branch
+   reads `event.note`/`instrument.rootNote` unconditionally now (see "Compiling and scheduling"
+   above) — every kind gets a `pitch` value, and an unpitched-feeling kind simply means a project
+   author leaves cells on the slot's `rootNote`.
+6. Extend the tests listed above the same way the Kick ones were extended for these four, rather
+   than writing a parallel suite.
 
 ## What this doesn't do
 
-- **No per-track insert FX for a synth instrument** — see "Routing" above; only master FX apply.
+- **No routing into more than one bus at once.** A synth instrument renders to exactly one bus
+  (MASTER_BUS or one chosen track's insert bus — see "Routing" above); `webdsp` has no send/aux
+  concept to split it across several.
 - **No polyphony per slot.** One `webdsp` instance is one monophonic machine, by `webdsp`'s own
-  design; webtrack doesn't layer a second voice-allocation policy on top. Two overlapping Kick
-  hits need two separate instrument slots, exactly like `webdsp`'s own docs recommend for any
-  overlapping part.
+  design; webtrack doesn't layer a second voice-allocation policy on top. Two overlapping hits of
+  the same kind need two separate instrument slots, exactly like `webdsp`'s own docs recommend
+  for any overlapping part.
 - **No instrument-kind-specific sequencing.** The tracker triggers a synth instrument through the
-  exact same note/event mechanism as sample and MIDI instruments — there is no Kick-specific
+  exact same note/event mechanism as sample and MIDI instruments — there is no kind-specific
   pattern/step concept anywhere in `model/` or `audio/`.
+- **No instrument browser filtering/search/taxonomy UI.** `SYNTH_KINDS`' `category` field
+  (currently always `"drum"`) exists so a future filtering UI has something to read, but no such
+  UI is built — every kind still shows up as a flat row of buttons.
 - **No MIDI/Push parameter mapping for `instrumentParams` yet** — `model/fxParams.js`'s entries
-  are wired to Push's encoder FX mode (`midi/push/encoderController.js`); `KICK_PARAMS` isn't,
-  the same "exists as a catalog, not yet consumed by every possible surface" gap
-  `docs/ARCHITECTURE.md`'s "Explicitly out of scope" section already notes for `FX_PARAMS`
-  itself.
+  are wired to Push's encoder FX mode (`midi/push/encoderController.js`); none of the
+  `*_PARAMS` catalogs here are, the same "exists as a catalog, not yet consumed by every possible
+  surface" gap `docs/ARCHITECTURE.md`'s "Explicitly out of scope" section already notes for
+  `FX_PARAMS` itself.

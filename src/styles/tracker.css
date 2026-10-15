@@ -742,6 +742,7 @@ textarea {
 
 .fx-panel__target {
   display: flex;
+  flex-wrap: wrap;
   gap: 1px;
 }
 

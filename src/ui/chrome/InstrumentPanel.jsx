@@ -4,7 +4,7 @@ import { loadSample } from "../../audio/instrumentLoader.js";
 import { initRuntime } from "../../audio/runtime.js";
 import { toHex } from "../../model/notes.js";
 import { ENVELOPE_PARAMS, formatEnvelopeValue } from "../../model/envelopeParams.js";
-import { getSynthParams, formatSynthParamValue } from "../../model/instrumentParams.js";
+import { SYNTH_KINDS, getSynthParams, formatSynthParamValue } from "../../model/instrumentParams.js";
 import { downloadBytes } from "../../persistence/projectIO.js";
 
 // Instrument gain's own musical range — same scale as model/fxParams.js's "bus.gain" entry
@@ -66,7 +66,7 @@ function InstrumentSlotRow({ store, instrumentController, index }) {
       </button>
       <span className={`instrument-slot__name${isConfigured ? "" : " instrument-slot__name--empty"}`}>
         {isConfigured
-          ? `${name}${isMidiOutput ? " · MIDI" : ""}${synthKind ? ` · ${synthKind.toUpperCase()}` : ""}${isResample ? " · R" : ""}`
+          ? `${name}${isMidiOutput ? " · MIDI" : ""}${synthKind ? ` · ${(SYNTH_KINDS.find((k) => k.id === synthKind)?.name ?? synthKind).toUpperCase()}` : ""}${isResample ? " · R" : ""}`
           : "(empty)"}
       </span>
       {hasSample && (
@@ -102,6 +102,13 @@ function InstrumentEditor({ store, instrumentController }) {
   const outputType = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.output?.type ?? "sample");
   const outputChannel = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.output?.channel ?? null);
   const outputKind = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.output?.kind ?? null);
+  // null = MASTER_BUS (default); a track index routes this slot's live webdsp instrument into
+  // that track's own insert bus instead, so it passes through that track's FX chain — see
+  // model/instrument.js#output's own doc comment and audio/instrument.js#resolveSynthBus.
+  const outputTrack = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.output?.track ?? null);
+  // Not INSTRUMENTS_CHANGED-reactive — trackCount has no live resize UI today (same read-once
+  // pattern ui/chrome/Mixer.jsx's own trackCount already uses).
+  const { trackCount } = store.getState().song;
   // One primitive selector per field (not `s.instruments[index]?.envelope` itself) — the same
   // in-place-mutation gotcha every other mutable-object field on this page already works around
   // (see this file's own module doc comment / ARCHITECTURE.md's Gotcha #1).
@@ -111,40 +118,62 @@ function InstrumentEditor({ store, instrumentController }) {
   const release = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.envelope?.release ?? 0.01);
   const envelopeValues = { attack, decay, sustain, release };
 
-  // Kick's own controls (model/instrumentParams.js#KICK_PARAMS) — same one-primitive-per-field
-  // shape as envelopeValues above, for the same Gotcha #1 reason. Only meaningful while
-  // outputKind === "kick"; harmless (just unused) otherwise.
+  // Every synth kind's own controls (model/instrumentParams.js — KICK_PARAMS/SNARE_PARAMS/
+  // CLAP_PARAMS/TOM_PARAMS/HIHAT_PARAMS), one primitive selector per *unique param id* across
+  // every kind's catalog (not per kind) — same one-primitive-per-field shape as envelopeValues
+  // above, for the same Gotcha #1 reason. Only the ids belonging to the currently selected
+  // outputKind are ever read (getSynthParams(outputKind) below); the rest are harmlessly
+  // unused. "decay" is renamed synthDecay to avoid shadowing envelopeValues' own `decay` above
+  // — every kind has its own decay range/default, but they all read the same store field.
   const tune = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.tune ?? 50);
+  const synthDecay = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.decay ?? 0.3);
   const pitchDrop = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.pitchDrop ?? 2.5);
   const pitchDecay = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.pitchDecay ?? 0.04);
-  const kickDecay = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.decay ?? 0.45);
   const punch = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.punch ?? 0.5);
   const drive = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.drive ?? 0.3);
-  const synthParamValues = { tune, pitchDrop, pitchDecay, decay: kickDecay, punch, drive };
+  const snap = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.snap ?? 0.5);
+  const noise = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.noise ?? 0.6);
+  const spread = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.spread ?? 0.5);
+  const body = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.body ?? 0.5);
+  const damp = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.damp ?? 0.3);
+  const metal = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.metal ?? 0.7);
+  const tone = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.tone ?? 0.5);
+  const synthParamValues = { tune, decay: synthDecay, pitchDrop, pitchDecay, punch, drive, snap, noise, spread, body, damp, metal, tone };
 
   if (!exists) return null;
 
   // Switching to "midi" needs a channel right away (compileEvent treats a missing channel as
   // "nothing to send" — see audio/compile.js) — default to the last one used, or channel 1.
-  // Switching to "instrument" needs a kind — "kick" is the only one webdsp provides today
-  // (model/instrumentParams.js#SYNTH_PARAMS_BY_KIND); state/store.js#setInstrumentOutput seeds
-  // instrumentParams with that kind's catalog defaults the first time. Switching to "sample"
-  // clears channel/kind (model/instrument.js's own default shape), since a sample instrument
-  // reads neither.
+  // Switching to "instrument" needs a kind, one of model/instrumentParams.js#SYNTH_KINDS
+  // (kick/snare/clap/tom/hihat); state/store.js#setInstrumentOutput (re)seeds instrumentParams
+  // with that kind's own catalog defaults, both the first time a slot becomes "instrument" and
+  // whenever the kind itself changes. `track` carries over across a kind switch (KICK -> SNARE
+  // keeps whatever bus routing was already chosen) but resets to null (MASTER_BUS) switching to
+  // "sample"/"midi", since only "instrument" output reads it. Switching to "sample" clears
+  // channel/kind (model/instrument.js's own default shape), since a sample instrument reads
+  // neither.
   function setOutputType(type, kind = null) {
     instrumentController.setOutput(
       index,
       type === "midi"
-        ? { type: "midi", channel: outputChannel ?? MIDI_CHANNEL_MIN, kind: null }
+        ? { type: "midi", channel: outputChannel ?? MIDI_CHANNEL_MIN, kind: null, track: null }
         : type === "instrument"
-          ? { type: "instrument", channel: null, kind }
-          : { type: "sample", channel: null, kind: null },
+          ? { type: "instrument", channel: null, kind, track: outputTrack }
+          : { type: "sample", channel: null, kind: null, track: null },
     );
   }
 
   function setChannel(displayValue) {
     const channel = Math.min(MIDI_CHANNEL_MAX, Math.max(MIDI_CHANNEL_MIN, displayValue - 1));
     instrumentController.setOutput(index, { type: "midi", channel });
+  }
+
+  // The Instrument Editor's Output Bus selector — MASTER (the default, value "") or one of the
+  // song's own tracks, routing this slot's live webdsp instrument into that track's insert bus
+  // (see model/instrument.js#output's own doc comment). "" rather than a sentinel number because
+  // 0 is itself a valid track index.
+  function setOutputTrack(displayValue) {
+    instrumentController.setOutput(index, { type: "instrument", channel: null, kind: outputKind, track: displayValue === "" ? null : Number(displayValue) });
   }
 
   return (
@@ -168,13 +197,20 @@ function InstrumentEditor({ store, instrumentController }) {
         >
           MIDI
         </button>
-        <button
-          type="button"
-          className={`fx-panel__target-btn${outputType === "instrument" ? " fx-panel__target-btn--active" : ""}`}
-          onClick={() => setOutputType("instrument", "kick")}
-        >
-          KICK
-        </button>
+        {/* One button per webdsp synth kind (model/instrumentParams.js#SYNTH_KINDS) — hand-
+            mirrored from the engine's own capability list (node_modules/webdsp's
+            docs/instruments.md) rather than a separate hardcoded button per kind; adding a
+            future kind here needs only a new SYNTH_KINDS entry, not a new button. */}
+        {SYNTH_KINDS.map((kind) => (
+          <button
+            type="button"
+            key={kind.id}
+            className={`fx-panel__target-btn${outputType === "instrument" && outputKind === kind.id ? " fx-panel__target-btn--active" : ""}`}
+            onClick={() => setOutputType("instrument", kind.id)}
+          >
+            {kind.name.toUpperCase()}
+          </button>
+        ))}
       </div>
 
       {outputType === "midi" ? (
@@ -198,6 +234,20 @@ function InstrumentEditor({ store, instrumentController }) {
         // merges, it doesn't replace).
         <>
           <div className="note-editor__section">{(outputKind ?? "").toUpperCase()}</div>
+          <label className="fx-module__field">
+            <span className="fx-module__field-label" title="Which bus this instrument's output renders into">
+              Output Bus
+            </span>
+            <select value={outputTrack ?? ""} onChange={(e) => setOutputTrack(e.target.value)}>
+              <option value="">MASTER</option>
+              {Array.from({ length: trackCount }, (_, i) => (
+                <option key={i} value={i}>
+                  TRK {i + 1}
+                </option>
+              ))}
+            </select>
+            <span className="fx-module__value" />
+          </label>
           {getSynthParams(outputKind).map((param) => (
             <label className="fx-module__field" key={param.id}>
               <span className="fx-module__field-label" title={param.label}>

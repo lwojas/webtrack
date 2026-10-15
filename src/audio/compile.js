@@ -67,22 +67,25 @@ export function compileEvent(event, trackChannel, instruments, time, durationSec
     return compiled;
   }
 
-  // A webdsp synthesized instrument (audio/instrument.js, e.g. Kick — see
+  // A webdsp synthesized instrument (audio/instrument.js — Kick, Snare, Clap, Tom, Hi-Hat; see
   // node_modules/webdsp's docs/instruments.md). `engineInstrumentId` is this slot's live
   // webdsp InstrumentId (model/instrument.js's own doc comment) — null until
   // audio/instrument.js#createSynthInstrument has actually created one, same "nothing to
-  // address yet" gate instrument.sampleId === null is below. event.note is deliberately never
-  // read here: webdsp's InstrumentNoteParams has no pitch field at all — the instrument's own
-  // `tune` control (set via setInstrumentParameter, not per-note) is what decides its pitch, a
-  // real difference from a sample's rootNote-relative transposition that this file follows
-  // rather than papering over (see node_modules/webdsp's docs/kick-instrument.md). There's no
-  // `duration` either — webdsp's instruments are one-shot/self-ending; durationSeconds is
-  // simply unused on this branch, same as it would be for any other instrument kind with no
-  // note-length concept.
+  // address yet" gate instrument.sampleId === null is below. `pitch` is derived exactly the
+  // same way the sample branch below derives it — event.note minus the instrument's rootNote —
+  // since webdsp's InstrumentNoteParams.pitch is defined as "semitones on top of the
+  // instrument's own `tune`", the identical convention a sample's rootNote-relative pitch
+  // already uses (see node_modules/webdsp's docs/percussion-instruments.md's "Note pitch").
+  // rootNote defaults to 60 (C-4), so an untouched slot playing cells on C-4 gets pitch: 0 —
+  // this is what keeps existing Kick projects (authored before webdsp had a pitch field at
+  // all, when this branch never read event.note) sounding unchanged. There's no `duration` —
+  // webdsp's instruments are one-shot/self-ending; durationSeconds is simply unused on this
+  // branch, same as it would be for any other instrument kind with no note-length concept.
   if (instrument.output?.type === "instrument") {
     if (instrument.engineInstrumentId === null || instrument.engineInstrumentId === undefined) return null;
     const level = Math.max(0, Math.min(1, (velocity / 127) * trackChannel.volume));
-    const compiled = { kind: "instrument", instrumentId: instrument.engineInstrumentId, velocity: level };
+    const pitch = event.note - instrument.rootNote;
+    const compiled = { kind: "instrument", instrumentId: instrument.engineInstrumentId, velocity: level, pitch };
     if (time !== undefined) compiled.time = time;
     if (event.pan !== null && event.pan !== undefined) compiled.pan = event.pan;
     return compiled;

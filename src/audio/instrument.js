@@ -11,23 +11,37 @@
 // result straight onto the owning Instrument model object's `engineInstrumentId` field so
 // audio/compile.js can read it the same inert way it already reads `sampleId`.
 //
-// Routing: every synth instrument instance renders straight to MASTER_BUS, never a track's own
-// insert bus. webdsp bakes an instrument's bus in at createInstrument() time and has no way to
-// move it afterward (unlike an FX chain instance's moveEffect) — but Event.instrument is a
-// plain index, not bound to one track, so a single Kick slot can be triggered from more than
-// one track's cells. Picking "whichever track happened to trigger it first" would be an
-// arbitrary, order-dependent choice; MASTER_BUS is the one answer that's always correct
-// regardless of which track(s) end up using the slot. The cost: a synth instrument doesn't get
-// its own track's insert FX chain (filter/delay/reverb/etc.) the way a sample voice does — only
-// master FX apply to it, the same limitation a MIDI-output slot already has for a different
-// reason (no webdsp voice/bus to route into at all).
-import { InstrumentKind, KickParam, MASTER_BUS } from "webdsp";
-import { initRuntime } from "./runtime.js";
+// Routing: a synth instrument instance renders to MASTER_BUS by default, or — if the slot's
+// output.track (model/instrument.js's own doc comment) names one — into that track's own insert
+// bus instead, exactly like a sample voice can (audio/compile.js's `bus` param). webdsp bakes an
+// instrument's bus in at createInstrument() time and has no way to move it afterward (unlike an
+// FX chain instance's moveEffect), so a track-routing change (same as a kind change) means
+// tearing down and recreating the live instance — createSynthInstrument below already does an
+// unconditional teardown-then-create every call, so this falls out for free. `output.track` is a
+// single either/or choice, not a chain: webdsp has no bus-of-a-bus summing (every bus sums
+// straight into MASTER_BUS, never into another non-master bus), and Event.instrument is a plain
+// index, not bound to one track, so routing is the slot's own explicit choice (model/
+// instrument.js) rather than inferred from whichever track happens to trigger it — that would be
+// an arbitrary, order-dependent pick if more than one track's cells ever addressed the slot.
+import { InstrumentKind, KickParam, SnareParam, ClapParam, TomParam, HiHatParam, MASTER_BUS } from "webdsp";
+import { initRuntime, ensureTrackBuses } from "./runtime.js";
 import { getSynthParams } from "../model/instrumentParams.js";
 
-const ENGINE_KIND_BY_NAME = { kick: InstrumentKind.Kick };
+const ENGINE_KIND_BY_NAME = {
+  kick: InstrumentKind.Kick,
+  snare: InstrumentKind.Snare,
+  clap: InstrumentKind.Clap,
+  tom: InstrumentKind.Tom,
+  hihat: InstrumentKind.HiHat,
+};
 
-const WEBDSP_ENUM_BY_KIND = { kick: KickParam };
+const WEBDSP_ENUM_BY_KIND = {
+  kick: KickParam,
+  snare: SnareParam,
+  clap: ClapParam,
+  tom: TomParam,
+  hihat: HiHatParam,
+};
 
 const PARAM_ENUM_CACHE = Object.fromEntries(
   Object.keys(WEBDSP_ENUM_BY_KIND).map((kind) => [
@@ -48,18 +62,29 @@ function pushParamValues(runtime, engineInstrumentId, kind, values) {
   }
 }
 
-// Creates this slot's live webdsp instrument — tearing down any previous one first (switching
-// a slot's output kind, or a project reload re-creating every "instrument"-output slot fresh:
-// see resyncSynthInstruments below) — and writes its id onto `instrument.engineInstrumentId`,
-// then pushes every one of the kind's own catalog values (instrument.instrumentParams,
-// defaulting whatever isn't set) so it sounds like its saved parameters immediately rather
-// than webdsp's own engine defaults. A no-op for an unknown kind.
+// Resolves output.track (null/undefined — the default, and every project saved before this
+// field existed — means MASTER_BUS) to a real webdsp BusId, mirroring audio/fx.js's own
+// resolveBusId exactly (ensureTrackBuses grows the shared track-bus array as far as whatever's
+// actually been asked for so far, same "trackIndex + 1, not some fixed song-wide count" reason).
+async function resolveSynthBus(output) {
+  if (output?.track === null || output?.track === undefined) return MASTER_BUS;
+  const busIds = await ensureTrackBuses(output.track + 1);
+  return busIds[output.track];
+}
+
+// Creates this slot's live webdsp instrument — tearing down any previous one first (switching a
+// slot's output kind or track routing, or a project reload re-creating every "instrument"-output
+// slot fresh: see resyncSynthInstruments below) — and writes its id onto
+// `instrument.engineInstrumentId`, then pushes every one of the kind's own catalog values
+// (instrument.instrumentParams, defaulting whatever isn't set) so it sounds like its saved
+// parameters immediately rather than webdsp's own engine defaults. A no-op for an unknown kind.
 export async function createSynthInstrument(instrument, kind) {
   const engineKind = ENGINE_KIND_BY_NAME[kind];
   if (engineKind === undefined) return;
   const runtime = await initRuntime();
   if (instrument.engineInstrumentId != null) runtime.removeInstrument(instrument.engineInstrumentId);
-  instrument.engineInstrumentId = runtime.createInstrument(engineKind, { bus: MASTER_BUS });
+  const bus = await resolveSynthBus(instrument.output);
+  instrument.engineInstrumentId = runtime.createInstrument(engineKind, { bus });
   pushParamValues(runtime, instrument.engineInstrumentId, kind, instrument.instrumentParams);
 }
 

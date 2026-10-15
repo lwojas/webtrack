@@ -14,16 +14,27 @@
 // cell's note/velocity out a MIDI channel instead — see audio/compile.js#compileEvent and
 // audio/midiOutput.js), or "instrument" (renders through one of webdsp's synthesized
 // instruments — see audio/instrument.js and instrumentParams/engineInstrumentId below).
-// `channel` is only meaningful for "midi" (0-15); `kind` only for "instrument" (a string key
-// into model/instrumentParams.js's SYNTH_PARAMS_BY_KIND, e.g. "kick" — webdsp's own
+// `channel` is only meaningful for "midi" (0-15); `kind`/`track` only for "instrument" (a string
+// key into model/instrumentParams.js's SYNTH_PARAMS_BY_KIND, e.g. "kick" — webdsp's own
 // InstrumentKind, addressed by name rather than its numeric enum so a saved project stays
-// readable/stable even if webdsp renumbers it). Both are null for the other output type(s).
-// Lives on the instrument, not the track, because Event.instrument — not the track — is what
-// already selects which voice renders a given cell (a track's cells can reference different
+// readable/stable even if webdsp renumbers it). `channel`/`kind` are null for the other output
+// type(s). Lives on the instrument, not the track, because Event.instrument — not the track — is
+// what already selects which voice renders a given cell (a track's cells can reference different
 // instrument slots), so this is the smallest-diff place for output type to live. A slot's
 // sampleId/rootNote/gain/envelope/sampleAsset stay present (just unused) under "instrument"
 // output, the same way they already go unused under "midi" — no special-casing needed to keep
 // them around across a user flipping the output toggle back and forth.
+// `track` (number | null, "instrument" output only) — which bus a synth instrument's live
+// webdsp instance renders into: null (default) is MASTER_BUS, today's only behavior; a track
+// index routes it into that track's own insert bus instead, so it passes through that track's
+// FX chain (filter/delay/reverb/etc.), BusPan, and mute/solo/volume gating exactly the way a
+// sample voice on that track already does (audio/instrument.js resolves this the same way
+// audio/fx.js#resolveBusId already does for FX). This is orthogonal to any instrument kind's own
+// *internal* DSP (e.g. Tom's damp low-pass, a future bass synth's own filter) — that's webdsp's
+// sound design, not a webtrack routing concern; `track` only decides which bus the kind's
+// already-finished output sums into. webdsp has no bus-of-a-bus chaining (every bus — track or
+// instrument-routed — sums directly into MASTER_BUS, never into another non-master bus), so this
+// is a single either/or choice, not a chain of its own.
 //
 // origin: "import" (a file the user picked) or "resample" (captured from the tracker's own
 // playback via audio/resampleController.js) — purely provenance/display (the Instrument Panel's
@@ -54,7 +65,7 @@ export function createInstrumentSlot({
   gain = 1.0,
   rootNote = 60,
   sampleAsset = null,
-  output = { type: "sample", channel: null, kind: null },
+  output = { type: "sample", channel: null, kind: null, track: null },
   origin = "import",
   localAssetId = null,
   envelope = { attack: 0, decay: 0, sustain: 1, release: 0.01 },

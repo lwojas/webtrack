@@ -183,7 +183,7 @@ describe("serializeProject / deserializeProject", () => {
 
     const restored = await deserializeProject(serialized, { loadSampleBytes: async () => "fresh-id" });
 
-    expect(restored.instruments[0].output).toEqual({ type: "sample", channel: null, kind: null });
+    expect(restored.instruments[0].output).toEqual({ type: "sample", channel: null, kind: null, track: null });
   });
 
   it("round-trips a synthesized-instrument slot's output kind and instrumentParams, dropping engineInstrumentId", async () => {
@@ -213,6 +213,53 @@ describe("serializeProject / deserializeProject", () => {
     expect(restored.instruments[0].output).toEqual({ type: "instrument", channel: null, kind: "kick" });
     expect(restored.instruments[0].instrumentParams).toEqual(instruments[0].instrumentParams);
     expect(restored.instruments[0].engineInstrumentId).toBe(null);
+  });
+
+  it("round-trips a synthesized-instrument slot's output.track bus routing", async () => {
+    const instruments = [
+      createInstrumentSlot({ id: 0, name: "Tom", output: { type: "instrument", channel: null, kind: "tom", track: 3 } }),
+      createInstrumentSlot({ id: 1, name: "Hat", output: { type: "instrument", channel: null, kind: "hihat", track: null } }),
+    ];
+    const serialized = serializeProject({ song: createSong(), instruments, ui: {} });
+
+    expect(serialized.instruments[0].output.track).toBe(3);
+    expect(serialized.instruments[1].output.track).toBe(null);
+
+    const restored = await deserializeProject(serialized, { loadSampleBytes: async () => null });
+
+    expect(restored.instruments[0].output).toEqual({ type: "instrument", channel: null, kind: "tom", track: 3 });
+    expect(restored.instruments[1].output).toEqual({ type: "instrument", channel: null, kind: "hihat", track: null });
+  });
+
+  it("defaults output.track to null (MASTER_BUS) on a project saved before per-track synth routing existed", async () => {
+    const instruments = [createInstrumentSlot({ id: 0, name: "Kick", output: { type: "instrument", channel: null, kind: "kick" } })];
+    const serialized = serializeProject({ song: createSong(), instruments, ui: {} });
+    delete serialized.instruments[0].output.track; // simulate a file saved before output.track existed
+
+    const restored = await deserializeProject(serialized, { loadSampleBytes: async () => null });
+
+    expect(restored.instruments[0].output.track ?? null).toBe(null);
+  });
+
+  it("round-trips each of the new percussion synth kinds (Snare/Clap/Tom/Hi-Hat) by stable id, not display name", async () => {
+    const instruments = [
+      createInstrumentSlot({ id: 0, name: "Snare", output: { type: "instrument", channel: null, kind: "snare" }, instrumentParams: { tune: 200, decay: 0.3, snap: 0.7, noise: 0.4 } }),
+      createInstrumentSlot({ id: 1, name: "Clap", output: { type: "instrument", channel: null, kind: "clap" }, instrumentParams: { tune: 1500, decay: 0.3, spread: 0.6, snap: 0.4 } }),
+      createInstrumentSlot({ id: 2, name: "Tom", output: { type: "instrument", channel: null, kind: "tom" }, instrumentParams: { tune: 150, pitchDrop: 0.8, decay: 0.5, body: 0.6, damp: 0.4 }, engineInstrumentId: 5 }),
+      createInstrumentSlot({ id: 3, name: "Hi-Hat", output: { type: "instrument", channel: null, kind: "hihat" }, instrumentParams: { tune: 2, decay: 0.1, metal: 0.8, tone: 0.6 } }),
+    ];
+    const serialized = serializeProject({ song: createSong(), instruments, ui: {} });
+
+    // Persisted by the stable `kind` id, never the display name.
+    expect(serialized.instruments.map((i) => i.output.kind)).toEqual(["snare", "clap", "tom", "hihat"]);
+
+    const restored = await deserializeProject(serialized, { loadSampleBytes: async () => null });
+
+    restored.instruments.forEach((instrument, i) => {
+      expect(instrument.output).toEqual(instruments[i].output);
+      expect(instrument.instrumentParams).toEqual(instruments[i].instrumentParams);
+      expect(instrument.engineInstrumentId).toBe(null); // session-only, never persisted
+    });
   });
 
   it("defaults instrumentParams to null on a project saved before synthesized instruments existed", async () => {

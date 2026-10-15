@@ -205,35 +205,70 @@ describe("compileEvent — MIDI output", () => {
   });
 });
 
-describe("compileEvent — synthesized instrument output (webdsp Kick etc.)", () => {
+describe("compileEvent — synthesized instrument output (webdsp Kick/Snare/Clap/Tom/Hi-Hat)", () => {
   function makeSynthInstruments({ engineInstrumentId = 7, rootNote = 72 } = {}) {
     return [
       createInstrumentSlot({
         id: 0,
         name: "Kick",
-        rootNote, // deliberately non-default, to prove it's never read (see below)
+        rootNote, // non-default (not 60) so pitch-from-rootNote tests have something to see
         output: { type: "instrument", channel: null, kind: "kick" },
         engineInstrumentId,
       }),
     ];
   }
 
-  it("addresses the instrument's own live engineInstrumentId, ignoring note/pitch entirely", () => {
+  it("addresses the instrument's own live engineInstrumentId and derives pitch from note - rootNote, same as sample output", () => {
     const song = createSong();
     const patternId = song.patterns[0].id;
     setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 60);
     setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "instrument", 0);
     const event = getSelectedPattern(song).tracks[0].events[0];
 
-    // rootNote is 72 here specifically to prove it's never read: a sample-output instrument
-    // with the same rootNote would transpose this note by -12 semitones (see the "maps
-    // note-relative-to-rootNote" test above); webdsp's Kick has no per-note pitch at all.
+    // rootNote is 72 here specifically to prove the conversion is the same one the sample
+    // branch uses: webdsp's InstrumentNoteParams.pitch is "semitones on top of tune," the same
+    // convention as a sample's rootNote-relative pitch (see node_modules/webdsp's
+    // docs/percussion-instruments.md's "Note pitch") — a note 12 semitones below rootNote
+    // compiles to pitch: -12, exactly like the "maps note-relative-to-rootNote" sample test.
     const compiled = compileEvent(event, song.trackChannels[0], makeSynthInstruments());
 
     expect(compiled.kind).toBe("instrument");
     expect(compiled.instrumentId).toBe(7);
-    expect(compiled).not.toHaveProperty("pitch");
+    expect(compiled.pitch).toBe(-12);
     expect(compiled).not.toHaveProperty("note");
+  });
+
+  it("compiles pitch: 0 when the note matches rootNote — the default (C-4/60) keeps a pre-pitch Kick project sounding unchanged", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 60);
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "instrument", 0);
+    const event = getSelectedPattern(song).tracks[0].events[0];
+
+    const compiled = compileEvent(event, song.trackChannels[0], makeSynthInstruments({ rootNote: 60 }));
+
+    expect(compiled.pitch).toBe(0);
+  });
+
+  it("gives a Tom (or any pitched synth instrument) a positive pitch for a note above rootNote", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 67); // +7 semitones above C-4
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "instrument", 0);
+    const event = getSelectedPattern(song).tracks[0].events[0];
+
+    const tomInstruments = [
+      createInstrumentSlot({
+        id: 0,
+        name: "Tom",
+        rootNote: 60,
+        output: { type: "instrument", channel: null, kind: "tom" },
+        engineInstrumentId: 3,
+      }),
+    ];
+    const compiled = compileEvent(event, song.trackChannels[0], tomInstruments);
+
+    expect(compiled.pitch).toBe(7);
   });
 
   it("scales velocity by track volume into a 0..1 level, same scalar sample output uses for gain", () => {
