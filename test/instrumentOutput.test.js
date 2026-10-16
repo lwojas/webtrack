@@ -63,6 +63,17 @@ describe("store.setInstrumentOutput — switching synth kind", () => {
     expect(store.getState().instruments[0].rootNote).toBe(60);
   });
 
+  it("gives Pulse its own root note (A-2) and seeds its catalog defaults", () => {
+    const store = createStore({ song: createSong(), instruments: [createInstrumentSlot({ id: 0 })] });
+
+    store.setInstrumentOutput(0, { type: "instrument", channel: null, kind: "pulse" });
+    expect(store.getState().instruments[0].rootNote).toBe(45);
+    expect(store.getState().instruments[0].instrumentParams).toMatchObject({ pump: 0.5, repeat: 0.4, rate: 2 });
+
+    store.setInstrumentOutput(0, { type: "instrument", channel: null, kind: "bass" });
+    expect(store.getState().instruments[0].rootNote).toBe(33);
+  });
+
   it("leaves a hand-set rootNote alone when switching between drum kinds", () => {
     const store = createStore({ song: createSong(), instruments: [createInstrumentSlot({ id: 0, rootNote: 48 })] });
 

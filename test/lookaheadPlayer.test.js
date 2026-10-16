@@ -13,6 +13,7 @@ function createFakeRuntime(initialTime = 0) {
     release: vi.fn(),
     cancelScheduled: vi.fn(),
     instrumentNoteOn: vi.fn(),
+    setTempo: vi.fn(),
     advance(seconds) {
       time += seconds;
     },
@@ -81,6 +82,48 @@ describe("createLookaheadPlayer — one shared transport, independent per-track 
     vi.advanceTimersByTime(25);
 
     expect(steps).toEqual([0, 1, 2]);
+
+    player.stop();
+  });
+
+  it("announces the beat grid to the engine: 4 steps per beat, anchored at the start time, before any notes", () => {
+    vi.useFakeTimers();
+    const runtime = createFakeRuntime();
+    const order = [];
+    runtime.setTempo.mockImplementation(() => order.push("tempo"));
+    const compileRow = vi.fn(() => { order.push("row"); return []; });
+    const player = createLookaheadPlayer({ runtime, compileRow, getStepDurationSeconds: () => 0.125 });
+
+    player.start({ initialPattern: makePattern(), initialTrackChannels: [], initialInstruments: [], startAt: 2 });
+
+    expect(runtime.setTempo).toHaveBeenCalledTimes(1);
+    expect(runtime.setTempo).toHaveBeenCalledWith(120, { anchorTime: 2 }); // 0.125 s step -> 0.5 s beat
+    expect(order[0]).toBe("tempo");
+
+    runtime.advance(1);
+    vi.advanceTimersByTime(25);
+    expect(runtime.setTempo).toHaveBeenCalledTimes(1); // unchanged tempo is not re-sent
+
+    player.stop();
+  });
+
+  it("re-announces the grid on a live BPM change, and again on restart", () => {
+    vi.useFakeTimers();
+    const runtime = createFakeRuntime();
+    let duration = 0.125;
+    const player = createLookaheadPlayer({ runtime, compileRow: () => [], getStepDurationSeconds: () => duration });
+    const start = (startAt) => player.start({ initialPattern: makePattern(), initialTrackChannels: [], initialInstruments: [], startAt });
+
+    start(0);
+    duration = 0.1; // 150 BPM
+    runtime.advance(1);
+    vi.advanceTimersByTime(25);
+    expect(runtime.setTempo).toHaveBeenLastCalledWith(150, { anchorTime: 0 });
+
+    player.stop();
+    runtime.setTempo.mockClear();
+    start(5);
+    expect(runtime.setTempo).toHaveBeenCalledWith(150, { anchorTime: 5 });
 
     player.stop();
   });

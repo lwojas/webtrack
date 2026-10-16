@@ -71,6 +71,24 @@ export const BASS_PARAMS = [
   { id: "release", webdspParam: "Release", label: "Release", min: 0.01, max: 1.5, default: 0.1, step: 0.01, unit: "s" },
 ];
 
+// Pulse — mirrors webdsp's own docs/pulse-instrument.md table. A sustained rhythmic synth whose
+// pump (ducking) and repeat (filter movement) lock to the tempo grid the lookahead player hands
+// the engine (audio/lookaheadPlayer.js, runtime.setTempo), not to note starts. `rate` is a
+// *stepped* control (`options`: one label per whole step), not a continuous value. Its ADSR is
+// attack/release only (decay/sustain are private to webdsp).
+export const PULSE_RATE_OPTIONS = ["1/1", "1/2", "1/4", "1/8", "1/16", "1/32"];
+export const PULSE_PARAMS = [
+  { id: "tune", webdspParam: "Tune", label: "Tune", min: 27.5, max: 440, default: 110, step: 0.5, unit: "Hz", scale: "note" },
+  { id: "cutoff", webdspParam: "Cutoff", label: "Cutoff", min: 60, max: 6000, default: 500, step: 1, unit: "Hz" },
+  { id: "resonance", webdspParam: "Resonance", label: "Resonance", min: 0, max: 1, default: 0.25, step: 0.01, unit: "" },
+  { id: "pump", webdspParam: "Pump", label: "Pump", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
+  { id: "repeat", webdspParam: "Repeat", label: "Repeat", min: 0, max: 1, default: 0.4, step: 0.01, unit: "" },
+  { id: "rate", webdspParam: "Rate", label: "Rate", min: 0, max: 5, default: 2, step: 1, unit: "", options: PULSE_RATE_OPTIONS },
+  { id: "diffuse", webdspParam: "Diffuse", label: "Diffuse", min: 0, max: 1, default: 0.3, step: 0.01, unit: "" },
+  { id: "attack", webdspParam: "Attack", label: "Attack", min: 0.001, max: 0.25, default: 0.003, step: 0.001, unit: "s" },
+  { id: "release", webdspParam: "Release", label: "Release", min: 0.01, max: 1.5, default: 0.08, step: 0.01, unit: "s" },
+];
+
 // One entry per webdsp InstrumentKind, mirroring the `{ id, name, category, params }` shape
 // `runtime.getCapabilities().instruments` itself reports (node_modules/webdsp's
 // docs/instruments.md) — model/ stays webdsp-free (docs/EXTENDING.md's layer map) so this is a
@@ -90,6 +108,8 @@ export const SYNTH_KINDS = [
   // rootNote = webdsp's note `pitch`). Bass tune defaults to 55 Hz = A-1 = note 33, so a bass line
   // is written at its real pitch instead of 27 semitones below a C-4 root.
   { id: "bass", name: "Bass", category: "bass", params: BASS_PARAMS, sustained: true, rootNote: 33 },
+  // Pulse tune defaults to 110 Hz = A-2 = note 45 (webdsp's pulse-client-guide.md).
+  { id: "pulse", name: "Pulse", category: "synth", params: PULSE_PARAMS, sustained: true, rootNote: 45 },
 ];
 
 // Registry of every synthesized-instrument kind's own param catalog, keyed by the same string
@@ -155,6 +175,7 @@ export function formatSynthParamValue(value, param) {
     const cents = Math.round((note - nearest) * 100);
     return cents === 0 ? noteNumberToName(nearest) : `${noteNumberToName(nearest)} ${cents > 0 ? "+" : ""}${cents}c`;
   }
+  if (param.options) return param.options[Math.round(value)] ?? "--";
   if (param.unit === "st") return `${value > 0 ? "+" : ""}${Number(value).toFixed(decimalsForStep(param.step))} st`;
   return `${Number(value).toFixed(decimalsForStep(param.step))}${param.unit}`;
 }

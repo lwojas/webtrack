@@ -340,3 +340,29 @@ kind": a params table, a `SYNTH_KINDS` row (set `sustained: true` and, if its tu
 C-4, `rootNote`), and the enum entries in `audio/instrument.js`. The editor needs one more
 `useStore` line per new param id in `ui/chrome/InstrumentPanel.jsx` (ids that clash with the
 sample envelope fields, such as `attack`, are aliased `synth*` there).
+
+## Pulse (rhythmic synth, tied to the tempo grid)
+
+`pulse` is a sustained kind like the Bass (`duration` from the cell length, mono per slot) with two
+signature behaviours, **pump** (rhythmic ducking) and **repeat** (rhythmic filter opening), that
+follow the *beat grid*, not the note. webdsp's `docs/pulse-instrument.md` and
+`docs/pulse-client-guide.md` are authoritative; what this app does about it:
+
+- **Params.** `PULSE_PARAMS` (`tune`, `cutoff`, `resonance`, `pump`, `repeat`, `rate`, `diffuse`,
+  `attack`, `release`) mirror webdsp's table. `rate` is stepped (`options`: 1/1 ... 1/32), shown as
+  a note value by `formatSynthParamValue`; it renders through the same slider list as every other
+  param. Velocity also drives how far each repeat opens the filter, so cell velocities become
+  per-step accents.
+- **Root note.** `rootNote: 45` (A-2, the note at its 110 Hz tune); `setInstrumentOutput` applies it
+  on switching to Pulse and restores 60 on leaving.
+- **Tempo grid.** `audio/lookaheadPlayer.js` calls `runtime.setTempo(60 / (stepDuration *
+  STEPS_PER_BEAT), { anchorTime: startTime })` at the top of the first tick of a session and again
+  whenever the step duration changes (live BPM edit), always before that tick's notes. Step times
+  are `startTime + stepCounter * duration`, so the engine's grid lies exactly on the tracker's
+  beats. Swing moves notes, never the pump (the grid is straight). A restart re-announces with the
+  new start time. Pattern switches do not touch the grid (the transport clock never resets), so
+  pump stays continuous across patterns.
+- **Caveats.** One grid per engine: all Pulse slots share the app's single tempo. Loops that are
+  not a whole number of `rate` periods long (e.g. 1/1 on a 2-beat track) will not repeat the pump
+  phase at the wrap. Before the first play, previewing a Pulse note uses webdsp's default 120 BPM
+  grid, so the pump is steady but not tied to the song tempo.

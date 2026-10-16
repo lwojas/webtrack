@@ -17,7 +17,7 @@
 // patternStartStep jumps to that boundary's stepCounter, so every track's local phase restarts
 // at 0 for the new pattern instance, instead of carrying over wherever it happened to be.
 import { trackLocalStep } from "../model/pattern.js";
-import { swingDelaySeconds } from "../model/timing.js";
+import { STEPS_PER_BEAT, swingDelaySeconds } from "../model/timing.js";
 import { voiceTracker } from "./voiceTracker.js";
 import { midiOutput } from "./midiOutput.js";
 
@@ -73,10 +73,22 @@ export function createLookaheadPlayer({
   let patternStartStep = 0;
   let startTime = 0;
   let playing = false;
+  // The step duration the engine's beat grid was last told about (null = not yet this session).
+  let announcedStepDuration = null;
 
   function tick() {
     const duration = getStepDurationSeconds();
     const horizon = runtime.getCurrentTime() + LOOKAHEAD_SECONDS;
+
+    // Tell webdsp's beat grid where our beats are, so tempo-aware instruments (Pulse's pump and
+    // repeat) hit on this sequencer's beats. Step times below are startTime + stepCounter *
+    // duration, so a grid anchored at startTime with `duration * STEPS_PER_BEAT` per beat lies
+    // exactly on them — including after a live BPM change, which this re-announces (the engine
+    // grid is straight: swing moves notes, never the pump). Sent before any notes of this tick.
+    if (duration !== announcedStepDuration) {
+      runtime.setTempo(60 / (duration * STEPS_PER_BEAT), { anchorTime: startTime });
+      announcedStepDuration = duration;
+    }
 
     while (startTime + stepCounter * duration < horizon) {
       // The *pattern's* own loop boundary (row 0 of its shared grid) — distinct from any
@@ -193,6 +205,7 @@ export function createLookaheadPlayer({
     patternStartStep = 0;
     startTime = startAt ?? runtime.getCurrentTime() + 0.05;
     playing = true;
+    announcedStepDuration = null;
     // A fresh session's voice handles have nothing to do with whatever a previous one was
     // tracking (see voiceTracker.js#reset's own doc comment).
     resetVoiceTracking();

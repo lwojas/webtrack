@@ -148,9 +148,15 @@ function InstrumentEditor({ store, instrumentController }) {
   const synthAttack = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.attack ?? 0.003);
   const synthSustain = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.sustain ?? 0.6);
   const synthRelease = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.release ?? 0.1);
+  // Pulse-only ids (cutoff/resonance/attack/release are shared with the Bass above).
+  const pump = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.pump ?? 0.5);
+  const repeat = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.repeat ?? 0.4);
+  const rate = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.rate ?? 2);
+  const diffuse = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.diffuse ?? 0.3);
   const synthParamValues = {
     tune, decay: synthDecay, pitchDrop, pitchDecay, punch, drive, snap, noise, spread, body, damp, metal, tone,
     bite, cutoff, resonance, attack: synthAttack, sustain: synthSustain, release: synthRelease,
+    pump, repeat, rate, diffuse,
   };
 
   if (!exists) return null;
@@ -158,7 +164,7 @@ function InstrumentEditor({ store, instrumentController }) {
   // Switching to "midi" needs a channel right away (compileEvent treats a missing channel as
   // "nothing to send" — see audio/compile.js) — default to the last one used, or channel 1.
   // Switching to "instrument" needs a kind, one of model/instrumentParams.js#SYNTH_KINDS
-  // (kick/snare/clap/tom/hihat/bass); state/store.js#setInstrumentOutput (re)seeds instrumentParams
+  // (kick/snare/clap/tom/hihat/bass/pulse); state/store.js#setInstrumentOutput (re)seeds instrumentParams
   // with that kind's own catalog defaults, both the first time a slot becomes "instrument" and
   // whenever the kind itself changes. `track` carries over across a kind switch (KICK -> SNARE
   // keeps whatever bus routing was already chosen) but resets to null (MASTER_BUS) switching to

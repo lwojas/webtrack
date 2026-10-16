@@ -305,6 +305,27 @@ describe("compileEvent — synthesized instrument output (webdsp Kick/Snare/Clap
     expect(preview.duration).toBeGreaterThan(0);
   });
 
+  it("gives the sustained Pulse its note length as duration, relative to its A-2 root", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 52); // A-2 root 45 + 7
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "instrument", 0);
+    const event = getSelectedPattern(song).tracks[0].events[0];
+    const pulse = [
+      createInstrumentSlot({
+        id: 0,
+        name: "Pulse",
+        rootNote: 45,
+        output: { type: "instrument", channel: null, kind: "pulse" },
+        engineInstrumentId: 4,
+      }),
+    ];
+
+    const timed = compileEvent(event, song.trackChannels[0], pulse, 1.0, 0.125);
+    expect(timed.duration).toBe(0.125);
+    expect(timed.pitch).toBe(7);
+  });
+
   it("scales velocity by track volume into a 0..1 level, same scalar sample output uses for gain", () => {
     const song = createSong();
     const patternId = song.patterns[0].id;
