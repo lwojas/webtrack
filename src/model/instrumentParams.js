@@ -59,6 +59,10 @@ export const HIHAT_PARAMS = [
 // *sustained* voice with its own internal filter and ADSR (attack/decay/sustain/release are
 // instrument params here, not the sample-style EnvelopeParams), and it is a mono bass line
 // instrument: see SYNTH_KINDS' `sustained`/`rootNote` below.
+// Legato/slide: with Legato on, a note landing while the previous one is still held (note length
+// >= its step) continues the same voice (no re-attack) and its pitch glides over Slide seconds;
+// a gap between notes re-attacks normally. Legato is a stepped Off/On control like Pulse's Rate.
+export const BASS_LEGATO_OPTIONS = ["Off", "On"];
 export const BASS_PARAMS = [
   { id: "tune", webdspParam: "Tune", label: "Tune", min: 27.5, max: 110, default: 55, step: 0.5, unit: "Hz", scale: "note" },
   { id: "body", webdspParam: "Body", label: "Body", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
@@ -69,6 +73,8 @@ export const BASS_PARAMS = [
   { id: "decay", webdspParam: "Decay", label: "Decay", min: 0.03, max: 2, default: 0.35, step: 0.01, unit: "s" },
   { id: "sustain", webdspParam: "Sustain", label: "Sustain", min: 0, max: 1, default: 0.6, step: 0.01, unit: "" },
   { id: "release", webdspParam: "Release", label: "Release", min: 0.01, max: 1.5, default: 0.1, step: 0.01, unit: "s" },
+  { id: "legato", webdspParam: "Legato", label: "Legato", min: 0, max: 1, default: 0, step: 1, unit: "", options: BASS_LEGATO_OPTIONS },
+  { id: "slide", webdspParam: "Slide", label: "Slide", min: 0, max: 0.5, default: 0, step: 0.01, unit: "s" },
 ];
 
 // Pulse — mirrors webdsp's own docs/pulse-instrument.md table. A sustained rhythmic synth whose

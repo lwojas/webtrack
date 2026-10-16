@@ -58,12 +58,12 @@ describe("model/instrumentParams.js", () => {
     }
   });
 
-  it("mirrors webdsp's bass-instrument.md table — nine params, the Bass's own ADSR included", () => {
+  it("mirrors webdsp's bass-instrument.md table — eleven params, the Bass's own ADSR included", () => {
     expect(BASS_PARAMS.map((p) => p.id)).toEqual([
-      "tune", "body", "bite", "cutoff", "resonance", "attack", "decay", "sustain", "release",
+      "tune", "body", "bite", "cutoff", "resonance", "attack", "decay", "sustain", "release", "legato", "slide",
     ]);
     expect(BASS_PARAMS.map((p) => p.webdspParam)).toEqual([
-      "Tune", "Body", "Bite", "Cutoff", "Resonance", "Attack", "Decay", "Sustain", "Release",
+      "Tune", "Body", "Bite", "Cutoff", "Resonance", "Attack", "Decay", "Sustain", "Release", "Legato", "Slide",
     ]);
     for (const param of BASS_PARAMS) {
       expect(param.min).toBeLessThan(param.max);
