@@ -150,6 +150,8 @@ function InstrumentEditor({ store, instrumentController }) {
   const synthRelease = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.release ?? 0.1);
   const legato = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.legato ?? 0);
   const slide = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.slide ?? 0);
+  // Bass and Pulse (the Bass default 0.4; the slot's own catalog default seeds the real value).
+  const filterMod = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.filterMod ?? 0.4);
   // Pulse-only ids (cutoff/resonance/attack/release are shared with the Bass above).
   const pump = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.pump ?? 0.5);
   const repeat = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.repeat ?? 0.4);
@@ -162,7 +164,7 @@ function InstrumentEditor({ store, instrumentController }) {
   const synthParamValues = {
     tune, decay: synthDecay, pitchDrop, pitchDecay, punch, drive, snap, noise, spread, body, damp, metal, tone,
     bite, cutoff, resonance, attack: synthAttack, sustain: synthSustain, release: synthRelease,
-    pump, repeat, rate, diffuse, legato, slide, movement, detune, space,
+    pump, repeat, rate, diffuse, legato, slide, filterMod, movement, detune, space,
   };
 
   if (!exists) return null;

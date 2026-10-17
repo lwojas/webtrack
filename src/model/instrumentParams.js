@@ -75,6 +75,9 @@ export const BASS_PARAMS = [
   { id: "release", webdspParam: "Release", label: "Release", min: 0.01, max: 1.5, default: 0.1, step: 0.01, unit: "s" },
   { id: "legato", webdspParam: "Legato", label: "Legato", min: 0, max: 1, default: 0, step: 1, unit: "", options: BASS_LEGATO_OPTIONS },
   { id: "slide", webdspParam: "Slide", label: "Slide", min: 0, max: 0.5, default: 0, step: 0.01, unit: "s" },
+  // Filter Mod: how far the note's timbre envelope moves the cutoff (0 = static filter). Bite no
+  // longer sets this; it is only onset drive and velocity -> timbre.
+  { id: "filterMod", webdspParam: "FilterMod", label: "Filter Mod", min: 0, max: 1, default: 0.4, step: 0.01, unit: "" },
 ];
 
 // Pulse — mirrors webdsp's own docs/pulse-instrument.md table. A sustained rhythmic synth whose
@@ -93,6 +96,9 @@ export const PULSE_PARAMS = [
   { id: "diffuse", webdspParam: "Diffuse", label: "Diffuse", min: 0, max: 1, default: 0.3, step: 0.01, unit: "" },
   { id: "attack", webdspParam: "Attack", label: "Attack", min: 0.001, max: 0.25, default: 0.003, step: 0.001, unit: "s" },
   { id: "release", webdspParam: "Release", label: "Release", min: 0.01, max: 1.5, default: 0.08, step: 0.01, unit: "s" },
+  // Filter Mod: how far each repeat cycle opens the filter (0 = static). Repeat is only the
+  // rhythmic drive (grit) per cycle now.
+  { id: "filterMod", webdspParam: "FilterMod", label: "Filter Mod", min: 0, max: 1, default: 0.3, step: 0.01, unit: "" },
 ];
 
 // Pad — mirrors webdsp's docs/pad-instrument.md table. A sustained, free-running stereo ensemble

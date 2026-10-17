@@ -317,8 +317,8 @@ redesign, and the webtrack side needed no new abstractions to absorb four more k
 `bass` is a synthesized kind like the drums — same slot, same editor, same bridge — with three
 differences that come from it being a held, pitched bass voice rather than a one-shot hit:
 
-- **Its own ADSR and filter are instrument params.** `BASS_PARAMS` (`tune`, `body`, `bite`,
-  `cutoff`, `resonance`, `attack`, `decay`, `sustain`, `release`) mirror webdsp's
+- **Its own ADSR and filter are instrument params.** `BASS_PARAMS` (`tune`, `body`, `bite` (drive only),
+  `cutoff`, `resonance`, `attack`, `decay`, `sustain`, `release`, `legato`, `slide`, `filterMod`) mirror webdsp's
   `docs/bass-instrument.md`. They are ordinary sliders in the instrument's own control list,
   like the drums' controls.
 - **Note length is sent as `duration`.** `SYNTH_KINDS` carries `sustained: true` for it
@@ -349,7 +349,9 @@ follow the *beat grid*, not the note. webdsp's `docs/pulse-instrument.md` and
 `docs/pulse-client-guide.md` are authoritative; what this app does about it:
 
 - **Params.** `PULSE_PARAMS` (`tune`, `cutoff`, `resonance`, `pump`, `repeat`, `rate`, `diffuse`,
-  `attack`, `release`) mirror webdsp's table. `rate` is stepped (`options`: 1/1 ... 1/32), shown as
+  `attack`, `release`, `filterMod`) mirror webdsp's table. `repeat` is the rhythmic drive per
+  cycle; `filterMod` (the standard webdsp filter-modulation depth, also on Bass) sets how far each
+  repeat opens the filter, so `repeat = 0` with `filterMod > 0` still moves the filter. `rate` is stepped (`options`: 1/1 ... 1/32), shown as
   a note value by `formatSynthParamValue`; it renders through the same slider list as every other
   param. Velocity also drives how far each repeat opens the filter, so cell velocities become
   per-step accents.

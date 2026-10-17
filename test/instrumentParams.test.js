@@ -59,12 +59,12 @@ describe("model/instrumentParams.js", () => {
     }
   });
 
-  it("mirrors webdsp's bass-instrument.md table — eleven params, the Bass's own ADSR included", () => {
+  it("mirrors webdsp's bass-instrument.md table — twelve params, the Bass's own ADSR included", () => {
     expect(BASS_PARAMS.map((p) => p.id)).toEqual([
-      "tune", "body", "bite", "cutoff", "resonance", "attack", "decay", "sustain", "release", "legato", "slide",
+      "tune", "body", "bite", "cutoff", "resonance", "attack", "decay", "sustain", "release", "legato", "slide", "filterMod",
     ]);
     expect(BASS_PARAMS.map((p) => p.webdspParam)).toEqual([
-      "Tune", "Body", "Bite", "Cutoff", "Resonance", "Attack", "Decay", "Sustain", "Release", "Legato", "Slide",
+      "Tune", "Body", "Bite", "Cutoff", "Resonance", "Attack", "Decay", "Sustain", "Release", "Legato", "Slide", "FilterMod",
     ]);
     for (const param of BASS_PARAMS) {
       expect(param.min).toBeLessThan(param.max);
@@ -73,12 +73,12 @@ describe("model/instrumentParams.js", () => {
     }
   });
 
-  it("mirrors webdsp's pulse-instrument.md table — nine params, rate stepped, attack/release only", () => {
+  it("mirrors webdsp's pulse-instrument.md table — ten params, rate stepped, attack/release only", () => {
     expect(PULSE_PARAMS.map((p) => p.id)).toEqual([
-      "tune", "cutoff", "resonance", "pump", "repeat", "rate", "diffuse", "attack", "release",
+      "tune", "cutoff", "resonance", "pump", "repeat", "rate", "diffuse", "attack", "release", "filterMod",
     ]);
     expect(PULSE_PARAMS.map((p) => p.webdspParam)).toEqual([
-      "Tune", "Cutoff", "Resonance", "Pump", "Repeat", "Rate", "Diffuse", "Attack", "Release",
+      "Tune", "Cutoff", "Resonance", "Pump", "Repeat", "Rate", "Diffuse", "Attack", "Release", "FilterMod",
     ]);
     for (const param of PULSE_PARAMS) {
       expect(param.min).toBeLessThan(param.max);
