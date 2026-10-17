@@ -9,6 +9,9 @@ export function createEmptyEvent() {
     // Steps the note holds for. null = auto (hold until the next non-empty note on the same
     // track, or a 1-step default — see audio/compile.js#noteDurationSteps).
     length: null,
+    // Track LFO participation (model/eventLfo.js): 0..1, or null = this step plays at its own
+    // velocity. Authored like velocity; the effective velocity is computed at playback.
+    lfo: null,
     // Sparse FX automation: { "bus.gain"?: value, instances?: { [instanceId]: { [fxParamId]:
     // value } } } | null — only the parameters actually set at this cell (model/fxParams.js is
     // the id catalog), mirroring trackChannel.fx's own shape (model/trackChannel.js's doc
@@ -41,6 +44,7 @@ export function isEmptyEvent(event) {
     event.effectCommand === null &&
     event.effectParam === null &&
     event.length === null &&
+    (event.lfo ?? null) === null &&
     isEmptyFx(event.fx)
   );
 }

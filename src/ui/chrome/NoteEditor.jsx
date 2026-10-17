@@ -7,6 +7,7 @@ import { FX_PARAMS, getFxParam, getFxInstanceLabel, formatFxValue } from "../../
 import { formatBarBeat } from "../../model/timing.js";
 import { noteNumberToName, parseNoteName, toHex } from "../../model/notes.js";
 import { rangeFillStyle } from "../rangeFill.js";
+import { normalizeParticipation } from "../../model/eventLfo.js";
 
 // Mirrors the local-draft-state + commit-on-blur/Enter, revert-on-Escape pattern
 // ui/chrome/PatternManager.jsx's pattern-rename field already uses: typing updates only this
@@ -139,6 +140,7 @@ export default function NoteEditor({ store }) {
       selected.effectCommand,
       selected.effectParam,
       selected.length,
+      selected.lfo,
       JSON.stringify(selected.fx),
     ].join("|");
   });
@@ -291,6 +293,18 @@ export default function NoteEditor({ store }) {
           step={0.05}
           value={event.pan ?? 0}
           onChange={(e) => handlePanChange(e.target.value)}
+        />
+      </label>
+
+      <label className="note-editor__field" title="How much this step follows the track's Track LFO (Track tab). 0 = plays at its own velocity.">
+        TRACK LFO
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.05}
+          value={event.lfo ?? 0}
+          onChange={(e) => setField("lfo", normalizeParticipation(Number(e.target.value)))}
         />
       </label>
 

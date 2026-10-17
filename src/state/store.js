@@ -7,6 +7,8 @@ import {
   setTrackChannelVoiceMode as setTrackChannelVoiceModeModel,
   setTrackChannelMaxVoices as setTrackChannelMaxVoicesModel,
   setTrackChannelPan as setTrackChannelPanModel,
+  setTrackChannelEventLfo as setTrackChannelEventLfoModel,
+  setTrackStepsLfo as setTrackStepsLfoModel,
   setMasterPan as setMasterPanModel,
   setTrackFxParam as setTrackFxParamModel,
   setMasterFxParam as setMasterFxParamModel,
@@ -427,6 +429,21 @@ export function createStore({ song, instruments }) {
     emitter.emit(events.TRACK_CHANNEL_CHANGED, { trackIndex });
   }
 
+  // Track LFO (model/eventLfo.js, docs/TRACK_LFO.md). The config lives on the track channel and is
+  // read live by audio/compile.js on the next scheduled step, so no engine push is needed.
+  function setTrackChannelEventLfo(trackIndex, patch) {
+    setTrackChannelEventLfoModel(state.song, trackIndex, patch);
+    emitter.emit(events.TRACK_CHANNEL_CHANGED, { trackIndex });
+  }
+
+  // Participation of every note on one track in the selected pattern (All steps / None).
+  function setTrackStepsLfo(trackIndex, amount) {
+    setTrackStepsLfoModel(state.song, state.song.selectedPatternId, trackIndex, amount);
+    // A pattern-wide cell edit: the grid repaints the whole active pattern on this event (there is
+    // no per-cell event for a bulk change).
+    emitter.emit(events.PATTERN_LENGTH_CHANGED, {});
+  }
+
   function setMasterPan(pan) {
     setMasterPanModel(state.song, pan);
     emitter.emit(events.MASTER_FX_CHANGED, { pan });
@@ -780,6 +797,8 @@ export function createStore({ song, instruments }) {
     selectInstrument,
     setTrackChannelMuted,
     setTrackChannelSolo,
+    setTrackChannelEventLfo,
+    setTrackStepsLfo,
     setTrackChannelVolume,
     setTrackChannelVoiceMode,
     setTrackChannelMaxVoices,

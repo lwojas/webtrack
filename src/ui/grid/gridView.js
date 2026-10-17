@@ -309,6 +309,8 @@ export function createGridView({
     refs.volEl.textContent = formatted.velocity;
     refs.fxEl.textContent = formatted.fx;
     refs.cellEl.classList.toggle("tracker-cell--empty", isEmptyEvent(event));
+    // A step that takes part in the track's Track LFO (Event.lfo): a subtle marker on its velocity.
+    refs.cellEl.classList.toggle("tracker-cell--lfo", (event.lfo ?? 0) > 0);
     onCellPatched?.(trackIndex, rowIndex);
   }
 

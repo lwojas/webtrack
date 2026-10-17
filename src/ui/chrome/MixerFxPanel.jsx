@@ -1,13 +1,15 @@
 import { useState } from "react";
 import Mixer from "./Mixer.jsx";
 import FxPanel from "./FxPanel.jsx";
+import TrackPanel from "./TrackPanel.jsx";
 
 const VIEWS = [
   { id: "mixer", label: "MIXER" },
   { id: "fx", label: "FX" },
+  { id: "track", label: "TRACK" },
 ];
 
-// The lower panel under the tracker grid (see App.jsx) — Mixer and FxPanel share this one slot
+// The lower panel under the tracker grid (see App.jsx) — Mixer, FxPanel and TrackPanel share this one slot
 // instead of each getting a permanent spot, switched the same way the top-level Tracker/
 // Patterns tabs already work (reusing .app__tabs/.app__tab's look, see styles/tracker.css).
 export default function MixerFxPanel({ store, fxController }) {
@@ -15,7 +17,7 @@ export default function MixerFxPanel({ store, fxController }) {
 
   return (
     <div className="lower-panel">
-      <div className="app__tabs lower-panel__tabs" role="tablist" aria-label="Mixer or FX">
+      <div className="app__tabs lower-panel__tabs" role="tablist" aria-label="Mixer, FX or Track">
         {VIEWS.map((v) => (
           <button
             key={v.id}
@@ -28,7 +30,9 @@ export default function MixerFxPanel({ store, fxController }) {
           </button>
         ))}
       </div>
-      {view === "mixer" ? <Mixer store={store} fxController={fxController} /> : <FxPanel store={store} fxController={fxController} />}
+      {view === "mixer" && <Mixer store={store} fxController={fxController} />}
+      {view === "fx" && <FxPanel store={store} fxController={fxController} />}
+      {view === "track" && <TrackPanel store={store} />}
     </div>
   );
 }

@@ -134,7 +134,11 @@ export function createLookaheadPlayer({
       // track's own loop length (model/pattern.js#trackLocalStep), and it's this, not the raw
       // transport, that should restart at 0 on every new pattern instance.
       const patternRelativeStep = stepCounter - patternStartStep;
-      const events = compileRow(pattern, trackChannels, instruments, patternRelativeStep, scheduledTime, duration, trackBusIds);
+      // The Track LFO's clock (audio/trackLfo.js): the same anchor and tempo the engine's beat grid
+      // got above, so event LFOs and synth LFOs/Pulse share one timebase. Not reset by pattern
+      // switches (the LFO belongs to the track).
+      const lfoClock = { anchorTime: startTime, bpm: 60 / (duration * STEPS_PER_BEAT) };
+      const events = compileRow(pattern, trackChannels, instruments, patternRelativeStep, scheduledTime, duration, trackBusIds, lfoClock);
       // compileEvent's own `kind` tag (audio/compile.js) splits this row's events three ways:
       // webdsp sample voices (with all the voice-limit bookkeeping below), MIDI output
       // (self-contained — see audio/midiOutput.js's doc comment on why it needs none of that),

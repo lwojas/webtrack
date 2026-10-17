@@ -3,6 +3,7 @@
 // ECS-156 plan §6).
 import { trackLocalStep } from "../model/pattern.js";
 import { isSustainedSynthKind } from "../model/instrumentParams.js";
+import { effectiveVelocity } from "./trackLfo.js";
 
 // How long an un-timed (preview/audition) note of a sustained synth kind is held.
 const SUSTAINED_PREVIEW_SECONDS = 0.5;
@@ -50,14 +51,20 @@ export function noteDurationSteps(track, rowIndex) {
 // transport stage of the architecture plan), so this branch is reachable only from a test or
 // a hand-built instrument object today, deliberately, rather than exposing a user-facing
 // control for a path that doesn't fully work yet.
-export function compileEvent(event, trackChannel, instruments, time, durationSeconds, bus) {
+//
+// `lfoClock` ({ anchorTime, bpm }, from audio/lookaheadPlayer.js) enables the track's event LFO
+// (model/eventLfo.js, audio/trackLfo.js): the velocity is modulated by the LFO value at this
+// event's own scheduled `time` (swing included) before any output branch below uses it, so a
+// sample, a synth and a MIDI event all just receive the resulting velocity. Omitted = no
+// modulation. The stored event is never changed.
+export function compileEvent(event, trackChannel, instruments, time, durationSeconds, bus, lfoClock) {
   if (event.note === null || event.instrument === null) return null;
   if (trackChannel.muted) return null;
 
   const instrument = instruments[event.instrument];
   if (!instrument) return null;
 
-  const velocity = event.velocity ?? 127;
+  const velocity = time === undefined ? (event.velocity ?? 127) : effectiveVelocity(trackChannel, event, event.velocity ?? 127, time, lfoClock);
 
   if (instrument.output?.type === "midi") {
     if (instrument.output.channel === null || instrument.output.channel === undefined) return null;
@@ -133,7 +140,7 @@ export function compileEvent(event, trackChannel, instruments, time, durationSec
 // Each returned event carries compileEvent's own `kind` tag unchanged — this function doesn't
 // filter or partition by it; whichever caller eventually routes "midi"-kind events to a real
 // MIDI output (rather than runtime.schedule(), as today) does that downstream, not here.
-export function compileRow(pattern, trackChannels, instruments, transportStep, time, stepDurationSeconds, trackBusIds) {
+export function compileRow(pattern, trackChannels, instruments, transportStep, time, stepDurationSeconds, trackBusIds, lfoClock) {
   const soloActive = trackChannels.some((channel) => channel.solo);
   const events = [];
 
@@ -148,7 +155,7 @@ export function compileRow(pattern, trackChannels, instruments, transportStep, t
 
     const durationSteps = noteDurationSteps(track, localStep);
     const bus = trackBusIds?.[trackIndex];
-    const compiled = compileEvent(event, trackChannel, instruments, time, durationSteps * stepDurationSeconds, bus);
+    const compiled = compileEvent(event, trackChannel, instruments, time, durationSteps * stepDurationSeconds, bus, lfoClock);
     // trackIndex rides along on the compiled event itself (not webdsp's ScheduledEvent shape —
     // audio/lookaheadPlayer.js strips it again before actually calling runtime.schedule()) so
     // whichever VoiceHandle the engine hands back for this event can be attributed back to the

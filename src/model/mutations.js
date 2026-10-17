@@ -6,6 +6,7 @@ import { createPattern } from "./pattern.js";
 import { getEvent, getPattern, getTrackChannel } from "./query.js";
 import { getFxParamsForType } from "./fxParams.js";
 import { VOICE_MODES } from "./trackChannel.js";
+import { eventLfoOf, normalizeParticipation, patchEventLfo } from "./eventLfo.js";
 
 export function setEventField(song, { patternId, trackIndex, rowIndex }, field, value) {
   const event = getEvent(song, patternId, trackIndex, rowIndex);
@@ -295,6 +296,23 @@ export function moveMasterFx(song, instanceId, direction) {
 export function setTrackChannelPan(song, trackIndex, pan) {
   const channel = getTrackChannel(song, trackIndex);
   if (channel) channel.pan = Math.max(-1, Math.min(1, pan));
+}
+
+// Track LFO (model/eventLfo.js): edits the track's event LFO (created disabled on first edit).
+export function setTrackChannelEventLfo(song, trackIndex, patch) {
+  const channel = getTrackChannel(song, trackIndex);
+  if (channel) channel.eventLfo = patchEventLfo(eventLfoOf(channel), patch);
+}
+
+// Sets Track LFO participation on every step of one track that holds a note, in one pattern
+// (the Track tab's All steps / None). 0/null clears it.
+export function setTrackStepsLfo(song, patternId, trackIndex, amount) {
+  const track = getPattern(song, patternId)?.tracks[trackIndex];
+  if (!track) return;
+  const value = normalizeParticipation(amount);
+  for (const event of track.events) {
+    if (event.note !== null || (event.lfo ?? null) !== null) event.lfo = event.note !== null ? value : null;
+  }
 }
 
 export function setMasterPan(song, pan) {
