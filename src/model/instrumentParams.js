@@ -95,6 +95,20 @@ export const PULSE_PARAMS = [
   { id: "release", webdspParam: "Release", label: "Release", min: 0.01, max: 1.5, default: 0.08, step: 0.01, unit: "s" },
 ];
 
+// Pad — mirrors webdsp's docs/pad-instrument.md table. A sustained, free-running stereo ensemble
+// pad (not tempo-synced). A new note on a sounding slot moves the previous one into its release,
+// so consecutive notes overlap without extra slots; chords still need one slot per voice. Its
+// attack/release are long (up to 8 s / 12 s), unlike Bass and Pulse.
+export const PAD_PARAMS = [
+  { id: "tune", webdspParam: "Tune", label: "Tune", min: 27.5, max: 440, default: 110, step: 0.5, unit: "Hz", scale: "note" },
+  { id: "tone", webdspParam: "Tone", label: "Tone", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
+  { id: "movement", webdspParam: "Movement", label: "Movement", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
+  { id: "detune", webdspParam: "Detune", label: "Detune", min: 0, max: 1, default: 0.4, step: 0.01, unit: "" },
+  { id: "space", webdspParam: "Space", label: "Space", min: 0, max: 1, default: 0.6, step: 0.01, unit: "" },
+  { id: "attack", webdspParam: "Attack", label: "Attack", min: 0.02, max: 8, default: 0.8, step: 0.01, unit: "s" },
+  { id: "release", webdspParam: "Release", label: "Release", min: 0.1, max: 12, default: 3, step: 0.1, unit: "s" },
+];
+
 // One entry per webdsp InstrumentKind, mirroring the `{ id, name, category, params }` shape
 // `runtime.getCapabilities().instruments` itself reports (node_modules/webdsp's
 // docs/instruments.md) — model/ stays webdsp-free (docs/EXTENDING.md's layer map) so this is a
@@ -116,6 +130,8 @@ export const SYNTH_KINDS = [
   { id: "bass", name: "Bass", category: "bass", params: BASS_PARAMS, sustained: true, rootNote: 33 },
   // Pulse tune defaults to 110 Hz = A-2 = note 45 (webdsp's pulse-client-guide.md).
   { id: "pulse", name: "Pulse", category: "synth", params: PULSE_PARAMS, sustained: true, rootNote: 45 },
+  // Pad tune defaults to 110 Hz = A-2 = note 45, like Pulse (webdsp's docs/pad-instrument.md).
+  { id: "pad", name: "Pad", category: "synth", params: PAD_PARAMS, sustained: true, rootNote: 45 },
 ];
 
 // Registry of every synthesized-instrument kind's own param catalog, keyed by the same string

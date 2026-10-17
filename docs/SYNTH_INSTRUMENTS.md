@@ -366,3 +366,19 @@ follow the *beat grid*, not the note. webdsp's `docs/pulse-instrument.md` and
   not a whole number of `rate` periods long (e.g. 1/1 on a 2-beat track) will not repeat the pump
   phase at the wrap. Before the first play, previewing a Pulse note uses webdsp's default 120 BPM
   grid, so the pump is steady but not tied to the song tempo.
+
+## Pad (sustained stereo ensemble)
+
+`pad` is a sustained kind like the Bass and Pulse (`duration` from the cell length, `rootNote: 45`
+= A-2 at its 110 Hz tune). webdsp's `docs/pad-instrument.md` is authoritative.
+
+- **Params.** `PAD_PARAMS` (`tune`, `tone`, `movement`, `detune`, `space`, `attack`, `release`)
+  mirror webdsp's table; attack goes to 8 s and release to 12 s. `movement`, `detune` and `space`
+  have their own `useStore` lines in `ui/chrome/InstrumentPanel.jsx`.
+- **Overlap.** A note landing on a sounding Pad slot moves the previous note into its release and
+  starts a fresh voice (up to three alive per slot), so a line of long notes crossfades on one
+  slot. Chords still need one slot per voice.
+- **Not tempo-synced.** Free-running; it ignores the beat grid.
+- **Space.** `space` is width and short diffusion only; add a Reverb on the slot's output bus for
+  an actual room.
+
