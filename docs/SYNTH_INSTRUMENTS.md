@@ -383,3 +383,16 @@ follow the *beat grid*, not the note. webdsp's `docs/pulse-instrument.md` and
 - **Space.** `space` is width and short diffusion only; add a Reverb on the slot's output bus for
   an actual room.
 
+
+## FM (sustained two-operator bass/lead)
+
+`fm` is a sustained kind (`duration` from the cell length, `rootNote: 45` = A-2 at its 110 Hz tune).
+webdsp's `docs/fm-instrument.md` is authoritative.
+
+- **Params.** `FM_PARAMS` (`tune`, `ratio`, `timbre`, `snap`, `tone`, `attack`, `decay`, `sustain`,
+  `release`, `legato`, `slide`) mirror webdsp's table. `tune` goes up to 880 Hz for leads.
+- **Ratio** is a stepped control (`options`: 1:2, 1:1, 2:1, 3:1, 4:1, 5:1, 1.41, 3.5), like Pulse's
+  Rate. 1:1 is the saw-like workhorse; 2:1 and 4:1 are hollow (odd harmonics); 1.41 and 3.5 are metallic.
+- **Timbre / Snap.** Timbre is the resting FM depth; Snap adds a bright onset that decays with Decay.
+  `snap`, `tone`, `decay`, `sustain`, `legato` and `slide` reuse the panel lines of the other kinds.
+- **Legato / Slide** behave as on the Bass: a note whose length reaches the next step continues the voice.

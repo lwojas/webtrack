@@ -8,6 +8,7 @@ import {
   BASS_PARAMS,
   PULSE_PARAMS,
   PAD_PARAMS,
+  FM_PARAMS,
   SYNTH_KINDS,
   isSustainedSynthKind,
   synthKindRootNote,
@@ -51,10 +52,10 @@ describe("model/instrumentParams.js", () => {
   });
 
   it("SYNTH_KINDS lists every webdsp instrument kind with a stable id, a display name, and a category", () => {
-    expect(SYNTH_KINDS.map((k) => k.id)).toEqual(["kick", "snare", "clap", "tom", "hihat", "bass", "pulse", "pad"]);
-    expect(SYNTH_KINDS.map((k) => k.name)).toEqual(["Kick", "Snare", "Clap", "Tom", "Hi-Hat", "Bass", "Pulse", "Pad"]);
+    expect(SYNTH_KINDS.map((k) => k.id)).toEqual(["kick", "snare", "clap", "tom", "hihat", "bass", "pulse", "pad", "fm"]);
+    expect(SYNTH_KINDS.map((k) => k.name)).toEqual(["Kick", "Snare", "Clap", "Tom", "Hi-Hat", "Bass", "Pulse", "Pad", "FM"]);
     for (const kind of SYNTH_KINDS) {
-      expect(kind.category).toBe({ bass: "bass", pulse: "synth", pad: "synth" }[kind.id] ?? "drum");
+      expect(kind.category).toBe({ bass: "bass", pulse: "synth", pad: "synth", fm: "synth" }[kind.id] ?? "drum");
       expect(getSynthParams(kind.id)).toBe(kind.params);
     }
   });
@@ -103,9 +104,20 @@ describe("model/instrumentParams.js", () => {
     }
   });
 
-  it("only the Bass, Pulse and Pad are sustained and bring their own root note (A-1 = 33, A-2 = 45)", () => {
-    expect(SYNTH_KINDS.filter((k) => isSustainedSynthKind(k.id)).map((k) => k.id)).toEqual(["bass", "pulse", "pad"]);
+  it("mirrors webdsp's fm-instrument.md table — eleven params, stepped ratio", () => {
+    expect(FM_PARAMS.map((p) => p.id)).toEqual(["tune", "ratio", "timbre", "snap", "tone", "attack", "decay", "sustain", "release", "legato", "slide"]);
+    expect(FM_PARAMS.map((p) => p.webdspParam)).toEqual(["Tune", "Ratio", "Timbre", "Snap", "Tone", "Attack", "Decay", "Sustain", "Release", "Legato", "Slide"]);
+    expect(FM_PARAMS.find((p) => p.id === "ratio").options).toHaveLength(8);
+    for (const param of FM_PARAMS) {
+      expect(param.default).toBeGreaterThanOrEqual(param.min);
+      expect(param.default).toBeLessThanOrEqual(param.max);
+    }
+  });
+
+  it("only the Bass, Pulse, Pad and FM are sustained and bring their own root note (A-1 = 33, A-2 = 45)", () => {
+    expect(SYNTH_KINDS.filter((k) => isSustainedSynthKind(k.id)).map((k) => k.id)).toEqual(["bass", "pulse", "pad", "fm"]);
     expect(synthKindRootNote("pad")).toBe(45);
+    expect(synthKindRootNote("fm")).toBe(45);
     expect(synthKindRootNote("bass")).toBe(33);
     expect(synthKindRootNote("pulse")).toBe(45);
     expect(synthKindRootNote("kick")).toBe(60);

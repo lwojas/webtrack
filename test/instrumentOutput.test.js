@@ -82,6 +82,14 @@ describe("store.setInstrumentOutput — switching synth kind", () => {
     expect(store.getState().instruments[0].instrumentParams).toMatchObject({ movement: 0.5, detune: 0.4, space: 0.6, attack: 0.8, release: 3 });
   });
 
+  it("gives FM its own root note (A-2) and seeds its catalog defaults", () => {
+    const store = createStore({ song: createSong(), instruments: [createInstrumentSlot({ id: 0 })] });
+
+    store.setInstrumentOutput(0, { type: "instrument", channel: null, kind: "fm" });
+    expect(store.getState().instruments[0].rootNote).toBe(45);
+    expect(store.getState().instruments[0].instrumentParams).toMatchObject({ ratio: 1, timbre: 0.35, snap: 0.6, tone: 0.75, decay: 0.3, legato: 0 });
+  });
+
   it("leaves a hand-set rootNote alone when switching between drum kinds", () => {
     const store = createStore({ song: createSong(), instruments: [createInstrumentSlot({ id: 0, rootNote: 48 })] });
 

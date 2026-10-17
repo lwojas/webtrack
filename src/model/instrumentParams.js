@@ -112,6 +112,25 @@ export const PAD_PARAMS = [
   { id: "release", webdspParam: "Release", label: "Release", min: 0.1, max: 12, default: 3, step: 0.1, unit: "s" },
 ];
 
+// FM — mirrors webdsp's docs/fm-instrument.md table. A sustained two-operator FM bass/lead. `ratio`
+// is a *stepped* control (modulator/carrier ratio: 1/2, 1, 2, 3, 4, 5, 1.414, 3.5; odd ratios are
+// hollow, the last two inharmonic/metallic). `timbre` is the resting FM depth and `snap` a bright
+// onset that decays. Legato/slide behave as on the Bass.
+export const FM_RATIO_OPTIONS = ["1:2", "1:1", "2:1", "3:1", "4:1", "5:1", "1.41", "3.5"];
+export const FM_PARAMS = [
+  { id: "tune", webdspParam: "Tune", label: "Tune", min: 27.5, max: 880, default: 110, step: 0.5, unit: "Hz", scale: "note" },
+  { id: "ratio", webdspParam: "Ratio", label: "Ratio", min: 0, max: 7, default: 1, step: 1, unit: "", options: FM_RATIO_OPTIONS },
+  { id: "timbre", webdspParam: "Timbre", label: "Timbre", min: 0, max: 1, default: 0.35, step: 0.01, unit: "" },
+  { id: "snap", webdspParam: "Snap", label: "Snap", min: 0, max: 1, default: 0.6, step: 0.01, unit: "" },
+  { id: "tone", webdspParam: "Tone", label: "Tone", min: 0, max: 1, default: 0.75, step: 0.01, unit: "" },
+  { id: "attack", webdspParam: "Attack", label: "Attack", min: 0.001, max: 0.25, default: 0.003, step: 0.001, unit: "s" },
+  { id: "decay", webdspParam: "Decay", label: "Decay", min: 0.03, max: 2, default: 0.3, step: 0.01, unit: "s" },
+  { id: "sustain", webdspParam: "Sustain", label: "Sustain", min: 0, max: 1, default: 0.6, step: 0.01, unit: "" },
+  { id: "release", webdspParam: "Release", label: "Release", min: 0.01, max: 1.5, default: 0.1, step: 0.01, unit: "s" },
+  { id: "legato", webdspParam: "Legato", label: "Legato", min: 0, max: 1, default: 0, step: 1, unit: "", options: BASS_LEGATO_OPTIONS },
+  { id: "slide", webdspParam: "Slide", label: "Slide", min: 0, max: 0.5, default: 0, step: 0.01, unit: "s" },
+];
+
 // One entry per webdsp InstrumentKind, mirroring the `{ id, name, category, params }` shape
 // `runtime.getCapabilities().instruments` itself reports (node_modules/webdsp's
 // docs/instruments.md) — model/ stays webdsp-free (docs/EXTENDING.md's layer map) so this is a
@@ -135,6 +154,8 @@ export const SYNTH_KINDS = [
   { id: "pulse", name: "Pulse", category: "synth", params: PULSE_PARAMS, sustained: true, rootNote: 45 },
   // Pad tune defaults to 110 Hz = A-2 = note 45, like Pulse (webdsp's docs/pad-instrument.md).
   { id: "pad", name: "Pad", category: "synth", params: PAD_PARAMS, sustained: true, rootNote: 45 },
+  // FM tune defaults to 110 Hz = A-2 = note 45 (webdsp's docs/fm-instrument.md).
+  { id: "fm", name: "FM", category: "synth", params: FM_PARAMS, sustained: true, rootNote: 45 },
 ];
 
 // Registry of every synthesized-instrument kind's own param catalog, keyed by the same string
