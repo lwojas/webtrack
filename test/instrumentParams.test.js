@@ -73,12 +73,12 @@ describe("model/instrumentParams.js", () => {
     }
   });
 
-  it("mirrors webdsp's pulse-instrument.md table — ten params, rate stepped, attack/release only", () => {
+  it("mirrors webdsp's pulse-instrument.md table — nine params, rate stepped, attack/release only", () => {
     expect(PULSE_PARAMS.map((p) => p.id)).toEqual([
-      "tune", "cutoff", "resonance", "pump", "repeat", "rate", "diffuse", "attack", "release", "filterMod",
+      "tune", "cutoff", "resonance", "pump", "repeat", "rate", "diffuse", "attack", "release",
     ]);
     expect(PULSE_PARAMS.map((p) => p.webdspParam)).toEqual([
-      "Tune", "Cutoff", "Resonance", "Pump", "Repeat", "Rate", "Diffuse", "Attack", "Release", "FilterMod",
+      "Tune", "Cutoff", "Resonance", "Pump", "Repeat", "Rate", "Diffuse", "Attack", "Release",
     ]);
     for (const param of PULSE_PARAMS) {
       expect(param.min).toBeLessThan(param.max);

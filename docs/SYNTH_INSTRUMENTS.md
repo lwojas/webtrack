@@ -349,9 +349,8 @@ follow the *beat grid*, not the note. webdsp's `docs/pulse-instrument.md` and
 `docs/pulse-client-guide.md` are authoritative; what this app does about it:
 
 - **Params.** `PULSE_PARAMS` (`tune`, `cutoff`, `resonance`, `pump`, `repeat`, `rate`, `diffuse`,
-  `attack`, `release`, `filterMod`) mirror webdsp's table. `repeat` is the rhythmic drive per
-  cycle; `filterMod` (the standard webdsp filter-modulation depth, also on Bass) sets how far each
-  repeat opens the filter, so `repeat = 0` with `filterMod > 0` still moves the filter. `rate` is stepped (`options`: 1/1 ... 1/32), shown as
+  `attack`, `release`) mirror webdsp's table. `repeat` sets both the filter opening and the
+  drive per cycle (Pulse has no separate Filter Mod, unlike Bass). `rate` is stepped (`options`: 1/1 ... 1/32), shown as
   a note value by `formatSynthParamValue`; it renders through the same slider list as every other
   param. Velocity also drives how far each repeat opens the filter, so cell velocities become
   per-step accents.
