@@ -99,6 +99,7 @@ function serializeInstrument(instrument, embedSampleBytes) {
     origin: instrument.origin,
     envelope: instrument.envelope,
     instrumentParams: instrument.instrumentParams,
+    instrumentLfos: instrument.instrumentLfos,
     sample,
   };
 }
@@ -347,6 +348,8 @@ export async function deserializeProject(parsed, { loadSampleBytes, loadLocalAss
         origin: def.origin,
         envelope: def.envelope,
         instrumentParams: def.instrumentParams,
+        // Additive: undefined in a project saved before LFO slots existed -> createInstrumentSlot's [].
+        instrumentLfos: Array.isArray(def.instrumentLfos) ? def.instrumentLfos : undefined,
       };
 
       // output is purely additive (a project saved before it existed has no def.output at

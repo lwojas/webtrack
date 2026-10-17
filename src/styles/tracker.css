@@ -1206,6 +1206,26 @@ input[type="range"].range-lg {
   grid-template-columns: 11ch 1fr 7ch;
 }
 
+/* One LFO in the instrument editor's MODULATION section (ui/chrome/InstrumentPanel.jsx#LfoRow):
+   a small card under the same field grid the synth sliders use. */
+.lfo-row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin: var(--space-xs) 0;
+  padding-top: var(--space-xs);
+  border-top: 1px solid var(--border);
+}
+
+.lfo-row__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--text-dim);
+  font-size: var(--text-micro);
+  letter-spacing: 0.04em;
+}
+
 /* --- note editor: the complete per-event editing surface (see ui/chrome/NoteEditor.jsx) --- */
 
 .note-editor {

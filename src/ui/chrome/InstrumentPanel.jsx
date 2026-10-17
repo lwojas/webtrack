@@ -1,7 +1,17 @@
+import { useEffect, useState } from "react";
 import { useStore } from "../../state/useStore.js";
 import * as events from "../../state/events.js";
 import { loadSample } from "../../audio/instrumentLoader.js";
 import { initRuntime } from "../../audio/runtime.js";
+import { getModulationOptions } from "../../audio/instrument.js";
+import {
+  LFO_WAVEFORM_LABELS,
+  LFO_RATE_STEPS,
+  MAX_INSTRUMENT_LFOS,
+  formatLfoRate,
+  rateToSlider,
+  sliderToRate,
+} from "../../model/instrumentLfos.js";
 import { toHex } from "../../model/notes.js";
 import { ENVELOPE_PARAMS, formatEnvelopeValue } from "../../model/envelopeParams.js";
 import { SYNTH_KINDS, getSynthParams, formatSynthParamValue, synthParamControl } from "../../model/instrumentParams.js";
@@ -94,6 +104,135 @@ function InstrumentSlotRow({ store, instrumentController, index }) {
 const MIDI_CHANNEL_MIN = 0;
 const MIDI_CHANNEL_MAX = 15;
 
+// One LFO of the modulation slot. Primitive selector (the LFO serialised) because the model
+// replaces the lfos array on every edit but selectors must return primitives (Gotcha #1).
+function LfoRow({ store, instrumentController, index, lfoIndex, options, labelFor }) {
+  const json = useStore(store, events.INSTRUMENTS_CHANGED, (s) => JSON.stringify(s.instruments[index]?.instrumentLfos?.[lfoIndex] ?? null));
+  const lfo = JSON.parse(json);
+  if (!lfo) return null;
+  const set = (patch) => instrumentController.setLfo(index, lfoIndex, patch);
+  const targetKnown = options.targets.includes(lfo.target);
+  return (
+    <div className="lfo-row">
+      <div className="lfo-row__head">
+        <span>LFO {lfoIndex + 1}</span>
+        <button type="button" className="fx-panel__target-btn" onClick={() => instrumentController.removeLfo(index, lfoIndex)}>
+          REMOVE
+        </button>
+      </div>
+      <div className="fx-panel__target">
+        {options.waveforms.map((w) => (
+          <button
+            type="button"
+            key={w}
+            className={`fx-panel__target-btn${lfo.waveform === w ? " fx-panel__target-btn--active" : ""}`}
+            onClick={() => set({ waveform: w })}
+          >
+            {LFO_WAVEFORM_LABELS[w] ?? w.toUpperCase()}
+          </button>
+        ))}
+      </div>
+      <div className="fx-panel__target">
+        <button type="button" className={`fx-panel__target-btn${lfo.sync ? "" : " fx-panel__target-btn--active"}`} onClick={() => set({ sync: false })}>
+          FREE
+        </button>
+        <button type="button" className={`fx-panel__target-btn${lfo.sync ? " fx-panel__target-btn--active" : ""}`} onClick={() => set({ sync: true })}>
+          BPM
+        </button>
+      </div>
+      {lfo.sync ? (
+        <label className="fx-module__field">
+          <span className="fx-module__field-label">Division</span>
+          <select value={options.divisions.includes(lfo.division) ? lfo.division : ""} onChange={(e) => set({ division: e.target.value })}>
+            {options.divisions.map((d) => (
+              <option key={d} value={d}>
+                {d}
+              </option>
+            ))}
+          </select>
+          <span className="fx-module__value" />
+        </label>
+      ) : (
+        <label className="fx-module__field">
+          <span className="fx-module__field-label">Rate</span>
+          <input
+            type="range"
+            min={0}
+            max={LFO_RATE_STEPS}
+            step={1}
+            value={rateToSlider(lfo.rateHz)}
+            onChange={(e) => set({ rateHz: sliderToRate(Number(e.target.value)) })}
+            style={rangeFillStyle(rateToSlider(lfo.rateHz), 0, LFO_RATE_STEPS)}
+          />
+          <span className="fx-module__value">{formatLfoRate(lfo.rateHz)}</span>
+        </label>
+      )}
+      <label className="fx-module__field">
+        <span className="fx-module__field-label">Amount</span>
+        <input
+          type="range"
+          min={-100}
+          max={100}
+          step={1}
+          value={Math.round(lfo.amount * 100)}
+          onChange={(e) => set({ amount: Number(e.target.value) / 100 })}
+          style={rangeFillStyle(Math.round(lfo.amount * 100), -100, 100)}
+        />
+        <span className="fx-module__value">{Math.round(lfo.amount * 100)}%</span>
+      </label>
+      <label className="fx-module__field">
+        <span className="fx-module__field-label">Target</span>
+        <select value={lfo.target} onChange={(e) => set({ target: e.target.value })}>
+          {!targetKnown && <option value={lfo.target}>{labelFor(lfo.target)} (n/a)</option>}
+          {options.targets.map((t) => (
+            <option key={t} value={t}>
+              {labelFor(t)}
+            </option>
+          ))}
+        </select>
+        <span className="fx-module__value" />
+      </label>
+    </div>
+  );
+}
+
+// The synth editor's modulation slot: a compact list of LFOs, each routed to one control of the
+// selected synth. Free mode shows Rate (Hz); BPM-sync swaps it for a Division. The option lists —
+// waveforms, divisions and the synth's modulation targets — come from the engine
+// (audio/instrument.js#getModulationOptions), never from a per-synth table here. Hidden for a
+// kind with no modulation targets (the drums, Pad, FM).
+function ModulationSection({ store, instrumentController, index, kind }) {
+  const lfoCount = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentLfos?.length ?? 0);
+  const [options, setOptions] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    setOptions(null);
+    if (kind) getModulationOptions(kind).then((o) => !cancelled && setOptions(o)).catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [kind]);
+  if (!options || options.targets.length === 0) return null;
+  const labelFor = (id) => getSynthParams(kind).find((p) => p.id === id)?.label ?? id;
+  const max = Math.min(options.maxLfos, MAX_INSTRUMENT_LFOS);
+  return (
+    <>
+      <div className="note-editor__section">MODULATION</div>
+      {Array.from({ length: lfoCount }, (_, i) => (
+        <LfoRow key={i} store={store} instrumentController={instrumentController} index={index} lfoIndex={i} options={options} labelFor={labelFor} />
+      ))}
+      <button
+        type="button"
+        className="fx-panel__target-btn"
+        disabled={lfoCount >= max}
+        onClick={() => instrumentController.addLfo(index, options.targets.includes("cutoff") ? "cutoff" : options.targets[0])}
+      >
+        + ADD LFO
+      </button>
+    </>
+  );
+}
+
 function InstrumentEditor({ store, instrumentController }) {
   const index = useStore(store, events.CURSOR_MOVED, (s) => s.selectedInstrumentIndex);
   const name = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.name ?? "");
@@ -150,8 +289,6 @@ function InstrumentEditor({ store, instrumentController }) {
   const synthRelease = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.release ?? 0.1);
   const legato = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.legato ?? 0);
   const slide = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.slide ?? 0);
-  // Bass only (default 0.4; the slot's own catalog default seeds the real value).
-  const filterMod = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.filterMod ?? 0.4);
   // Pulse-only ids (cutoff/resonance/attack/release are shared with the Bass above).
   const pump = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.pump ?? 0.5);
   const repeat = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.repeat ?? 0.4);
@@ -167,7 +304,7 @@ function InstrumentEditor({ store, instrumentController }) {
   const synthParamValues = {
     tune, decay: synthDecay, pitchDrop, pitchDecay, punch, drive, snap, noise, spread, body, damp, metal, tone,
     bite, cutoff, resonance, attack: synthAttack, sustain: synthSustain, release: synthRelease,
-    pump, repeat, rate, diffuse, legato, slide, filterMod, movement, detune, space, ratio, timbre,
+    pump, repeat, rate, diffuse, legato, slide, movement, detune, space, ratio, timbre,
   };
 
   if (!exists) return null;
@@ -301,6 +438,7 @@ function InstrumentEditor({ store, instrumentController }) {
               </label>
             );
           })}
+          <ModulationSection store={store} instrumentController={instrumentController} index={index} kind={outputKind} />
         </>
       ) : (
         hasSample && (

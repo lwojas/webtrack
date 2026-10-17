@@ -26,6 +26,7 @@
 import { InstrumentKind, KickParam, SnareParam, ClapParam, TomParam, HiHatParam, BassParam, PulseParam, PadParam, FmParam, MASTER_BUS } from "webdsp";
 import { initRuntime, ensureTrackBuses } from "./runtime.js";
 import { getSynthParams } from "../model/instrumentParams.js";
+import { planLfoUpdates } from "./instrumentLfo.js";
 
 const ENGINE_KIND_BY_NAME = {
   kick: InstrumentKind.Kick,
@@ -90,10 +91,56 @@ export async function createSynthInstrument(instrument, kind) {
   const engineKind = ENGINE_KIND_BY_NAME[kind];
   if (engineKind === undefined) return;
   const runtime = await initRuntime();
-  if (instrument.engineInstrumentId != null) runtime.removeInstrument(instrument.engineInstrumentId);
+  if (instrument.engineInstrumentId != null) {
+    runtime.removeInstrument(instrument.engineInstrumentId);
+    lfoSent.delete(instrument.engineInstrumentId);
+  }
   const bus = await resolveSynthBus(instrument.output);
   instrument.engineInstrumentId = runtime.createInstrument(engineKind, { bus });
   pushParamValues(runtime, instrument.engineInstrumentId, kind, instrument.instrumentParams);
+  lfoSent.set(instrument.engineInstrumentId, []);
+  applyLfos(runtime, instrument, kind);
+}
+
+// --- LFO modulation (webdsp docs/lfo-modulation.md) ---
+// Last signature pushed per live engine instrument and LFO slot, so an unchanged slot is never
+// resent (the engine keeps an LFO's phase running across edits; resending is harmless but noisy).
+const lfoSent = new Map();
+
+// What the engine offers for `kind` (the modulation slot UI's option lists): the shared waveform
+// and division names, the LFO count, and the synth's own modulation targets by control name.
+export function modulationOptions(runtime, kind) {
+  const engineKind = ENGINE_KIND_BY_NAME[kind];
+  if (engineKind === undefined || !runtime.getModulationInfo) return null;
+  const info = runtime.getModulationInfo();
+  return {
+    maxLfos: info.maxLfos,
+    waveforms: info.waveforms,
+    divisions: info.divisions.map((d) => d.name),
+    targets: runtime.getModulationTargets(engineKind).map((p) => p.name),
+  };
+}
+
+export async function getModulationOptions(kind) {
+  return modulationOptions(await initRuntime(), kind);
+}
+
+function applyLfos(runtime, instrument, kind) {
+  const options = modulationOptions(runtime, kind);
+  if (!options || instrument.engineInstrumentId == null) return;
+  let sent = lfoSent.get(instrument.engineInstrumentId);
+  if (!sent) lfoSent.set(instrument.engineInstrumentId, (sent = []));
+  const ops = planLfoUpdates(instrument.instrumentLfos, options, (name) => resolveInstrumentParam(kind, name), sent);
+  for (const op of ops) {
+    if (op.clear) runtime.clearInstrumentLfo(instrument.engineInstrumentId, op.slot);
+    else runtime.setInstrumentLfo(instrument.engineInstrumentId, op.slot, op.settings);
+  }
+}
+
+// appContext.js's instrumentController, after any LFO edit in the model: pushes the slot's LFOs.
+export async function syncSynthInstrumentLfos(instrument, kind) {
+  if (instrument.engineInstrumentId == null) return;
+  applyLfos(await initRuntime(), instrument, kind);
 }
 
 // The InstrumentPanel's output toggle, switching a slot away from "instrument" (or removing the
@@ -103,6 +150,7 @@ export async function removeSynthInstrument(instrument) {
   if (instrument.engineInstrumentId == null) return;
   const runtime = await initRuntime();
   runtime.removeInstrument(instrument.engineInstrumentId);
+  lfoSent.delete(instrument.engineInstrumentId);
   instrument.engineInstrumentId = null;
 }
 

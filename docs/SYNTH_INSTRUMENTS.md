@@ -317,8 +317,8 @@ redesign, and the webtrack side needed no new abstractions to absorb four more k
 `bass` is a synthesized kind like the drums — same slot, same editor, same bridge — with three
 differences that come from it being a held, pitched bass voice rather than a one-shot hit:
 
-- **Its own ADSR and filter are instrument params.** `BASS_PARAMS` (`tune`, `body`, `bite` (drive only),
-  `cutoff`, `resonance`, `attack`, `decay`, `sustain`, `release`, `legato`, `slide`, `filterMod`) mirror webdsp's
+- **Its own ADSR and filter are instrument params.** `BASS_PARAMS` (`tune`, `body`, `bite`,
+  `cutoff`, `resonance`, `attack`, `decay`, `sustain`, `release`, `legato`, `slide`) mirror webdsp's
   `docs/bass-instrument.md`. They are ordinary sliders in the instrument's own control list,
   like the drums' controls.
 - **Note length is sent as `duration`.** `SYNTH_KINDS` carries `sustained: true` for it

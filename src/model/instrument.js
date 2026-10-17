@@ -76,6 +76,11 @@ export function createInstrumentSlot({
   // don't need (they always have a value) but output.channel already does for an unconfigured
   // MIDI slot.
   instrumentParams = null,
+  // instrumentLfos: LFO modulation slots for an "instrument"-output slot (model/instrumentLfos.js)
+  // — [] = none. Additive like instrumentParams: a project saved before it existed loads as [].
+  // Each routes one LFO to one of the synth's controls; the base value in instrumentParams is
+  // never changed by it (webdsp plays base + modulation).
+  instrumentLfos = [],
   // engineInstrumentId: webdsp's own InstrumentId for this slot — session-scoped only, exactly
   // like sampleId above (never persisted; see persistence/projectFile.js). Written by
   // audio/instrument.js#createSynthInstrument the moment a live webdsp instrument exists for
@@ -94,6 +99,7 @@ export function createInstrumentSlot({
     localAssetId,
     envelope,
     instrumentParams,
+    instrumentLfos,
     engineInstrumentId,
   };
 }

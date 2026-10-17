@@ -33,6 +33,7 @@ import {
   renamePattern as renamePatternModel,
 } from "../model/mutations.js";
 import { createInstrumentSlot } from "../model/instrument.js";
+import { MAX_INSTRUMENT_LFOS, createLfo, patchLfo } from "../model/instrumentLfos.js";
 import { DEFAULT_ROOT_NOTE, defaultSynthParamValues, synthKindRootNote } from "../model/instrumentParams.js";
 import { rowCountForBars, SWING_MIN, SWING_MAX } from "../model/timing.js";
 import { getSelectedPattern } from "../model/query.js";
@@ -619,6 +620,8 @@ export function createStore({ song, instruments }) {
     if (output.type === "instrument" && output.kind && (kindChanged || !instrument.instrumentParams)) {
       instrument.instrumentParams = defaultSynthParamValues(output.kind);
     }
+    // LFO targets belong to the kind's own controls, so a different kind starts with none.
+    if (kindChanged) instrument.instrumentLfos = [];
     // A kind whose own tune sits far from C-4 (the Bass: A-1) brings its own root note, so
     // event.note - rootNote lands on its real pitch. Switching from such a kind to one without
     // a root restores the default, rather than leaving a bass root on a kick.
@@ -639,6 +642,32 @@ export function createStore({ song, instruments }) {
     const instrument = state.instruments[index];
     if (!instrument) return;
     instrument.instrumentParams = { ...instrument.instrumentParams, [paramId]: value };
+    emitter.emit(events.INSTRUMENTS_CHANGED, { index });
+  }
+
+  // LFO modulation slots (model/instrumentLfos.js) — the model-side half; appContext.js's
+  // instrumentController pairs each with the live audio/instrument.js push.
+  function addInstrumentLfo(index, target) {
+    const instrument = state.instruments[index];
+    if (!instrument) return;
+    const lfos = instrument.instrumentLfos ?? [];
+    if (lfos.length >= MAX_INSTRUMENT_LFOS) return;
+    instrument.instrumentLfos = [...lfos, createLfo(target)];
+    emitter.emit(events.INSTRUMENTS_CHANGED, { index });
+  }
+
+  function setInstrumentLfo(index, lfoIndex, patch) {
+    const instrument = state.instruments[index];
+    const current = instrument?.instrumentLfos?.[lfoIndex];
+    if (!current) return;
+    instrument.instrumentLfos = instrument.instrumentLfos.map((l, i) => (i === lfoIndex ? patchLfo(l, patch) : l));
+    emitter.emit(events.INSTRUMENTS_CHANGED, { index });
+  }
+
+  function removeInstrumentLfo(index, lfoIndex) {
+    const instrument = state.instruments[index];
+    if (!instrument?.instrumentLfos?.[lfoIndex]) return;
+    instrument.instrumentLfos = instrument.instrumentLfos.filter((_, i) => i !== lfoIndex);
     emitter.emit(events.INSTRUMENTS_CHANGED, { index });
   }
 
@@ -759,6 +788,9 @@ export function createStore({ song, instruments }) {
     setInstrumentEnvelope,
     setInstrumentOutput,
     setInstrumentParam,
+    addInstrumentLfo,
+    setInstrumentLfo,
+    removeInstrumentLfo,
     addInstrumentSlot,
     setPatternSwitchPending,
     setResampleStatus,

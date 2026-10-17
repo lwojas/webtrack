@@ -28,7 +28,7 @@ import {
 import { loadSample } from "./audio/instrumentLoader.js";
 import { setInstrumentGain } from "./audio/instrumentGain.js";
 import { setInstrumentEnvelope } from "./audio/instrumentEnvelope.js";
-import { createSynthInstrument, removeSynthInstrument, setSynthInstrumentParam, resyncSynthInstruments } from "./audio/instrument.js";
+import { createSynthInstrument, removeSynthInstrument, setSynthInstrumentParam, resyncSynthInstruments, syncSynthInstrumentLfos } from "./audio/instrument.js";
 import { createDemoSong, createDemoInstruments } from "./demo/demoSong.js";
 import { getSelectedPattern } from "./model/query.js";
 import { createKeyboardNoteSource } from "./input/keyboardNoteMap.js";
@@ -265,6 +265,16 @@ export function createAppContext() {
     const instrument = store.getState().instruments[index];
     if (instrument?.output?.type === "instrument" && instrument.output.kind) {
       setSynthInstrumentParam(instrument, instrument.output.kind, paramId, value);
+    }
+  }
+
+  // LFO modulation slots (ui/chrome/InstrumentPanel.jsx's MODULATION section): update the model,
+  // then push the slot's LFOs to the live engine instrument if it has one (same split as above).
+  function applyInstrumentLfoChange(index, change) {
+    change();
+    const instrument = store.getState().instruments[index];
+    if (instrument?.output?.type === "instrument" && instrument.output.kind) {
+      syncSynthInstrumentLfos(instrument, instrument.output.kind);
     }
   }
 
@@ -661,6 +671,9 @@ export function createAppContext() {
     setSample: applyInstrumentSample,
     setOutput: applyInstrumentOutput,
     setInstrumentParam: applyInstrumentParam,
+    addLfo: (index, target) => applyInstrumentLfoChange(index, () => store.addInstrumentLfo(index, target)),
+    setLfo: (index, lfoIndex, patch) => applyInstrumentLfoChange(index, () => store.setInstrumentLfo(index, lfoIndex, patch)),
+    removeLfo: (index, lfoIndex) => applyInstrumentLfoChange(index, () => store.removeInstrumentLfo(index, lfoIndex)),
   };
 
   return {
