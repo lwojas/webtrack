@@ -90,6 +90,14 @@ describe("store.setInstrumentOutput — switching synth kind", () => {
     expect(store.getState().instruments[0].instrumentParams).toMatchObject({ ratio: 1, timbre: 0.35, snap: 0.6, tone: 0.75, decay: 0.3, legato: 0 });
   });
 
+  it("gives Hypersaw its own root note (A-2) and seeds its catalog defaults", () => {
+    const store = createStore({ song: createSong(), instruments: [createInstrumentSlot({ id: 0 })] });
+
+    store.setInstrumentOutput(0, { type: "instrument", channel: null, kind: "hypersaw" });
+    expect(store.getState().instruments[0].rootNote).toBe(45);
+    expect(store.getState().instruments[0].instrumentParams).toMatchObject({ detune: 25, spread: 0.8, density: 0.7, cutoff: 5000, sustain: 0.8 });
+  });
+
   it("leaves a hand-set rootNote alone when switching between drum kinds", () => {
     const store = createStore({ song: createSong(), instruments: [createInstrumentSlot({ id: 0, rootNote: 48 })] });
 

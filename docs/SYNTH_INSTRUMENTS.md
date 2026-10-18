@@ -396,3 +396,16 @@ webdsp's `docs/fm-instrument.md` is authoritative.
 - **Timbre / Snap.** Timbre is the resting FM depth; Snap adds a bright onset that decays with Decay.
   `snap`, `tone`, `decay`, `sustain`, `legato` and `slide` reuse the panel lines of the other kinds.
 - **Legato / Slide** behave as on the Bass: a note whose length reaches the next step continues the voice.
+
+## Hypersaw (sustained seven-saw stereo stack)
+
+`hypersaw` is a sustained kind (`duration` from the cell length, `rootNote: 45` = A-2 at its 110 Hz
+tune). webdsp's `docs/hypersaw-instrument.md` is authoritative.
+
+- **Params.** `HYPERSAW_PARAMS` (`tune`, `detune`, `spread`, `density`, `cutoff`, `attack`, `decay`,
+  `sustain`, `release`) mirror webdsp's table. `tune` goes up to 880 Hz for leads.
+- **Detune** is in cents (0-100, the outer pair; the others scale from it), unlike the Pad's 0..1
+  `detune`: the id is shared in the panel but each kind seeds its own value and range.
+- **Spread / Density.** Spread is stereo width and grows with detune (0 = mono-centred). Density is the
+  centre-vs-sides mix: 0 a lone saw, 1 the full stack; loudness is held constant.
+- **Slow beating.** Below ~10 ct the beating is seconds long, so level swings slowly; that is the sound.

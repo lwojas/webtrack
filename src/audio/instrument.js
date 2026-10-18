@@ -23,7 +23,7 @@
 // index, not bound to one track, so routing is the slot's own explicit choice (model/
 // instrument.js) rather than inferred from whichever track happens to trigger it — that would be
 // an arbitrary, order-dependent pick if more than one track's cells ever addressed the slot.
-import { InstrumentKind, KickParam, SnareParam, ClapParam, TomParam, HiHatParam, BassParam, PulseParam, PadParam, FmParam, MASTER_BUS } from "webdsp";
+import { InstrumentKind, KickParam, SnareParam, ClapParam, TomParam, HiHatParam, BassParam, PulseParam, PadParam, FmParam, HypersawParam, MASTER_BUS } from "webdsp";
 import { initRuntime, ensureTrackBuses } from "./runtime.js";
 import { getSynthParams } from "../model/instrumentParams.js";
 import { planLfoUpdates } from "./instrumentLfo.js";
@@ -38,6 +38,7 @@ const ENGINE_KIND_BY_NAME = {
   pulse: InstrumentKind.Pulse,
   pad: InstrumentKind.Pad,
   fm: InstrumentKind.Fm,
+  hypersaw: InstrumentKind.Hypersaw,
 };
 
 const WEBDSP_ENUM_BY_KIND = {
@@ -50,6 +51,7 @@ const WEBDSP_ENUM_BY_KIND = {
   pulse: PulseParam,
   pad: PadParam,
   fm: FmParam,
+  hypersaw: HypersawParam,
 };
 
 const PARAM_ENUM_CACHE = Object.fromEntries(

@@ -128,6 +128,21 @@ export const FM_PARAMS = [
   { id: "slide", webdspParam: "Slide", label: "Slide", min: 0, max: 0.5, default: 0, step: 0.01, unit: "s" },
 ];
 
+// Hypersaw — mirrors webdsp's docs/hypersaw-instrument.md table. Seven detuned saws as one stereo
+// voice. `detune` is in cents (outer pair; note the Pad's `detune` is a 0..1 amount, the id is
+// reused with its own range), `spread` the stereo width, `density` the centre-vs-sides mix.
+export const HYPERSAW_PARAMS = [
+  { id: "tune", webdspParam: "Tune", label: "Tune", min: 27.5, max: 880, default: 110, step: 0.5, unit: "Hz", scale: "note" },
+  { id: "detune", webdspParam: "Detune", label: "Detune", min: 0, max: 100, default: 25, step: 0.5, unit: "ct" },
+  { id: "spread", webdspParam: "Spread", label: "Spread", min: 0, max: 1, default: 0.8, step: 0.01, unit: "" },
+  { id: "density", webdspParam: "Density", label: "Density", min: 0, max: 1, default: 0.7, step: 0.01, unit: "" },
+  { id: "cutoff", webdspParam: "Cutoff", label: "Cutoff", min: 200, max: 16000, default: 5000, step: 1, unit: "Hz" },
+  { id: "attack", webdspParam: "Attack", label: "Attack", min: 0.001, max: 4, default: 0.01, step: 0.001, unit: "s" },
+  { id: "decay", webdspParam: "Decay", label: "Decay", min: 0.02, max: 4, default: 0.5, step: 0.01, unit: "s" },
+  { id: "sustain", webdspParam: "Sustain", label: "Sustain", min: 0, max: 1, default: 0.8, step: 0.01, unit: "" },
+  { id: "release", webdspParam: "Release", label: "Release", min: 0.01, max: 6, default: 0.4, step: 0.01, unit: "s" },
+];
+
 // One entry per webdsp InstrumentKind, mirroring the `{ id, name, category, params }` shape
 // `runtime.getCapabilities().instruments` itself reports (node_modules/webdsp's
 // docs/instruments.md) — model/ stays webdsp-free (docs/EXTENDING.md's layer map) so this is a
@@ -153,6 +168,8 @@ export const SYNTH_KINDS = [
   { id: "pad", name: "Pad", category: "synth", params: PAD_PARAMS, sustained: true, rootNote: 45 },
   // FM tune defaults to 110 Hz = A-2 = note 45 (webdsp's docs/fm-instrument.md).
   { id: "fm", name: "FM", category: "synth", params: FM_PARAMS, sustained: true, rootNote: 45 },
+  // Hypersaw tune defaults to 110 Hz = A-2 = note 45 (webdsp's docs/hypersaw-instrument.md).
+  { id: "hypersaw", name: "Hypersaw", category: "synth", params: HYPERSAW_PARAMS, sustained: true, rootNote: 45 },
 ];
 
 // Registry of every synthesized-instrument kind's own param catalog, keyed by the same string
