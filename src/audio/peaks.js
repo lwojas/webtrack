@@ -1,27 +1,8 @@
 // Waveform overview for the chop editor: decodes a slot's stored sample bytes once (the engine
 // keeps only its own PCM) and reduces them to per-bin peak amplitude. Cached by the bytes' buffer.
-const BINS = 1024;
-const cache = new WeakMap();
+import { computePeaks } from "webdsp";
 
-/** Peak |amplitude| (0..1) of `bins` equal spans across all channels. */
-export function computePeaks(channels, bins = BINS) {
-  const peaks = new Float32Array(bins);
-  const length = channels[0]?.length ?? 0;
-  if (length === 0) return peaks;
-  for (const data of channels) {
-    for (let b = 0; b < bins; b++) {
-      const from = Math.floor((b * length) / bins);
-      const to = Math.max(from + 1, Math.floor(((b + 1) * length) / bins));
-      let max = peaks[b];
-      for (let i = from; i < to && i < length; i++) {
-        const v = Math.abs(data[i]);
-        if (v > max) max = v;
-      }
-      peaks[b] = max;
-    }
-  }
-  return peaks;
-}
+const cache = new WeakMap();
 
 /** Peaks for sample bytes (an ArrayBuffer), or null if they can't be decoded. Safe to repeat. */
 export function loadPeaks(buffer) {

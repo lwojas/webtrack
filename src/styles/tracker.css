@@ -2001,3 +2001,45 @@ input[type="range"].range-lg {
     left: 15px;
   }
 }
+
+/* Slice pads: tap to audition, each labelled with the slice number and the note that plays it. */
+.chop-editor__root {
+  min-width: 3ch;
+  color: var(--cyan);
+  font-size: var(--text-label);
+  text-align: center;
+}
+
+.chop-editor__pads {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.chop-editor__pad {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 4.5ch;
+  gap: 0;
+}
+
+.chop-editor__pad-slice {
+  color: var(--text-dim);
+  font-size: var(--text-micro);
+}
+
+.chop-editor__pad-note {
+  font-size: var(--text-label);
+}
+
+.chop-editor__pad--unmapped {
+  opacity: 0.4;
+}
+
+@media (pointer: coarse) {
+  .chop-editor__pad {
+    min-width: 6ch;
+    padding: var(--space-md);
+  }
+}

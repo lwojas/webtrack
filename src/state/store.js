@@ -1,4 +1,4 @@
-import { SAMPLE_MODES, normalizeCues } from "../model/chop.js";
+import { MAX_NOTE, SAMPLE_MODES, normalizeCues } from "../model/chop.js";
 import {
   selectPattern as selectPatternModel,
   setEventField,
@@ -637,6 +637,14 @@ export function createStore({ song, instruments }) {
     emitter.emit(events.INSTRUMENTS_CHANGED, { index });
   }
 
+  // The note that plays the sample unpitched (chromatic) / slice 1 (chop) — model/instrument.js.
+  function setInstrumentRootNote(index, note) {
+    const instrument = state.instruments[index];
+    if (!instrument || !Number.isFinite(note)) return;
+    instrument.rootNote = Math.min(MAX_NOTE, Math.max(0, Math.round(note)));
+    emitter.emit(events.INSTRUMENTS_CHANGED, { index });
+  }
+
   function setChopEditorOpen(open) {
     state.chopEditorOpen = Boolean(open);
     emitter.emit(events.CHOP_EDITOR_CHANGED);
@@ -834,6 +842,7 @@ export function createStore({ song, instruments }) {
     setInstrumentEnvelope,
     setInstrumentSampleMode,
     setInstrumentCues,
+    setInstrumentRootNote,
     setChopEditorOpen,
     setInstrumentOutput,
     setInstrumentParam,

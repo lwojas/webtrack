@@ -1,6 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { compileEvent } from "../src/audio/compile.js";
-import { computePeaks } from "../src/audio/peaks.js";
+import { computePeaks } from "webdsp";
 import { addCue, cueRegions, evenCues, MIN_SLICE, moveCue, normalizeCues, removeCue } from "../src/model/chop.js";
 import { createInstrumentSlot } from "../src/model/instrument.js";
 import { createSong } from "../src/model/song.js";
@@ -75,5 +75,39 @@ describe("store and persistence", () => {
     const old = await deserializeProject(serialized, { loadSampleBytes: async () => "fresh" });
     expect(old.instruments[0].sampleMode).toBe("chromatic");
     expect(old.instruments[0].cues).toEqual([]);
+  });
+});
+
+describe("note mapping, root note and audition", () => {
+  it("maps slices to notes from the root and flags slices beyond the note range", async () => {
+    const { noteForSlice } = await import("../src/model/chop.js");
+    expect(noteForSlice(60, 0)).toBe(60);
+    expect(noteForSlice(60, 7)).toBe(67);
+    expect(noteForSlice(125, 3)).toBeNull();
+  });
+
+  it("clamps and rounds the root note in the store", () => {
+    const store = createStore({ song: createSong(), instruments: [createInstrumentSlot({ id: 0, name: "Break" })] });
+    store.setInstrumentRootNote(0, 200);
+    expect(store.getState().instruments[0].rootNote).toBe(127);
+    store.setInstrumentRootNote(0, -5);
+    expect(store.getState().instruments[0].rootNote).toBe(0);
+    store.setInstrumentRootNote(0, 48.4);
+    expect(store.getState().instruments[0].rootNote).toBe(48);
+  });
+});
+
+describe("auditionSlice", () => {
+  it("triggers the slice's engine region and cuts the previous audition", async () => {
+    vi.resetModules();
+    const runtime = { trigger: vi.fn().mockReturnValueOnce(11).mockReturnValueOnce(12), release: vi.fn() };
+    vi.doMock("../src/audio/runtime.js", () => ({ getRuntime: async () => runtime }));
+    const { auditionSlice } = await import("../src/audio/preview.js");
+    expect(await auditionSlice(5, 2)).toBe(true);
+    expect(runtime.trigger).toHaveBeenLastCalledWith({ sampleId: 5, region: 2, gain: 0.8 });
+    await auditionSlice(5, 0);
+    expect(runtime.release).toHaveBeenCalledWith(11);
+    expect(await auditionSlice(null, 0)).toBe(false);
+    vi.doUnmock("../src/audio/runtime.js");
   });
 });

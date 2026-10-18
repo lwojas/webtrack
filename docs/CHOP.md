@@ -12,7 +12,7 @@ audio.
 | Mode | `Instrument.sampleMode` (`"chromatic"` default, `"chop"`) | Per instrument slot. Older projects lack both fields and load chromatic with no cues, so they play as before. |
 | Slice choice | `event.note - instrument.rootNote` | Chop mode: the slot's root note plays slice 1, each semitone up the next (set the root to C-3 for C-3 = slice 1). The note never transposes. A note below the root is skipped; one past the last slice plays nothing. |
 
-Pure logic: `model/chop.js` (`evenCues`, `addCue`, `moveCue` — never crosses neighbours —
+The cue maths itself (`addCue`, `moveCue`, `cueRegions`, `computePeaks`, ...) is webdsp's; `model/chop.js` wraps it with webtracker's 49-slice cap and `noteForSlice`. Pure logic: `model/chop.js` (`evenCues`, `addCue`, `moveCue` — never crosses neighbours —
 `removeCue`, `cueRegions`). Store: `setInstrumentSampleMode`, `setInstrumentCues`,
 `setChopEditorOpen` (the open flag is session-only, not saved).
 
@@ -33,7 +33,11 @@ or when the selected instrument is not a chop sample.
 
 * tap the waveform to add a cue; drag a cue to move it (committed on release); arrow keys nudge a
   focused cue, Delete removes it; REMOVE CUE / CLEAR; 2/4/8/16/32 even splits;
-* slices are numbered to match the notes that play them.
+* **ROOT** stepper (±1 / ±12 semitones) sets the note that plays slice 1 (`Instrument.rootNote`);
+* a row of **slice pads** shows each slice's number and the note that plays it (`--` and dimmed when
+  beyond note 127); tapping a pad auditions that slice independent of the sequence
+  (`audio/preview.js#auditionSlice` -> `trigger({ region })` to the master bus; a new pad cuts the
+  previous one). Slice labels on the waveform also show the note.
 
 Perf: the editor is React-only and never touches the vanilla grid/playhead modules. The playhead
 columns are measured once at mount (width-based), so changing the grid's height does not

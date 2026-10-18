@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "../../state/useStore.js";
 import * as events from "../../state/events.js";
 import { loadPeaks } from "../../audio/peaks.js";
-import { addCue, evenCues, MAX_SLICES, moveCue, removeCue } from "../../model/chop.js";
-import { toHex } from "../../model/notes.js";
+import { addCue, evenCues, MAX_NOTE, MAX_SLICES, moveCue, noteForSlice, removeCue } from "../../model/chop.js";
+import { noteNumberToName, toHex } from "../../model/notes.js";
 
 const EVEN_SPLITS = [2, 4, 8, 16, 32];
 const NUDGE = 0.005;
@@ -160,6 +160,22 @@ function ChopEditorBody({ store, instrumentController, index }) {
         <button type="button" className="fx-panel__target-btn" disabled={cues.length === 0} onClick={() => setCues([])}>
           CLEAR
         </button>
+        <span className="chop-editor__label">ROOT</span>
+        <button type="button" className="fx-panel__target-btn" disabled={rootNote <= 0} onClick={() => instrumentController.setRootNote(index, rootNote - 12)} title="Root down an octave">
+          -12
+        </button>
+        <button type="button" className="fx-panel__target-btn" disabled={rootNote <= 0} onClick={() => instrumentController.setRootNote(index, rootNote - 1)} title="Root down a semitone">
+          -
+        </button>
+        <span className="chop-editor__root" title="The note that plays slice 1">
+          {noteNumberToName(rootNote)}
+        </span>
+        <button type="button" className="fx-panel__target-btn" disabled={rootNote >= MAX_NOTE} onClick={() => instrumentController.setRootNote(index, rootNote + 1)} title="Root up a semitone">
+          +
+        </button>
+        <button type="button" className="fx-panel__target-btn" disabled={rootNote >= MAX_NOTE} onClick={() => instrumentController.setRootNote(index, rootNote + 12)} title="Root up an octave">
+          +12
+        </button>
         <button type="button" className="fx-panel__target-btn chop-editor__close" onClick={() => instrumentController.setChopEditorOpen(false)}>
           CLOSE
         </button>
@@ -170,6 +186,7 @@ function ChopEditorBody({ store, instrumentController, index }) {
         {bounds.slice(0, -1).map((from, i) => (
           <span key={i} className="chop-editor__slice" style={{ left: `${from * 100}%`, width: `${(bounds[i + 1] - from) * 100}%` }}>
             {i + 1}
+            {noteForSlice(rootNote, i) !== null && ` ${noteNumberToName(noteForSlice(rootNote, i))}`}
           </span>
         ))}
         {shown.map((cue, i) => (
@@ -192,10 +209,28 @@ function ChopEditorBody({ store, instrumentController, index }) {
           />
         ))}
       </div>
+      <div className="chop-editor__pads" role="group" aria-label="Slices and the notes that play them">
+        {bounds.slice(0, -1).map((_, i) => {
+          const note = noteForSlice(rootNote, i);
+          return (
+            <button
+              key={i}
+              type="button"
+              className={`fx-panel__target-btn chop-editor__pad${note === null ? " chop-editor__pad--unmapped" : ""}`}
+              onPointerDown={() => instrumentController.auditionSlice(index, i)}
+              onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && instrumentController.auditionSlice(index, i)}
+              title={note === null ? `Slice ${i + 1} is beyond the note range` : `Slice ${i + 1} — played by ${noteNumberToName(note)}; tap to audition`}
+            >
+              <span className="chop-editor__pad-slice">{i + 1}</span>
+              <span className="chop-editor__pad-note">{note === null ? "--" : noteNumberToName(note)}</span>
+            </button>
+          );
+        })}
+      </div>
       <div className="chop-editor__hint">
         {cues.length === 0
           ? "Tap the waveform to add cue points, or pick an even split."
-          : `${cues.length + 1} slices. A cell's note picks the slice: the root note (${rootNote}) plays slice 1, each semitone up the next.`}
+          : `${cues.length + 1} slices. A cell's note picks the slice: the root note (${noteNumberToName(rootNote)}) plays slice 1, each semitone up the next. Tap a pad to audition it.`}
       </div>
     </div>
   );

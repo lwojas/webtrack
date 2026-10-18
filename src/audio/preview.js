@@ -16,6 +16,26 @@ import { midiOutput } from "./midiOutput.js";
 // played back from the pattern. A MIDI-output instrument has no equivalent voice-tracking
 // (audio/midiOutput.js's own doc comment) and returns null — there's no handle to release
 // later, same as a sample audition's own voice isn't explicitly released on key-up either.
+// Audition of one slice of an instrument's cue points (ui/chrome/ChopEditor.jsx's pads): plays the
+// sample's engine region straight to MASTER_BUS, independent of any track and of the sequence
+// (no voice-limit bookkeeping — it is not a pattern note). A new slice cuts the previous
+// audition so pads can be hammered. Resolves false if the engine isn't started yet.
+const AUDITION_GAIN = 0.8;
+let lastAuditionHandle = null;
+
+export async function auditionSlice(sampleId, slice) {
+  if (sampleId === null || sampleId === undefined) return false;
+  let runtime;
+  try {
+    runtime = await getRuntime();
+  } catch {
+    return false;
+  }
+  if (lastAuditionHandle !== null) runtime.release(lastAuditionHandle);
+  lastAuditionHandle = runtime.trigger({ sampleId, region: slice, gain: AUDITION_GAIN });
+  return true;
+}
+
 export async function triggerPreview(event, trackChannel, instruments) {
   const compiled = compileEvent(event, trackChannel, instruments);
   if (!compiled) return null;

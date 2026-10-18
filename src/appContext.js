@@ -28,6 +28,7 @@ import {
 import { loadSample } from "./audio/instrumentLoader.js";
 import { setInstrumentGain } from "./audio/instrumentGain.js";
 import { setInstrumentEnvelope } from "./audio/instrumentEnvelope.js";
+import { auditionSlice } from "./audio/preview.js";
 import { setInstrumentRegions } from "./audio/instrumentRegions.js";
 import { createSynthInstrument, removeSynthInstrument, setSynthInstrumentParam, resyncSynthInstruments, syncSynthInstrumentLfos } from "./audio/instrument.js";
 import { createDemoSong, createDemoInstruments } from "./demo/demoSong.js";
@@ -688,6 +689,11 @@ export function createAppContext() {
     setEnvelope: applyInstrumentEnvelope,
     setSampleMode: applyInstrumentSampleMode,
     setCues: applyInstrumentCues,
+    setRootNote: (index, note) => store.setInstrumentRootNote(index, note),
+    auditionSlice: (index, slice) => {
+      const sampleId = store.getState().instruments[index]?.sampleId;
+      return auditionSlice(sampleId, slice);
+    },
     setChopEditorOpen: (open) => store.setChopEditorOpen(open),
     setSample: applyInstrumentSample,
     setOutput: applyInstrumentOutput,
