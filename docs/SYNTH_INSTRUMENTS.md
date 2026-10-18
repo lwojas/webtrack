@@ -409,3 +409,16 @@ tune). webdsp's `docs/hypersaw-instrument.md` is authoritative.
 - **Spread / Density.** Spread is stereo width and grows with detune (0 = mono-centred). Density is the
   centre-vs-sides mix: 0 a lone saw, 1 the full stack; loudness is held constant.
 - **Slow beating.** Below ~10 ct the beating is seconds long, so level swings slowly; that is the sound.
+
+## PWM Beast (sustained pulse-width-modulated character synth)
+
+`pwmbeast` is a sustained kind (`duration` from the cell length, `rootNote: 33` = A-1 at its 55 Hz
+tune). webdsp's `docs/pwm-beast-instrument.md` is authoritative.
+
+- **Params.** `PWMBEAST_PARAMS` (15) mirror webdsp's table; the engine's `Pwm` is `pwm`, `EnvAmount` is `envamt`.
+- **PWM.** `width` is the static pulse width, `pwm` the depth, `rate` the PWM LFO in Hz (Pulse's `rate`
+  is a stepped tempo division: same id, own range), `shape` the source (sine -> ramp -> the note's own
+  envelope, which sweeps the width once per note).
+- **Harmonics / Drive.** `harmonics` is a rounded-fold character stage that PWM moves through; `drive`
+  is an asymmetric, level-compensated drive that follows the internal envelope.
+- **Env Amt** is how far that envelope opens the filter (up to 5 octaves) before it closes again.

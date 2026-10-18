@@ -10,6 +10,7 @@ import {
   PAD_PARAMS,
   FM_PARAMS,
   HYPERSAW_PARAMS,
+  PWMBEAST_PARAMS,
   SYNTH_KINDS,
   isSustainedSynthKind,
   synthKindRootNote,
@@ -53,10 +54,10 @@ describe("model/instrumentParams.js", () => {
   });
 
   it("SYNTH_KINDS lists every webdsp instrument kind with a stable id, a display name, and a category", () => {
-    expect(SYNTH_KINDS.map((k) => k.id)).toEqual(["kick", "snare", "clap", "tom", "hihat", "bass", "pulse", "pad", "fm", "hypersaw"]);
-    expect(SYNTH_KINDS.map((k) => k.name)).toEqual(["Kick", "Snare", "Clap", "Tom", "Hi-Hat", "Bass", "Pulse", "Pad", "FM", "Hypersaw"]);
+    expect(SYNTH_KINDS.map((k) => k.id)).toEqual(["kick", "snare", "clap", "tom", "hihat", "bass", "pulse", "pad", "fm", "hypersaw", "pwmbeast"]);
+    expect(SYNTH_KINDS.map((k) => k.name)).toEqual(["Kick", "Snare", "Clap", "Tom", "Hi-Hat", "Bass", "Pulse", "Pad", "FM", "Hypersaw", "PWM Beast"]);
     for (const kind of SYNTH_KINDS) {
-      expect(kind.category).toBe({ bass: "bass", pulse: "synth", pad: "synth", fm: "synth", hypersaw: "synth" }[kind.id] ?? "drum");
+      expect(kind.category).toBe({ bass: "bass", pulse: "synth", pad: "synth", fm: "synth", hypersaw: "synth", pwmbeast: "synth" }[kind.id] ?? "drum");
       expect(getSynthParams(kind.id)).toBe(kind.params);
     }
   });
@@ -125,11 +126,22 @@ describe("model/instrumentParams.js", () => {
     }
   });
 
+  it("mirrors webdsp's pwm-beast-instrument.md table — fifteen params, PWM rate in Hz", () => {
+    expect(PWMBEAST_PARAMS.map((p) => p.id)).toEqual(["tune", "width", "pwm", "rate", "shape", "harmonics", "drive", "cutoff", "resonance", "envamt", "sub", "attack", "decay", "sustain", "release"]);
+    expect(PWMBEAST_PARAMS.map((p) => p.webdspParam)).toEqual(["Tune", "Width", "Pwm", "Rate", "Shape", "Harmonics", "Drive", "Cutoff", "Resonance", "EnvAmount", "Sub", "Attack", "Decay", "Sustain", "Release"]);
+    expect(PWMBEAST_PARAMS.find((p) => p.id === "rate").options).toBeUndefined();
+    for (const param of PWMBEAST_PARAMS) {
+      expect(param.default).toBeGreaterThanOrEqual(param.min);
+      expect(param.default).toBeLessThanOrEqual(param.max);
+    }
+  });
+
   it("only the Bass, Pulse, Pad and FM are sustained and bring their own root note (A-1 = 33, A-2 = 45)", () => {
-    expect(SYNTH_KINDS.filter((k) => isSustainedSynthKind(k.id)).map((k) => k.id)).toEqual(["bass", "pulse", "pad", "fm", "hypersaw"]);
+    expect(SYNTH_KINDS.filter((k) => isSustainedSynthKind(k.id)).map((k) => k.id)).toEqual(["bass", "pulse", "pad", "fm", "hypersaw", "pwmbeast"]);
     expect(synthKindRootNote("pad")).toBe(45);
     expect(synthKindRootNote("fm")).toBe(45);
     expect(synthKindRootNote("hypersaw")).toBe(45);
+    expect(synthKindRootNote("pwmbeast")).toBe(33);
     expect(synthKindRootNote("bass")).toBe(33);
     expect(synthKindRootNote("pulse")).toBe(45);
     expect(synthKindRootNote("kick")).toBe(60);

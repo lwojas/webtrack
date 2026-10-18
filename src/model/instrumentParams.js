@@ -143,6 +143,29 @@ export const HYPERSAW_PARAMS = [
   { id: "release", webdspParam: "Release", label: "Release", min: 0.01, max: 6, default: 0.4, step: 0.01, unit: "s" },
 ];
 
+// PWM Beast — mirrors webdsp's docs/pwm-beast-instrument.md table. A pulse-width-modulated character
+// synth: `width`/`pwm`/`rate`/`shape` set the pulse and its movement (shape 1 = the note's own
+// envelope drives the width), `harmonics` is the fold stage, `drive` the asymmetric drive, `envamt`
+// how far the internal envelope opens the filter. `rate` here is the PWM LFO in Hz (Pulse's `rate`
+// is a stepped tempo division: same id, own range).
+export const PWMBEAST_PARAMS = [
+  { id: "tune", webdspParam: "Tune", label: "Tune", min: 27.5, max: 440, default: 55, step: 0.5, unit: "Hz", scale: "note" },
+  { id: "width", webdspParam: "Width", label: "Width", min: 0.05, max: 0.95, default: 0.3, step: 0.01, unit: "" },
+  { id: "pwm", webdspParam: "Pwm", label: "PWM", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
+  { id: "rate", webdspParam: "Rate", label: "PWM Rate", min: 0.1, max: 200, default: 3.5, step: 0.1, unit: "Hz" },
+  { id: "shape", webdspParam: "Shape", label: "PWM Shape", min: 0, max: 1, default: 0.35, step: 0.01, unit: "" },
+  { id: "harmonics", webdspParam: "Harmonics", label: "Harmonics", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
+  { id: "drive", webdspParam: "Drive", label: "Drive", min: 0, max: 1, default: 0.4, step: 0.01, unit: "" },
+  { id: "cutoff", webdspParam: "Cutoff", label: "Cutoff", min: 60, max: 8000, default: 500, step: 1, unit: "Hz" },
+  { id: "resonance", webdspParam: "Resonance", label: "Resonance", min: 0, max: 1, default: 0.45, step: 0.01, unit: "" },
+  { id: "envamt", webdspParam: "EnvAmount", label: "Env Amt", min: 0, max: 1, default: 0.7, step: 0.01, unit: "" },
+  { id: "sub", webdspParam: "Sub", label: "Sub", min: 0, max: 1, default: 0.25, step: 0.01, unit: "" },
+  { id: "attack", webdspParam: "Attack", label: "Attack", min: 0.001, max: 0.25, default: 0.003, step: 0.001, unit: "s" },
+  { id: "decay", webdspParam: "Decay", label: "Decay", min: 0.03, max: 2, default: 0.3, step: 0.01, unit: "s" },
+  { id: "sustain", webdspParam: "Sustain", label: "Sustain", min: 0, max: 1, default: 0.6, step: 0.01, unit: "" },
+  { id: "release", webdspParam: "Release", label: "Release", min: 0.01, max: 1.5, default: 0.12, step: 0.01, unit: "s" },
+];
+
 // One entry per webdsp InstrumentKind, mirroring the `{ id, name, category, params }` shape
 // `runtime.getCapabilities().instruments` itself reports (node_modules/webdsp's
 // docs/instruments.md) — model/ stays webdsp-free (docs/EXTENDING.md's layer map) so this is a
@@ -170,6 +193,8 @@ export const SYNTH_KINDS = [
   { id: "fm", name: "FM", category: "synth", params: FM_PARAMS, sustained: true, rootNote: 45 },
   // Hypersaw tune defaults to 110 Hz = A-2 = note 45 (webdsp's docs/hypersaw-instrument.md).
   { id: "hypersaw", name: "Hypersaw", category: "synth", params: HYPERSAW_PARAMS, sustained: true, rootNote: 45 },
+  // PWM Beast tune defaults to 55 Hz = A-1 = note 33 (webdsp's docs/pwm-beast-instrument.md).
+  { id: "pwmbeast", name: "PWM Beast", category: "synth", params: PWMBEAST_PARAMS, sustained: true, rootNote: 33 },
 ];
 
 // Registry of every synthesized-instrument kind's own param catalog, keyed by the same string

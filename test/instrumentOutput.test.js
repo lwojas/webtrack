@@ -98,6 +98,14 @@ describe("store.setInstrumentOutput — switching synth kind", () => {
     expect(store.getState().instruments[0].instrumentParams).toMatchObject({ detune: 25, spread: 0.8, density: 0.7, cutoff: 5000, sustain: 0.8 });
   });
 
+  it("gives PWM Beast its own root note (A-1) and seeds its catalog defaults", () => {
+    const store = createStore({ song: createSong(), instruments: [createInstrumentSlot({ id: 0 })] });
+
+    store.setInstrumentOutput(0, { type: "instrument", channel: null, kind: "pwmbeast" });
+    expect(store.getState().instruments[0].rootNote).toBe(33);
+    expect(store.getState().instruments[0].instrumentParams).toMatchObject({ width: 0.3, pwm: 0.5, rate: 3.5, harmonics: 0.5, drive: 0.4, envamt: 0.7, sustain: 0.6 });
+  });
+
   it("leaves a hand-set rootNote alone when switching between drum kinds", () => {
     const store = createStore({ song: createSong(), instruments: [createInstrumentSlot({ id: 0, rootNote: 48 })] });
 
