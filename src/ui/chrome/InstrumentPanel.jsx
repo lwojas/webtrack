@@ -257,6 +257,8 @@ function InstrumentEditor({ store, instrumentController }) {
   const sustain = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.envelope?.sustain ?? 1);
   const release = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.envelope?.release ?? 0.01);
   const envelopeValues = { attack, decay, sustain, release };
+  const sampleMode = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.sampleMode ?? "chromatic");
+  const chopEditorOpen = useStore(store, events.CHOP_EDITOR_CHANGED, (s) => s.chopEditorOpen);
 
   // Every synth kind's own controls (model/instrumentParams.js — KICK_PARAMS/SNARE_PARAMS/
   // CLAP_PARAMS/TOM_PARAMS/HIHAT_PARAMS), one primitive selector per *unique param id* across
@@ -465,6 +467,34 @@ function InstrumentEditor({ store, instrumentController }) {
                 own doc comment), so it lives here directly below Gain rather than in the
                 mixer or FX panel. Each slider commits only the one field it owns —
                 setEnvelope merges, it doesn't replace (state/store.js#setInstrumentEnvelope). */}
+            {/* Chromatic: a cell's note transposes the sample. Chop: the note picks a slice of the
+                sample's cue points (root note = slice 1) — model/chop.js. EDIT CHOPS opens the
+                waveform/cue editor under the grid (ui/chrome/ChopEditor.jsx), which is too wide
+                for this column. */}
+            <div className="note-editor__section">PITCH</div>
+            <div className="fx-panel__target">
+              {["chromatic", "chop"].map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  className={`fx-panel__target-btn${sampleMode === mode ? " fx-panel__target-btn--active" : ""}`}
+                  onClick={() => instrumentController.setSampleMode(index, mode)}
+                  title={mode === "chop" ? "A cell's note picks a slice of the sample" : "A cell's note transposes the sample"}
+                >
+                  {mode === "chromatic" ? "CHROMATIC" : "CHOP"}
+                </button>
+              ))}
+            </div>
+            {sampleMode === "chop" && (
+              <button
+                type="button"
+                className={`fx-panel__target-btn${chopEditorOpen ? " fx-panel__target-btn--active" : ""}`}
+                onClick={() => instrumentController.setChopEditorOpen(!chopEditorOpen)}
+              >
+                {chopEditorOpen ? "CLOSE CHOPS" : "EDIT CHOPS"}
+              </button>
+            )}
+
             <div className="note-editor__section">ENVELOPE</div>
             {ENVELOPE_PARAMS.map((param) => (
               <label className="fx-module__field" key={param.id}>

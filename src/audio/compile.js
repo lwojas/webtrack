@@ -119,7 +119,16 @@ export function compileEvent(event, trackChannel, instruments, time, durationSec
   const gain = (velocity / 127) * trackChannel.volume;
   const pitch = event.note - instrument.rootNote;
 
-  const compiled = { kind: "sample", sampleId: instrument.sampleId, gain, pitch };
+  const compiled = { kind: "sample", sampleId: instrument.sampleId, gain };
+  if (instrument.sampleMode === "chop") {
+    // Chop: the note picks a slice (rootNote = slice 1, +1 semitone = next slice) and never
+    // transposes. A note below the root has no slice; one past the last slice is dropped by the
+    // engine. See model/chop.js.
+    if (pitch < 0) return null;
+    compiled.region = pitch;
+  } else {
+    compiled.pitch = pitch;
+  }
   if (time !== undefined) compiled.time = time;
   if (durationSeconds !== undefined) compiled.duration = durationSeconds;
   if (bus !== undefined && bus !== null) compiled.bus = bus;

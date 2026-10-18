@@ -28,6 +28,7 @@ import {
 import { loadSample } from "./audio/instrumentLoader.js";
 import { setInstrumentGain } from "./audio/instrumentGain.js";
 import { setInstrumentEnvelope } from "./audio/instrumentEnvelope.js";
+import { setInstrumentRegions } from "./audio/instrumentRegions.js";
 import { createSynthInstrument, removeSynthInstrument, setSynthInstrumentParam, resyncSynthInstruments, syncSynthInstrumentLfos } from "./audio/instrument.js";
 import { createDemoSong, createDemoInstruments } from "./demo/demoSong.js";
 import { getSelectedPattern } from "./model/query.js";
@@ -238,6 +239,20 @@ export function createAppContext() {
     if (instrument?.sampleId != null) setInstrumentEnvelope(instrument.sampleId, envelope);
   }
 
+  // Chop playback (ui/chrome/InstrumentPanel.jsx's PITCH toggle and ui/chrome/ChopEditor.jsx): the
+  // mode is model-only (read at compile time); cue points are model + a live push of the sample's
+  // regions to the engine, only if a sample is loaded (otherwise pushed when one loads).
+  function applyInstrumentSampleMode(index, mode) {
+    store.setInstrumentSampleMode(index, mode);
+    if (mode !== "chop") store.setChopEditorOpen(false);
+  }
+
+  function applyInstrumentCues(index, cues) {
+    store.setInstrumentCues(index, cues);
+    const instrument = store.getState().instruments[index];
+    if (instrument?.sampleId != null) setInstrumentRegions(instrument.sampleId, instrument.cues);
+  }
+
   // InstrumentPanel.jsx's output toggle (SAMPLE/MIDI/an "instrument" kind like KICK) — bundles
   // the model update (store.setInstrumentOutput, which also seeds instrumentParams defaults
   // the first time a slot switches to "instrument" — see that method's own doc comment) with
@@ -298,6 +313,7 @@ export function createAppContext() {
     const instrument = store.getState().instruments[index];
     setInstrumentGain(sampleId, instrument.gain);
     setInstrumentEnvelope(sampleId, instrument.envelope);
+    setInstrumentRegions(sampleId, instrument.cues);
   }
 
   // Assigns a localAssetId (and writes bytes to localAssetStore) to any just-loaded instrument
@@ -573,6 +589,7 @@ export function createAppContext() {
       if (instrument.sampleId != null) {
         setInstrumentGain(instrument.sampleId, instrument.gain);
         setInstrumentEnvelope(instrument.sampleId, instrument.envelope);
+        setInstrumentRegions(instrument.sampleId, instrument.cues);
       }
     }
     await resyncSynthInstruments(instruments);
@@ -642,6 +659,7 @@ export function createAppContext() {
       if (instrument.sampleId != null) {
         setInstrumentGain(instrument.sampleId, instrument.gain);
         setInstrumentEnvelope(instrument.sampleId, instrument.envelope);
+        setInstrumentRegions(instrument.sampleId, instrument.cues);
       }
     }
     await resyncSynthInstruments(instruments);
@@ -668,6 +686,9 @@ export function createAppContext() {
   const instrumentController = {
     setGain: applyInstrumentGain,
     setEnvelope: applyInstrumentEnvelope,
+    setSampleMode: applyInstrumentSampleMode,
+    setCues: applyInstrumentCues,
+    setChopEditorOpen: (open) => store.setChopEditorOpen(open),
     setSample: applyInstrumentSample,
     setOutput: applyInstrumentOutput,
     setInstrumentParam: applyInstrumentParam,

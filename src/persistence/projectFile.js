@@ -6,6 +6,7 @@
 // it's unit-testable with plain vitest assertions; the browser file-picker/download glue
 // lives in projectIO.js instead.
 import { createInstrumentSlot } from "../model/instrument.js";
+import { normalizeCues } from "../model/chop.js";
 import { arrayBufferToBase64, base64ToArrayBuffer } from "./base64.js";
 import { FX_TYPES, getFxParam } from "../model/fxParams.js";
 import { DEFAULT_MAX_VOICES } from "../model/trackChannel.js";
@@ -98,6 +99,8 @@ function serializeInstrument(instrument, embedSampleBytes) {
     output: instrument.output,
     origin: instrument.origin,
     envelope: instrument.envelope,
+    sampleMode: instrument.sampleMode,
+    cues: instrument.cues,
     instrumentParams: instrument.instrumentParams,
     instrumentLfos: instrument.instrumentLfos,
     sample,
@@ -347,6 +350,9 @@ export async function deserializeProject(parsed, { loadSampleBytes, loadLocalAss
         output: def.output,
         origin: def.origin,
         envelope: def.envelope,
+        // Additive: undefined in a project saved before chop mode -> chromatic, no cues.
+        sampleMode: def.sampleMode === "chop" ? "chop" : undefined,
+        cues: Array.isArray(def.cues) ? normalizeCues(def.cues) : undefined,
         instrumentParams: def.instrumentParams,
         // Additive: undefined in a project saved before LFO slots existed -> createInstrumentSlot's [].
         instrumentLfos: Array.isArray(def.instrumentLfos) ? def.instrumentLfos : undefined,

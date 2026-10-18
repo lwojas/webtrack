@@ -36,3 +36,5 @@ export const CLIPBOARD_CHANGED = "CLIPBOARD_CHANGED";
 // ui/grid/playheadLayer.js's own rAF loop, which is right for something that changes every
 // frame; this doesn't).
 export const RESAMPLE_STATUS_CHANGED = "RESAMPLE_STATUS_CHANGED";
+// The chop editor panel (ui/chrome/ChopEditor.jsx) was opened or closed (state.chopEditorOpen).
+export const CHOP_EDITOR_CHANGED = "CHOP_EDITOR_CHANGED";

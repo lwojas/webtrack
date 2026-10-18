@@ -1,3 +1,4 @@
+import { SAMPLE_MODES, normalizeCues } from "../model/chop.js";
 import {
   selectPattern as selectPatternModel,
   setEventField,
@@ -89,6 +90,9 @@ export function createStore({ song, instruments }) {
     editStep: 1,
     octave: 4,
     selectedInstrumentIndex: 0,
+    // Whether the chop editor panel (ui/chrome/ChopEditor.jsx) is open for the selected instrument.
+    // Session-only like the cursor — never persisted.
+    chopEditorOpen: false,
     playing: false,
     patternSwitchPending: false,
     // audio/resampleController.js's own status, mirrored here purely for the UI (see
@@ -589,6 +593,8 @@ export function createStore({ song, instruments }) {
     if (sampleAsset !== undefined) instrument.sampleAsset = sampleAsset;
     if (origin !== undefined) instrument.origin = origin;
     if (localAssetId !== undefined) instrument.localAssetId = localAssetId;
+    // Cue points belong to the previous sample's audio; a new sample starts unsliced.
+    instrument.cues = [];
     emitter.emit(events.INSTRUMENTS_CHANGED, { index });
   }
 
@@ -613,6 +619,27 @@ export function createStore({ song, instruments }) {
     if (!instrument) return;
     instrument.envelope = { ...instrument.envelope, ...envelope };
     emitter.emit(events.INSTRUMENTS_CHANGED, { index });
+  }
+
+  // Chop playback (model/chop.js): the model-side half; appContext.js#applyInstrumentCues pushes
+  // the regions to the engine. Cues are normalised on the way in.
+  function setInstrumentSampleMode(index, sampleMode) {
+    const instrument = state.instruments[index];
+    if (!instrument || !SAMPLE_MODES.includes(sampleMode)) return;
+    instrument.sampleMode = sampleMode;
+    emitter.emit(events.INSTRUMENTS_CHANGED, { index });
+  }
+
+  function setInstrumentCues(index, cues) {
+    const instrument = state.instruments[index];
+    if (!instrument) return;
+    instrument.cues = normalizeCues(cues);
+    emitter.emit(events.INSTRUMENTS_CHANGED, { index });
+  }
+
+  function setChopEditorOpen(open) {
+    state.chopEditorOpen = Boolean(open);
+    emitter.emit(events.CHOP_EDITOR_CHANGED);
   }
 
   // Instrument.output (model/instrument.js) — which engine renders this slot's cells.
@@ -805,6 +832,9 @@ export function createStore({ song, instruments }) {
     setInstrumentSample,
     setInstrumentGain,
     setInstrumentEnvelope,
+    setInstrumentSampleMode,
+    setInstrumentCues,
+    setChopEditorOpen,
     setInstrumentOutput,
     setInstrumentParam,
     addInstrumentLfo,

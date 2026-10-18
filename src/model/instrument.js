@@ -47,6 +47,12 @@
 // instrument's sample is never embedded as base64 in the project JSON the way an "import"-origin
 // one is: resample bytes are addressed by localAssetId only, in both the explicit save and the
 // local recovery cache.
+// sampleMode ("chromatic" | "chop") and cues: chop playback of a "sample" output (model/chop.js,
+// audio/compile.js). `cues` (sorted fractions 0..1, interior slice boundaries; [] = none) describe
+// the sample's audio and are pushed to webdsp as sample regions (audio/instrumentRegions.js);
+// `sampleMode` is how this slot plays them — in "chop" a cell's note picks a slice as
+// (note - rootNote) instead of transposing. Both additive: a project saved before they existed
+// loads chromatic with no cues, i.e. exactly as it always played.
 // envelope: { attack, decay, sustain, release } — webdsp's per-sample ADSR amplitude envelope
 // (node_modules/webdsp's docs/adsr-envelope.md's EnvelopeParams), persistent per instrument like
 // gain (audio/instrumentEnvelope.js bridges this to runtime.setSampleEnvelope()). The default
@@ -69,6 +75,8 @@ export function createInstrumentSlot({
   origin = "import",
   localAssetId = null,
   envelope = { attack: 0, decay: 0, sustain: 1, release: 0.01 },
+  sampleMode = "chromatic",
+  cues = [],
   // instrumentParams: Record<paramId, number> | null — persistent per-instance control values
   // for an "instrument"-output slot (model/instrumentParams.js's catalog for output.kind),
   // seeded with that kind's defaults the moment a slot is switched to it (state/store.js#
@@ -98,6 +106,8 @@ export function createInstrumentSlot({
     origin,
     localAssetId,
     envelope,
+    sampleMode,
+    cues,
     instrumentParams,
     instrumentLfos,
     engineInstrumentId,
