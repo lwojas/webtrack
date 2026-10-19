@@ -1,6 +1,7 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { METER_LED_DB } from "webdsp";
-import { useMixerMeters } from "../useMixerMeters.js";
+import { peekRuntime } from "../../audio/runtime.js";
+import { limiterState, useMixerMeters } from "../useMixerMeters.js";
 import { useStore } from "../../state/useStore.js";
 import * as events from "../../state/events.js";
 import { rangeFillStyle } from "../rangeFill.js";
@@ -86,6 +87,12 @@ function ChannelStrip({ store, fxController, trackIndex }) {
 // *feeding* webdsp's master limiter, so red means the limiter is working. Updated straight from
 // the engine's peak stream by useMixerMeters (no React state); see webdsp docs/master-limiter.md.
 function MasterStrip() {
+  const [limiterOn, setLimiterOn] = useState(limiterState.on);
+  function toggleLimiter() {
+    limiterState.on = !limiterOn;
+    setLimiterOn(limiterState.on);
+    peekRuntime()?.setMasterLimiter({ enabled: limiterState.on });
+  }
   return (
     <div className="channel-strip channel-strip--master" data-master-strip>
       <span className="channel-strip__name">MASTER</span>
@@ -95,7 +102,14 @@ function MasterStrip() {
           <span key={db} className="meter-led" data-meter-led title={`${db} dBFS`} style={{ order: METER_LED_DB.length - i }} />
         ))}
       </div>
-      <span className="channel-strip__limiter">LIMITER</span>
+      <button
+        className={`channel-strip__limiter${limiterOn ? " channel-strip__limiter--active" : ""}`}
+        onClick={toggleLimiter}
+        aria-pressed={limiterOn}
+        title={limiterOn ? "Master limiter on (click to turn off)" : "Master limiter off (click to turn on)"}
+      >
+        LIMITER
+      </button>
     </div>
   );
 }

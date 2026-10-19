@@ -742,9 +742,18 @@ input[type="range"]:disabled {
 }
 
 .channel-strip__limiter {
+  padding: 1px var(--space-xs);
+  background: var(--surface-1);
   color: var(--text-dim);
+  border: 1px solid var(--border);
+  cursor: pointer;
   font-size: var(--text-micro);
   letter-spacing: 0.08em;
+}
+
+.channel-strip__limiter--active {
+  color: var(--cyan);
+  border-color: var(--cyan);
 }
 
 .meter {

@@ -3,6 +3,11 @@ import { MAX_TRACK_BUSES, MeterTracker } from "webdsp";
 import { peekRuntime, peekTrackBusIds } from "../audio/runtime.js";
 import { paintMeters } from "./meterView.js";
 
+// Master limiter on/off. Module-level so it survives the mixer unmounting (tab switches); it is
+// applied when the runtime first appears (below) or when the button is clicked. Starts on, like
+// the engine's default.
+export const limiterState = { on: true };
+
 // Feeds webdsp's peak snapshots into the mixer's meter elements. `rootRef` is the mixer; its
 // [data-meter-led] (master), [data-master-strip] and [data-clip-track] (one per strip)
 // descendants are found once on mount. The runtime only exists after the user starts audio, so
@@ -25,6 +30,7 @@ export function useMixerMeters(rootRef) {
       if (runtime && runtime !== attachedTo) {
         unsubscribe?.();
         attachedTo = runtime;
+        if (!limiterState.on) runtime.setMasterLimiter({ enabled: false });
         unsubscribe = runtime.onMeters((snapshot) => tracker.update(snapshot, performance.now()));
       }
       const busIds = peekTrackBusIds();
