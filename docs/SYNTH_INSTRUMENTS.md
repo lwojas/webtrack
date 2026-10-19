@@ -422,3 +422,17 @@ tune). webdsp's `docs/pwm-beast-instrument.md` is authoritative.
 - **Harmonics / Drive.** `harmonics` is a rounded-fold character stage that PWM moves through; `drive`
   is an asymmetric, level-compensated drive that follows the internal envelope.
 - **Env Amt** is how far that envelope opens the filter (up to 5 octaves) before it closes again.
+
+## Digital Machines (FM Thump, Metal, Tone, Crack, Chaos)
+
+Five FM instruments on one shared kernel; kind ids `dm_thump`, `dm_metal`, `dm_tone`, `dm_crack`,
+`dm_chaos` (webdsp's stable ids). webdsp's `docs/digital-machines.md` is authoritative. Each has 8-9
+controls (`DM_*_PARAMS`); Tune, Decay and the depth control (FM, or Chaos) come first.
+
+- **One-shots:** Thump (kick/tom/zap), Metal (hat/cymbal/bell), Crack (snare/clap) end themselves.
+- **Tone and Chaos** are registered as sustained (`duration` from the cell length, roots A-2 = 45 and
+  A-3 = 57). With `hold` 0 they are plucks/hits and the cell length only truncates them; with `hold`
+  above 0 they are held until the cell ends.
+- **Ratio** is a 0..1 "magnetic" control (plateaus on curated ratios), unlike FM's stepped `ratio`
+  (same id, own range). `structure` (Tone) is stepped: Stack, Twin, Fan, Major, Minor, Sus.
+- Constants are first-pass, not tuned by ear.

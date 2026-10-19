@@ -106,6 +106,21 @@ describe("store.setInstrumentOutput — switching synth kind", () => {
     expect(store.getState().instruments[0].instrumentParams).toMatchObject({ width: 0.3, pwm: 0.5, rate: 3.5, harmonics: 0.5, drive: 0.4, envamt: 0.7, sustain: 0.6 });
   });
 
+  it("seeds the Digital Machines' catalog defaults and root notes", () => {
+    const store = createStore({ song: createSong(), instruments: [createInstrumentSlot({ id: 0 })] });
+
+    store.setInstrumentOutput(0, { type: "instrument", channel: null, kind: "dm_tone" });
+    expect(store.getState().instruments[0].rootNote).toBe(45);
+    expect(store.getState().instruments[0].instrumentParams).toMatchObject({ structure: 0, ratio: 0.111, damp: 0.4, hold: 0, drive: 0.1 });
+
+    store.setInstrumentOutput(0, { type: "instrument", channel: null, kind: "dm_chaos" });
+    expect(store.getState().instruments[0].rootNote).toBe(57);
+    expect(store.getState().instruments[0].instrumentParams).toMatchObject({ chaos: 0.4, fold: 0.3, sweep: 0 });
+
+    store.setInstrumentOutput(0, { type: "instrument", channel: null, kind: "dm_crack" });
+    expect(store.getState().instruments[0].instrumentParams).toMatchObject({ burst: 0, noise: 0.6, body: 0.5 });
+  });
+
   it("leaves a hand-set rootNote alone when switching between drum kinds", () => {
     const store = createStore({ song: createSong(), instruments: [createInstrumentSlot({ id: 0, rootNote: 48 })] });
 

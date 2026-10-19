@@ -166,6 +166,68 @@ export const PWMBEAST_PARAMS = [
   { id: "release", webdspParam: "Release", label: "Release", min: 0.01, max: 1.5, default: 0.12, step: 0.01, unit: "s" },
 ];
 
+// Digital Machines — mirror webdsp's docs/digital-machines.md tables. Five FM instruments on one
+// shared kernel; Tune, Decay and the depth control (FM, or Chaos) are the first three of each.
+// Thump/Metal/Crack are one-shots; Tone and Chaos are sustained when Hold > 0 (they always receive a
+// `duration`, so with Hold 0 the cell length merely truncates the pluck/hit). Several ids reuse an
+// existing kind's id with their own range (ratio is a 0..1 magnetic control here, not FM's step).
+export const DM_TONE_STRUCTURE_OPTIONS = ["Stack", "Twin", "Fan", "Major", "Minor", "Sus"];
+export const DM_THUMP_PARAMS = [
+  { id: "tune", webdspParam: "Tune", label: "Tune", min: 25, max: 400, default: 55, step: 0.5, unit: "Hz", scale: "note" },
+  { id: "decay", webdspParam: "Decay", label: "Decay", min: 0.05, max: 2, default: 0.45, step: 0.01, unit: "s" },
+  { id: "fm", webdspParam: "Fm", label: "FM", min: 0, max: 1, default: 0.35, step: 0.01, unit: "" },
+  { id: "sweep", webdspParam: "Sweep", label: "Sweep", min: 0, max: 4, default: 2, step: 0.05, unit: "oct" },
+  { id: "punch", webdspParam: "Punch", label: "Punch", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
+  { id: "ratio", webdspParam: "Ratio", label: "Ratio", min: 0, max: 1, default: 0.17, step: 0.01, unit: "" },
+  { id: "body", webdspParam: "Body", label: "Body", min: 0, max: 1, default: 0.3, step: 0.01, unit: "" },
+  { id: "drive", webdspParam: "Drive", label: "Drive", min: 0, max: 1, default: 0.2, step: 0.01, unit: "" },
+];
+
+export const DM_METAL_PARAMS = [
+  { id: "tune", webdspParam: "Tune", label: "Tune", min: 80, max: 1500, default: 320, step: 1, unit: "Hz", scale: "note" },
+  { id: "decay", webdspParam: "Decay", label: "Decay", min: 0.02, max: 2, default: 0.12, step: 0.01, unit: "s" },
+  { id: "fm", webdspParam: "Fm", label: "FM", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
+  { id: "spread", webdspParam: "Spread", label: "Spread", min: 0, max: 1, default: 0.67, step: 0.01, unit: "" },
+  { id: "tone", webdspParam: "Tone", label: "Tone", min: 0, max: 1, default: 0.6, step: 0.01, unit: "" },
+  { id: "noise", webdspParam: "Noise", label: "Noise", min: 0, max: 1, default: 0.3, step: 0.01, unit: "" },
+  { id: "chick", webdspParam: "Chick", label: "Chick", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
+  { id: "drive", webdspParam: "Drive", label: "Drive", min: 0, max: 1, default: 0.15, step: 0.01, unit: "" },
+];
+
+export const DM_TONE_PARAMS = [
+  { id: "tune", webdspParam: "Tune", label: "Tune", min: 27.5, max: 880, default: 110, step: 0.5, unit: "Hz", scale: "note" },
+  { id: "decay", webdspParam: "Decay", label: "Decay", min: 0.03, max: 3, default: 0.5, step: 0.01, unit: "s" },
+  { id: "fm", webdspParam: "Fm", label: "FM", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
+  { id: "structure", webdspParam: "Structure", label: "Structure", min: 0, max: 5, default: 0, step: 1, unit: "", options: DM_TONE_STRUCTURE_OPTIONS },
+  { id: "ratio", webdspParam: "Ratio", label: "Ratio", min: 0, max: 1, default: 0.111, step: 0.01, unit: "" },
+  { id: "damp", webdspParam: "Damp", label: "Damp", min: 0, max: 1, default: 0.4, step: 0.01, unit: "" },
+  { id: "attack", webdspParam: "Attack", label: "Attack", min: 0.001, max: 0.25, default: 0.002, step: 0.001, unit: "s" },
+  { id: "hold", webdspParam: "Hold", label: "Hold", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
+  { id: "drive", webdspParam: "Drive", label: "Drive", min: 0, max: 1, default: 0.1, step: 0.01, unit: "" },
+];
+
+export const DM_CRACK_PARAMS = [
+  { id: "tune", webdspParam: "Tune", label: "Tune", min: 80, max: 600, default: 190, step: 1, unit: "Hz", scale: "note" },
+  { id: "decay", webdspParam: "Decay", label: "Decay", min: 0.04, max: 1, default: 0.18, step: 0.01, unit: "s" },
+  { id: "fm", webdspParam: "Fm", label: "FM", min: 0, max: 1, default: 0.4, step: 0.01, unit: "" },
+  { id: "body", webdspParam: "Body", label: "Body", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
+  { id: "noise", webdspParam: "Noise", label: "Noise", min: 0, max: 1, default: 0.6, step: 0.01, unit: "" },
+  { id: "burst", webdspParam: "Burst", label: "Burst", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
+  { id: "tone", webdspParam: "Tone", label: "Tone", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
+  { id: "drive", webdspParam: "Drive", label: "Drive", min: 0, max: 1, default: 0.2, step: 0.01, unit: "" },
+];
+
+export const DM_CHAOS_PARAMS = [
+  { id: "tune", webdspParam: "Tune", label: "Tune", min: 27.5, max: 1760, default: 220, step: 0.5, unit: "Hz", scale: "note" },
+  { id: "decay", webdspParam: "Decay", label: "Decay", min: 0.03, max: 3, default: 0.4, step: 0.01, unit: "s" },
+  { id: "chaos", webdspParam: "Chaos", label: "Chaos", min: 0, max: 1, default: 0.4, step: 0.01, unit: "" },
+  { id: "ratio", webdspParam: "Ratio", label: "Ratio", min: 0, max: 1, default: 0.143, step: 0.01, unit: "" },
+  { id: "fold", webdspParam: "Fold", label: "Fold", min: 0, max: 1, default: 0.3, step: 0.01, unit: "" },
+  { id: "noise", webdspParam: "Noise", label: "Noise", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
+  { id: "sweep", webdspParam: "Sweep", label: "Sweep", min: 0, max: 3, default: 0, step: 0.05, unit: "oct" },
+  { id: "hold", webdspParam: "Hold", label: "Hold", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
+];
+
 // One entry per webdsp InstrumentKind, mirroring the `{ id, name, category, params }` shape
 // `runtime.getCapabilities().instruments` itself reports (node_modules/webdsp's
 // docs/instruments.md) — model/ stays webdsp-free (docs/EXTENDING.md's layer map) so this is a
@@ -195,6 +257,13 @@ export const SYNTH_KINDS = [
   { id: "hypersaw", name: "Hypersaw", category: "synth", params: HYPERSAW_PARAMS, sustained: true, rootNote: 45 },
   // PWM Beast tune defaults to 55 Hz = A-1 = note 33 (webdsp's docs/pwm-beast-instrument.md).
   { id: "pwmbeast", name: "PWM Beast", category: "synth", params: PWMBEAST_PARAMS, sustained: true, rootNote: 33 },
+  // Digital Machines (webdsp's docs/digital-machines.md). Tone tunes to 110 Hz = A-2 = note 45, Chaos to
+  // 220 Hz = A-3 = note 57; the one-shots keep the default root.
+  { id: "dm_thump", name: "FM Thump", category: "digital", params: DM_THUMP_PARAMS },
+  { id: "dm_metal", name: "FM Metal", category: "digital", params: DM_METAL_PARAMS },
+  { id: "dm_tone", name: "FM Tone", category: "digital", params: DM_TONE_PARAMS, sustained: true, rootNote: 45 },
+  { id: "dm_crack", name: "FM Crack", category: "digital", params: DM_CRACK_PARAMS },
+  { id: "dm_chaos", name: "FM Chaos", category: "digital", params: DM_CHAOS_PARAMS, sustained: true, rootNote: 57 },
 ];
 
 // Registry of every synthesized-instrument kind's own param catalog, keyed by the same string
