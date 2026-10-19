@@ -704,6 +704,78 @@ input[type="range"]:disabled {
   white-space: nowrap;
 }
 
+/* Per-track clip dot: dim until that track's bus peaks at 0 dBFS or above (class toggled from the
+   meter loop, ui/meterView.js), then crimson for a short hold. Fixed size: no layout shift. */
+.channel-strip__clip {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--surface-empty);
+}
+
+.channel-strip__clip--on {
+  background: var(--crimson);
+  box-shadow: 0 0 5px var(--crimson);
+}
+
+/* Master: the final output channel. Pinned to the right edge of the scrolling mixer
+   (margin-left:auto parks it there when the tracks don't fill the width), on a raised surface
+   with an active border so it reads as different from the track strips. Its LED meter stands in
+   for the fader. */
+.channel-strip--master {
+  position: sticky;
+  right: 0;
+  margin-left: auto;
+  z-index: 1;
+  background: var(--surface-2);
+  border-color: var(--border-active);
+}
+
+.channel-strip--master .channel-strip__name {
+  color: var(--cyan);
+  letter-spacing: 0.08em;
+}
+
+.channel-strip--clipping .channel-strip__name {
+  color: var(--crimson);
+}
+
+.channel-strip__limiter {
+  color: var(--text-dim);
+  font-size: var(--text-micro);
+  letter-spacing: 0.08em;
+}
+
+.meter {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  width: 26px;
+  height: 100px;
+}
+
+.meter-led {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--surface-empty);
+}
+
+.meter-led--lit {
+  background: var(--emerald);
+}
+
+.meter-led--red {
+  background: color-mix(in srgb, var(--crimson) 25%, var(--surface-empty));
+}
+
+.meter-led--red.meter-led--lit {
+  background: var(--crimson);
+  box-shadow: 0 0 5px var(--crimson);
+}
+
 .channel-strip__volume-track {
   display: flex;
   align-items: center;

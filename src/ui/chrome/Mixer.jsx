@@ -1,3 +1,6 @@
+import { useRef } from "react";
+import { METER_LED_DB } from "webdsp";
+import { useMixerMeters } from "../useMixerMeters.js";
 import { useStore } from "../../state/useStore.js";
 import * as events from "../../state/events.js";
 import { rangeFillStyle } from "../rangeFill.js";
@@ -28,6 +31,11 @@ function ChannelStrip({ store, fxController, trackIndex }) {
   return (
     <div className="channel-strip">
       <span className="channel-strip__name">{name}</span>
+      <span
+        className="channel-strip__clip"
+        data-clip-track={trackIndex}
+        title="Lights red when this track clips (peaks at 0 dBFS or above)"
+      />
       <div className="channel-strip__volume-track">
         <input
           className="channel-strip__volume range-lg"
@@ -73,16 +81,39 @@ function ChannelStrip({ store, fxController, trackIndex }) {
   );
 }
 
+// The final output channel: pinned to the right edge while the tracks scroll, carrying the one
+// detailed level meter (a column of LEDs, the top few red). The meter shows the mix level
+// *feeding* webdsp's master limiter, so red means the limiter is working. Updated straight from
+// the engine's peak stream by useMixerMeters (no React state); see webdsp docs/master-limiter.md.
+function MasterStrip() {
+  return (
+    <div className="channel-strip channel-strip--master" data-master-strip>
+      <span className="channel-strip__name">MASTER</span>
+      <div className="meter" role="img" aria-label="Master level">
+        {/* Highest LED first, so the danger region sits on top like a level meter. */}
+        {METER_LED_DB.map((db, i) => (
+          <span key={db} className="meter-led" data-meter-led title={`${db} dBFS`} style={{ order: METER_LED_DB.length - i }} />
+        ))}
+      </div>
+      <span className="channel-strip__limiter">LIMITER</span>
+    </div>
+  );
+}
+
 // A compact horizontal row of per-track channel strips, placed below the tracker grid (see
-// App.jsx). Same store wiring as the old TrackHeaders — only the layout/markup changed.
+// App.jsx), ending in the Master strip. Same store wiring as the old TrackHeaders — only the
+// layout/markup changed.
 export default function Mixer({ store, fxController }) {
   const { trackCount } = store.getState().song;
+  const rootRef = useRef(null);
+  useMixerMeters(rootRef);
 
   return (
-    <div className="mixer">
+    <div className="mixer" ref={rootRef}>
       {Array.from({ length: trackCount }, (_, i) => (
         <ChannelStrip key={i} store={store} fxController={fxController} trackIndex={i} />
       ))}
+      <MasterStrip />
     </div>
   );
 }

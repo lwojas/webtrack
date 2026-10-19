@@ -5,11 +5,13 @@ import { defaultWorkletUrl } from "webdsp/worklet-url";
 // on first call — callers (playbackController.play(), a file-load handler) must call this
 // from inside a user gesture handler, since resume() requires one.
 let runtimePromise = null;
+let runtimeInstance = null;
 
 export function initRuntime() {
   if (!runtimePromise) {
     runtimePromise = AudioRuntime.create({ workletModuleUrl: defaultWorkletUrl }).then(async (runtime) => {
       await runtime.resume();
+      runtimeInstance = runtime;
       return runtime;
     }).catch((error) => {
       runtimePromise = null; // allow a retry from the next gesture
@@ -17,6 +19,17 @@ export function initRuntime() {
     });
   }
   return runtimePromise;
+}
+
+// Synchronous, non-throwing, never starts audio: the runtime once initRuntime() has resolved,
+// else null. For UI that only wants to observe the engine (level meters) when it is running.
+export function peekRuntime() {
+  return runtimeInstance;
+}
+
+// The track -> bus array ensureTrackBuses() has built so far (empty before audio starts).
+export function peekTrackBusIds() {
+  return trackBusIds ?? [];
 }
 
 export function getRuntime() {
