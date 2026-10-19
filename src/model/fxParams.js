@@ -90,6 +90,12 @@ export const FX_PARAMS = [
   { id: "crush.downsample", nodeParam: "CrushDownsample", type: "bitcrusher", group: "Bitcrusher", label: "Downsample", min: 1, max: 64, default: 1, step: 1, unit: "" },
   { id: "crush.mix", nodeParam: "CrushMix", type: "bitcrusher", group: "Bitcrusher", label: "Mix", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
 
+  // Utility: a bare gain stage (webdsp EffectKind.Utility). The automatable track volume: unity is
+  // 0 dB, the bottom of the range is silence. Smoothed by the engine, so step automation does not
+  // click. The mixer's bus.gain stays the track's plain mix state; put a Utility first in the chain
+  // for "track -> Utility -> other FX" and automate its gain from cell FX.
+  { id: "utility.gain", nodeParam: "UtilityGain", type: "utility", group: "Utility", label: "Gain", min: -60, max: 12, default: 0, step: 0.1, unit: "dB" },
+
   // Not one of the toggleable FX nodes below — the bus's own always-present output stage
   // (see FX_TYPES' doc comment), so it has no `type` and is exempt from chain-gating wherever
   // that's checked (model/mutations.js#setCellFxParam, ui/chrome/NoteEditor.jsx).
@@ -117,6 +123,7 @@ export const FX_TYPES = [
   { id: "chorus", label: "Chorus/Flanger" },
   { id: "phaser", label: "Phaser" },
   { id: "bitcrusher", label: "Bitcrusher" },
+  { id: "utility", label: "Utility" },
 ];
 
 export function getFxParam(id) {

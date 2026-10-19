@@ -21,6 +21,11 @@ export function createEmptyEvent() {
     // from this map is left wherever it last was — never reset (see audio/compile.js#
     // compileRowFx). Distinct from the older effectCommand/effectParam single-slot tracker
     // command above, which this doesn't replace.
+    // Two further optional keys, both sparse like the above: `instruments: { [slotIndex]: {
+    // [paramId]: value } }` automates an instrument slot's controls (named explicitly: instruments
+    // are global, not bound to the track — model/cellAutomation.js), and `glide: { [key]: true }`
+    // marks entries that ramp to the next value of the same parameter on this track instead of
+    // stepping. model/cellAutomation.js describes the key scheme and reads all of it uniformly.
     fx: null,
   };
 }
@@ -30,9 +35,10 @@ export function createEmptyEvent() {
 // collapse a map back down to this as its last key is removed.
 function isEmptyFx(fx) {
   if (!fx) return true;
-  const keys = Object.keys(fx).filter((key) => key !== "instances");
-  const hasInstanceValues = fx.instances && Object.values(fx.instances).some((bag) => Object.keys(bag).length > 0);
-  return keys.length === 0 && !hasInstanceValues;
+  // `glide` only qualifies an existing value, so it never makes a cell non-empty on its own.
+  const keys = Object.keys(fx).filter((key) => key !== "instances" && key !== "instruments" && key !== "glide");
+  const hasBag = (bags) => bags && Object.values(bags).some((bag) => Object.keys(bag).length > 0);
+  return keys.length === 0 && !hasBag(fx.instances) && !hasBag(fx.instruments);
 }
 
 export function isEmptyEvent(event) {
@@ -57,8 +63,10 @@ export function isEmptyEvent(event) {
 // bag needs its own copy too, not just the outer fx object and the shared `instances` container.
 export function cloneEvent(event) {
   if (!event.fx) return { ...event, fx: null };
-  const instances = event.fx.instances
-    ? Object.fromEntries(Object.entries(event.fx.instances).map(([id, bag]) => [id, { ...bag }]))
-    : undefined;
-  return { ...event, fx: { ...event.fx, ...(instances ? { instances } : {}) } };
+  const cloneBags = (bags) => Object.fromEntries(Object.entries(bags).map(([id, bag]) => [id, { ...bag }]));
+  const extra = {};
+  if (event.fx.instances) extra.instances = cloneBags(event.fx.instances);
+  if (event.fx.instruments) extra.instruments = cloneBags(event.fx.instruments);
+  if (event.fx.glide) extra.glide = { ...event.fx.glide };
+  return { ...event, fx: { ...event.fx, ...extra } };
 }

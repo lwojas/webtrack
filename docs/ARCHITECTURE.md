@@ -341,7 +341,7 @@ kind (two Filters, say) can coexist, each with its own id, state, and parameters
 catalog of FX kinds the DSP merely knows how to provide (`FX_PARAMS`/`FX_TYPES`, which now also
 include Phaser and Bitcrusher). A tracker cell can hold sparse FX automation (`Event.fx`) that
 latches onto one specific instance on its own track's bus during playback, never the master bus.
-See [`docs/FX.md`](FX.md) for the full design: the parameter/type catalogs (`model/fxParams.js`),
+See [`docs/FX.md`](FX.md) for the full design (and [`docs/AUTOMATION.md`](AUTOMATION.md) for cell automation, which now also reaches instruments and is scheduled on the audio clock): the parameter/type catalogs (`model/fxParams.js`),
 the `webdsp`-bridging module (`audio/fx.js`), the `fxChain`/`fx`/`masterFxChain`/`masterFx`/
 `Event.fx` per-instance data model, real per-instance enable/disable (bypass), playback
 semantics, the FX panel's stacking/reordering UI, and a known timing caveat (`setNodeParameter`/

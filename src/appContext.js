@@ -23,6 +23,7 @@ import {
   setTrackPan,
   setMasterPan,
   resyncAllFxChains,
+  syncFxInstanceLfos,
   isFxInstanceBypassed,
 } from "./audio/fx.js";
 import { loadSample } from "./audio/instrumentLoader.js";
@@ -181,6 +182,16 @@ export function createAppContext() {
     if (newIndex !== -1) moveMasterFxInstance(instanceId, newIndex);
   }
 
+  // FX LFOs (the MODULATION section of an FX module in ui/chrome/FxPanel.jsx): update the chain
+  // entry in the model, then push that instance's LFO slots to the live engine effect.
+  // `trackIndex` null = the master chain.
+  function applyFxLfoChange(trackIndex, instanceId, change) {
+    change();
+    const chain = trackIndex === null ? store.getState().song.masterFxChain : store.getState().song.trackChannels[trackIndex]?.fxChain;
+    const entry = chain?.find((e) => e.id === instanceId);
+    if (entry) syncFxInstanceLfos(trackIndex, entry);
+  }
+
   // Track/master bus pan (ui/chrome/Mixer.jsx's ChannelStrip for a track; the FX panel's pinned
   // Output module, right alongside bus.gain, for the master — model/trackChannel.js#pan's own
   // doc comment explains why MASTER_BUS's pan lives there instead of a dedicated mixer strip).
@@ -218,6 +229,10 @@ export function createAppContext() {
     moveMasterFx: applyMoveMasterFx,
     setTrackPan: applyTrackPan,
     setMasterPan: applyMasterPan,
+    // trackIndex null = the master chain.
+    addFxLfo: (trackIndex, instanceId, paramId) => applyFxLfoChange(trackIndex, instanceId, () => store.addFxLfo(trackIndex, instanceId, paramId)),
+    setFxLfo: (trackIndex, instanceId, lfoIndex, patch) => applyFxLfoChange(trackIndex, instanceId, () => store.setFxLfo(trackIndex, instanceId, lfoIndex, patch)),
+    removeFxLfo: (trackIndex, instanceId, lfoIndex) => applyFxLfoChange(trackIndex, instanceId, () => store.removeFxLfo(trackIndex, instanceId, lfoIndex)),
   };
 
   // Instrument gain (ui/chrome/InstrumentPanel.jsx's editor): updates the model, then pushes

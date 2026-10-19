@@ -1,8 +1,12 @@
 import { initRuntime, ensureTrackBuses, getRuntime } from "./runtime.js";
 import { createLookaheadPlayer } from "./lookaheadPlayer.js";
 import { createResampleController } from "./resampleController.js";
-import { compileRow, compileRowFx } from "./compile.js";
-import { setTrackFxParam, setTrackFxInstanceParam, isFxInstanceBypassed } from "./fx.js";
+import { compileRow, compileRowFx, compileRowAutomation } from "./compile.js";
+import { setTrackFxParam, setTrackFxInstanceParam, getTrackEffectId, resolveNodeParam } from "./fx.js";
+import { resolveInstrumentParam, setSynthInstrumentParam } from "./instrument.js";
+import { resolveEnvelopeParam, setInstrumentEnvelope } from "./instrumentEnvelope.js";
+import { createAutomationScheduler } from "./automation.js";
+import { fxKey, getBaseValue, instKey } from "../model/cellAutomation.js";
 import { voiceTracker } from "./voiceTracker.js";
 import { STEPS_PER_BEAT } from "../model/timing.js";
 import { getPatternQueueEntries } from "../model/query.js";
@@ -29,6 +33,29 @@ export function createPlaybackController({
   onTrackFxChange,
 }) {
   let player = null;
+  // Cell automation of FX instances and instrument slots (audio/automation.js): scheduled on the
+  // audio clock as base-value writes, restored to the model's authored values on stop.
+  let trackBusIdsForAutomation = [];
+  const automation = createAutomationScheduler(
+    () => runtimeForAutomation,
+    () => ({
+      trackBusIds: trackBusIdsForAutomation,
+      instruments: getInstruments(),
+      effectId: getTrackEffectId,
+      nodeParam: resolveNodeParam,
+      instrumentParam: resolveInstrumentParam,
+      sampleParam: resolveEnvelopeParam,
+    }),
+    {
+      fx: (trackIndex, instanceId, paramId, value) => setTrackFxInstanceParam(trackIndex, instanceId, paramId, value),
+      instrument: (slot, paramId, value) => {
+        const instrument = getInstruments()[slot];
+        if (instrument?.output?.type === "instrument" && instrument.output.kind) setSynthInstrumentParam(instrument, instrument.output.kind, paramId, value);
+        else if (instrument?.sampleId != null) setInstrumentEnvelope(instrument.sampleId, { [paramId]: value });
+      },
+    },
+  );
+  let runtimeForAutomation = null;
   // Lazily created alongside player, in play() below, for the same reason: both need the
   // resolved runtime object, which only exists once initRuntime() has resolved.
   let resampleController = null;
@@ -66,32 +93,30 @@ export function createPlaybackController({
     // tweak. Both end up sharing the exact same array either way (audio/runtime.js's own
     // module-level cache), so a track's bus id is never allocated twice.
     const trackBusIds = await ensureTrackBuses(getSong().trackCount);
+    runtimeForAutomation = runtime;
+    trackBusIdsForAutomation = trackBusIds;
     if (!player) {
       player = createLookaheadPlayer({
         runtime,
         compileRow,
         compileRowFx,
+        compileRowAutomation,
         trackBusIds,
         getStepDurationSeconds,
         getSwing,
         onPatternSwitched: () => onPatternSwitchPending?.(false),
         getNextQueueEntry: (currentIndex) => resolveQueueEntry(currentIndex + 1),
-        // A cell can only ever hold automation for an instance already in the track's chain
-        // (model/mutations.js#setCellFxInstanceParam's own validation), but that instance may be
-        // bypassed — same rule applyTrackFxInstanceParam (appContext.js) applies to the FX
-        // panel's own sliders: the model still latches the value (via onTrackFxChange below, so
-        // the panel shows it live) but the engine stays disabled on that instance until
-        // un-bypassed. instanceId === null is the one flat, non-chain entry (bus.gain —
-        // audio/compile.js#compileRowFx's own doc comment), which is never bypassed.
+        // bus.gain is the one cell FX entry with no scheduled form (webdsp's scheduleParams does
+        // not cover bus parameters), so it still latches at the tick: engine call plus the model
+        // update that keeps the FX panel's output slider in step. Every other entry (FX instance
+        // parameters, instrument parameters) goes through onAutomation below instead: scheduled on
+        // the audio clock, never written into the model while playing.
         onTrackFxChange: (trackIndex, instanceId, paramId, value) => {
-          if (instanceId === null) {
-            setTrackFxParam(trackIndex, paramId, value);
-          } else {
-            const fxChain = getTrackChannels()[trackIndex]?.fxChain ?? [];
-            if (!isFxInstanceBypassed(fxChain, instanceId)) setTrackFxInstanceParam(trackIndex, instanceId, paramId, value);
-          }
+          if (instanceId !== null) return;
+          setTrackFxParam(trackIndex, paramId, value);
           onTrackFxChange?.(trackIndex, instanceId, paramId, value);
         },
+        onAutomation: (items, time) => automation.schedule(items, time),
         onStepScheduled: (stepTime, stepDuration) => resampleController?.onStepScheduled(stepTime, stepDuration),
       });
     }
@@ -111,6 +136,15 @@ export function createPlaybackController({
   function stop() {
     resampleController?.cancel("Resample cancelled: playback stopped.");
     player?.stop();
+    // After player.stop() (which cancels what is still queued in the engine): put every parameter
+    // automation moved back to its authored value. A direct write also ends any ramp still running.
+    const instruments = getInstruments();
+    automation.restoreBase((item) => {
+      const channel = getTrackChannels()[item.trackIndex];
+      return item.kind === "fx"
+        ? getBaseValue(fxKey(item.instanceId, item.paramId), channel, instruments)
+        : getBaseValue(instKey(item.slot, item.paramId), channel, instruments);
+    });
     onTransportChange?.({ playing: false });
   }
 

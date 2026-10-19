@@ -33,6 +33,7 @@ export function createLookaheadPlayer({
   runtime,
   compileRow,
   compileRowFx = () => [],
+  compileRowAutomation = () => [],
   trackBusIds,
   getStepDurationSeconds,
   // Global sequencer swing (model/timing.js#swingDelaySeconds) — a pure scheduling-time
@@ -44,6 +45,11 @@ export function createLookaheadPlayer({
   onPatternSwitched,
   getNextQueueEntry,
   onTrackFxChange,
+  // Cell automation of FX instances and instrument slots (audio/compile.js#compileRowAutomation),
+  // handed over once per step together with that step's (swung) audio time, to be scheduled on the
+  // audio clock. When supplied, onTrackFxChange below only sees the bus.gain entry (which has no
+  // scheduled form); without it, every FX entry still goes through onTrackFxChange as before.
+  onAutomation,
   // Reports each step's own unswung grid time/duration, once per step, right before that
   // step's notes are compiled — audio/resampleController.js's onStepScheduled is what actually
   // uses this (see its own doc comment for why the *grid* time, not the swing-delayed
@@ -192,7 +198,13 @@ export function createLookaheadPlayer({
       // keep it at.
       if (onTrackFxChange) {
         const fxChanges = compileRowFx(pattern, patternRelativeStep);
-        fxChanges.forEach(({ trackIndex, instanceId, paramId, value }) => onTrackFxChange(trackIndex, instanceId, paramId, value));
+        fxChanges
+          .filter(({ instanceId }) => !onAutomation || instanceId === null)
+          .forEach(({ trackIndex, instanceId, paramId, value }) => onTrackFxChange(trackIndex, instanceId, paramId, value));
+      }
+      if (onAutomation) {
+        const automation = compileRowAutomation(pattern, patternRelativeStep, duration);
+        if (automation.length > 0) onAutomation(automation, scheduledTime);
       }
 
       stepCounter += 1;

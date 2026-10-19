@@ -1,5 +1,10 @@
 # FX: track/master buses, stacked FX instances, and cell automation
 
+> Cell automation has grown beyond FX (instrument parameters, ramps, scheduling on the audio clock, an
+> editor) and is described in [`AUTOMATION.md`](AUTOMATION.md); where this document says cell FX are
+> applied at the ~25 ms tick and latched into the model, that now holds only for `bus.gain`. FX
+> instances also have LFOs and there is a Utility kind (nine kinds now).
+
 How webtracker's FX panel, cell-level automation, and `webdsp`'s bus/DSP-chain engine fit
 together. Read [`ARCHITECTURE.md`](ARCHITECTURE.md) first if you haven't — this assumes you
 know the module map and the Song/Event data model.
@@ -261,6 +266,10 @@ engine call (`audio/fx.js#setTrackFxParam` when `instanceId === null`, else
 `setTrackFxInstanceParam`) and, via `appContext.js`, the model update
 (`store.setTrackFxParam`/`setTrackFxInstanceParam`) that keeps the FX panel showing the right
 value live, if it happens to be open on that track while it's playing.
+
+**Superseded for FX instances and instruments** (see `AUTOMATION.md`): they are scheduled on the audio
+clock with webdsp's `scheduleParams` and never written into the model while playing. What follows
+still describes `bus.gain`.
 
 **Timing caveat**: `setNodeParameter`/`setEffectParameter` have no timestamp of their own —
 unlike `schedule()`'s sample-accurate `ScheduledEvent.time`, they're just an immediate

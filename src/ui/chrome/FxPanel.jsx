@@ -1,4 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import LfoEditor from "./LfoEditor.jsx";
+import ModBadge from "./ModBadge.jsx";
+import { automatedKeys, fxKey } from "../../model/cellAutomation.js";
+import { getFxModulationOptions } from "../../audio/fx.js";
+import { MAX_INSTRUMENT_LFOS } from "../../model/instrumentLfos.js";
 import { useStore } from "../../state/useStore.js";
 import * as events from "../../state/events.js";
 import { FX_TYPES, getFxType, getFxParam, getFxParamsForType, getFxInstanceLabel, formatFxValue, isFxBooleanOn } from "../../model/fxParams.js";
@@ -32,12 +37,13 @@ function FxBooleanField({ param, value, onChange }) {
   );
 }
 
-function FxParamField({ param, value, onChange }) {
+function FxParamField({ param, value, onChange, automated = false, lfos = 0 }) {
   if (param.kind === "boolean") return <FxBooleanField param={param} value={value} onChange={onChange} />;
   return (
     <label className="fx-module__field">
       <span className="fx-module__field-label" title={param.label}>
         {param.label}
+        <ModBadge automated={automated} lfos={lfos} />
       </span>
       <input
         type="range"
@@ -50,6 +56,52 @@ function FxParamField({ param, value, onChange }) {
       />
       <span className="fx-module__value">{formatFxValue(value, param)}</span>
     </label>
+  );
+}
+
+// The MODULATION section of one FX module: the instance's own stackable LFOs (webdsp's per-effect
+// LFO bank — the same bank, and the same LfoEditor, a synth's modulation slot uses). The option
+// lists and the modulatable parameters come from the engine; a kind with none shows nothing.
+// `lfoTrackIndex` is the track index, or null for the master chain.
+function FxModulation({ entry, lfoTrackIndex, fxController }) {
+  const [options, setOptions] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    setOptions(null);
+    getFxModulationOptions(entry.type)
+      .then((o) => !cancelled && setOptions(o))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [entry.type]);
+  if (!options || options.targets.length === 0) return null;
+  const lfos = entry.lfos ?? [];
+  const labelFor = (id) => getFxParam(id)?.label ?? id;
+  const preferred = options.targets.find((t) => /cutoff|mix|gain/.test(t)) ?? options.targets[0];
+  return (
+    <div className="fx-module__modulation">
+      <div className="note-editor__section">MODULATION</div>
+      {lfos.map((lfo, i) => (
+        <LfoEditor
+          key={i}
+          lfo={lfo}
+          lfoIndex={i}
+          options={options}
+          labelFor={labelFor}
+          onChange={(patch) => fxController.setFxLfo(lfoTrackIndex, entry.id, i, patch)}
+          onRemove={() => fxController.removeFxLfo(lfoTrackIndex, entry.id, i)}
+        />
+      ))}
+      <button
+        type="button"
+        className="fx-panel__target-btn"
+        disabled={lfos.length >= Math.min(options.maxLfos, MAX_INSTRUMENT_LFOS)}
+        onClick={() => fxController.addFxLfo(lfoTrackIndex, entry.id, preferred)}
+      >
+        + ADD LFO
+      </button>
+    </div>
   );
 }
 
@@ -85,6 +137,10 @@ export default function FxPanel({ store, fxController }) {
   });
   useStore(store, events.MASTER_FX_CHANGED, (s) => JSON.stringify([s.song.masterFx, s.song.masterFxChain, s.song.masterPan]));
   useStore(store, events.TRACK_CHANNEL_CHANGED, (s) => s.song.trackChannels[trackIndex]?.pan);
+
+  // Parameters of this track's instances that cells automate (track view only: a cell cannot reach
+  // the master bus), as a primitive fingerprint so the panel re-renders when it changes.
+  const automatedFx = useStore(store, events.CELL_CHANGED, (s) => (target === "track" ? [...automatedKeys(s.song, trackIndex)].filter((k) => k.startsWith("fx:")).sort().join(",") : "")).split(",");
 
   const song = store.getState().song;
   const fxBag = target === "track" ? (song.trackChannels[trackIndex]?.fx ?? { instances: {} }) : song.masterFx;
@@ -208,8 +264,11 @@ export default function FxPanel({ store, fxController }) {
                   param={param}
                   value={instanceValues[param.id] ?? param.default}
                   onChange={(value) => handleInstanceChange(entry.id, param.id, value)}
+                  automated={automatedFx.includes(fxKey(entry.id, param.id))}
+                  lfos={(entry.lfos ?? []).filter((l) => l.target === param.id).length}
                 />
               ))}
+              <FxModulation entry={entry} lfoTrackIndex={target === "track" ? trackIndex : null} fxController={fxController} />
             </div>
           );
         })}

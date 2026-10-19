@@ -3,7 +3,16 @@ import { useStore } from "../../state/useStore.js";
 import * as events from "../../state/events.js";
 import { getSelectedPattern } from "../../model/query.js";
 import { EFFECT_COMMANDS } from "../../model/effects.js";
-import { FX_PARAMS, getFxParam, getFxInstanceLabel, formatFxValue } from "../../model/fxParams.js";
+import { FX_PARAMS, getFxInstanceLabel, formatFxValue } from "../../model/fxParams.js";
+import {
+  BUS_GAIN_KEY,
+  fxKey,
+  getAutomationParam,
+  getBaseValue,
+  getInstrumentAutomationParams,
+  instKey,
+  listCellEntries,
+} from "../../model/cellAutomation.js";
 import { formatBarBeat } from "../../model/timing.js";
 import { noteNumberToName, parseNoteName, toHex } from "../../model/notes.js";
 import { rangeFillStyle } from "../rangeFill.js";
@@ -148,6 +157,8 @@ export default function NoteEditor({ store }) {
   // Keeps CELL FX's "+ ADD FX" list in sync if the current track's enabled FX change (the FX
   // panel) while this cell is open, not just on a cursor/cell-content change.
   useStore(store, events.TRACK_FX_CHANGED, (s) => JSON.stringify(s.song.trackChannels[cursor.trackIndex]?.fxChain ?? []));
+  // ...and the instrument list (names, kinds, which slots make sound) feeds the instrument entries.
+  useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments.map((i) => `${i.name}|${i.output?.type}|${i.output?.kind}|${i.sampleId != null}`).join(";"));
 
   const state = store.getState();
   const pattern = getSelectedPattern(state.song);
@@ -183,69 +194,58 @@ export default function NoteEditor({ store }) {
     setField("effectCommand", id === "" ? null : id);
   }
 
-  // Cell FX automation (model/event.js#fx) — a sparse subset of FX_PARAMS, shared with
-  // ui/chrome/FxPanel.jsx so a given parameter edits with the exact same range/step/formatting
-  // wherever it shows up, not two independently-maintained descriptions of "delay.mix". Only
-  // ever shows params belonging to an *instance* this track actually has in its chain
-  // (model/trackChannel.js#fxChain) and marked cellAutomatable (model/fxParams.js) — never the
-  // complete FX_PARAMS catalog. bus.gain (type null, instanceId null) is exempt: it's always on,
-  // not part of any chain. model/mutations.js#setCellFxInstanceParam enforces the same rule at
-  // the write layer, so the cellFxEntries filter below is only ever a no-op defensive guard in
-  // steady state (it'd only matter for data from an instance since removed without going
-  // through that path).
-  //
-  // Each entry is `{ instanceId, paramId, value }` — instanceId === null is the one flat
-  // bus.gain entry; every other entry addresses one specific stacked instance (two Filters on
-  // this track show up as two separately removable/addable entries, "Filter #1 — Cutoff" and
-  // "Filter #2 — Cutoff"), never ambiguous about which one.
-  const trackFxChain = state.song.trackChannels[cursor.trackIndex]?.fxChain ?? [];
-  const cellFxEntries = [
-    ...(event.fx && "bus.gain" in event.fx ? [{ instanceId: null, paramId: "bus.gain", value: event.fx["bus.gain"] }] : []),
-    ...Object.entries(event.fx?.instances ?? {}).flatMap(([instanceId, bag]) =>
-      Object.entries(bag).map(([paramId, value]) => ({ instanceId: Number(instanceId), paramId, value })),
-    ),
-  ].filter(({ instanceId }) => instanceId === null || trackFxChain.some((entry) => entry.id === instanceId));
+  // Cell automation (model/event.js#fx, read uniformly by model/cellAutomation.js): the sparse
+  // parameter values this cell sets, whatever they target — the track bus's output gain, one
+  // stacked FX instance's parameter ("Filter #2 — Cutoff"), or one instrument slot's parameter
+  // ("00 Bass — Cutoff"; instruments are global, so the slot is named explicitly). Parameters
+  // render from the same catalogs as the FX and instrument panels, so a parameter edits with the
+  // exact same range/step/formatting wherever it shows up. A cell can only automate something that
+  // exists (model/mutations.js#setCellAutomation refuses the rest); entries whose target has since
+  // gone are simply not listed.
+  const channel = state.song.trackChannels[cursor.trackIndex];
+  const trackFxChain = channel?.fxChain ?? [];
+  const instruments = state.instruments;
+  const cellEntries = listCellEntries(event)
+    .map((entry) => ({ ...entry, param: getAutomationParam(entry.key, channel, instruments) }))
+    .filter((entry) => entry.param);
 
-  // "+ ADD FX" offers bus.gain (if not already set) plus one option per (instance, param) pair
-  // for every instance actually in this track's chain, skipping params already automated on
-  // this cell and ones marked cellAutomatable: false.
-  const availableFxOptions = [
-    ...(cellFxEntries.some((e) => e.paramId === "bus.gain")
-      ? []
-      : [{ key: "bus.gain", instanceId: null, paramId: "bus.gain", label: "Output — Bus Gain" }]),
+  // "+ ADD" offers the bus gain, each parameter of each FX instance in this track's chain, and the
+  // parameters of every instrument slot that makes sound, skipping what this cell already sets.
+  const taken = new Set(cellEntries.map((e) => e.key));
+  const availableOptions = [
+    { key: BUS_GAIN_KEY, label: "Output — Bus Gain" },
     ...trackFxChain.flatMap((entry) =>
-      FX_PARAMS.filter((param) => param.type === entry.type && param.cellAutomatable !== false)
-        .filter((param) => !cellFxEntries.some((e) => e.instanceId === entry.id && e.paramId === param.id))
-        .map((param) => ({
-          key: `${entry.id}:${param.id}`,
-          instanceId: entry.id,
-          paramId: param.id,
-          label: `${getFxInstanceLabel(trackFxChain, entry.id)} — ${param.label}`,
-        })),
+      FX_PARAMS.filter((param) => param.type === entry.type && param.cellAutomatable !== false).map((param) => ({
+        key: fxKey(entry.id, param.id),
+        label: `${getFxInstanceLabel(trackFxChain, entry.id)} — ${param.label}`,
+      })),
     ),
-  ];
+    ...instruments.flatMap((instrument, slot) =>
+      instrument.output?.type !== "instrument" && instrument.sampleId == null
+        ? []
+        : getInstrumentAutomationParams(instrument).map((param) => ({
+            key: instKey(slot, param.id),
+            label: `${toHex(slot)} ${instrument.name} — ${param.label}`,
+          })),
+    ),
+  ].filter((option) => !taken.has(option.key));
 
-  function handleCellFxChange(instanceId, paramId, value) {
-    if (instanceId === null) store.setCellFx(cursor.trackIndex, cursor.rowIndex, paramId, value);
-    else store.setCellFxInstanceParam(cursor.trackIndex, cursor.rowIndex, instanceId, paramId, value);
+  function entryLabel(entry) {
+    if (entry.kind === "bus") return entry.param.label;
+    if (entry.kind === "fx") return `${getFxInstanceLabel(trackFxChain, entry.instanceId)} — ${entry.param.label}`;
+    return `${toHex(entry.slot)} ${instruments[entry.slot]?.name ?? ""} — ${entry.param.label}`;
   }
 
-  function handleCellFxRemove(instanceId, paramId) {
-    handleCellFxChange(instanceId, paramId, null);
+  function formatEntryValue(entry) {
+    return entry.kind === "inst" ? `${Number(entry.value).toFixed(entry.param.step >= 1 ? 0 : entry.param.step >= 0.1 ? 1 : 3)}${entry.param.unit ?? ""}` : formatFxValue(entry.value, entry.param);
   }
 
-  function handleAddCellFx(optionKey) {
-    const option = availableFxOptions.find((o) => o.key === optionKey);
-    if (!option) return;
-    const param = getFxParam(option.paramId);
-    // Seeds at this instance's current value for this param, not the catalog default — this FX
-    // is already enabled and (very likely) already parked somewhere other than its neutral
-    // value, so a freshly-added cell entry should start as a no-op continuation of that, not a
-    // jump back to default the moment this row plays.
-    const channel = state.song.trackChannels[cursor.trackIndex];
-    const current =
-      option.instanceId === null ? (channel?.fx?.["bus.gain"] ?? param?.default ?? 0) : (channel?.fx?.instances?.[option.instanceId]?.[option.paramId] ?? param?.default ?? 0);
-    handleCellFxChange(option.instanceId, option.paramId, current);
+  function handleAddCellAutomation(optionKey) {
+    if (!optionKey) return;
+    // Seeds at the parameter's current base value (not its catalog default): adding an entry is a
+    // no-op continuation of what is already playing, not a jump the moment this row plays.
+    const base = getBaseValue(optionKey, channel, instruments);
+    if (base !== null) store.setCellAutomation(cursor.trackIndex, cursor.rowIndex, optionKey, base);
   }
 
   return (
@@ -325,44 +325,58 @@ export default function NoteEditor({ store }) {
         <HexField value={event.effectParam} max={255} onCommit={(value) => setField("effectParam", value)} />
       </label>
 
-      <div className="note-editor__section">CELL FX</div>
+      <div className="note-editor__section">CELL AUTOMATION</div>
 
-      {cellFxEntries.map(({ instanceId, paramId, value }) => {
-        const param = getFxParam(paramId);
-        if (!param) return null;
-        const label = instanceId === null ? param.label : `${getFxInstanceLabel(trackFxChain, instanceId)} — ${param.label}`;
-        return (
-          <label className="note-editor__field note-editor__field--fx" key={`${instanceId}:${paramId}`}>
-            {label}
+      {cellEntries.map((entry) => (
+        <div className="note-editor__field note-editor__field--fx" key={entry.key}>
+          <label className="note-editor__fx-label">
+            {entryLabel(entry)}
             <input
               type="range"
-              min={param.min}
-              max={param.max}
-              step={param.step}
-              value={value}
-              onChange={(e) => handleCellFxChange(instanceId, paramId, Number(e.target.value))}
-              style={rangeFillStyle(value, param.min, param.max)}
+              min={entry.param.min}
+              max={entry.param.max}
+              step={entry.param.step}
+              value={entry.value}
+              onChange={(e) => store.setCellAutomation(cursor.trackIndex, cursor.rowIndex, entry.key, Number(e.target.value))}
+              style={rangeFillStyle(entry.value, entry.param.min, entry.param.max)}
             />
-            <span className="note-editor__fx-value">{formatFxValue(value, param)}</span>
-            <button type="button" className="note-editor__fx-remove" onClick={() => handleCellFxRemove(instanceId, paramId)} title="Remove">
-              ×
-            </button>
           </label>
-        );
-      })}
+          <span className="note-editor__fx-value">{formatEntryValue(entry)}</span>
+          {entry.kind !== "bus" && (
+            <button
+              type="button"
+              className={`note-editor__fx-remove${entry.glide ? " note-editor__fx-remove--on" : ""}`}
+              onClick={() => store.setCellAutomation(cursor.trackIndex, cursor.rowIndex, entry.key, entry.value, { glide: !entry.glide })}
+              title={entry.glide ? "Ramps to the next value of this parameter on this track (click for a step)" : "Steps (click to ramp to the next value of this parameter on this track)"}
+              aria-pressed={entry.glide}
+            >
+              ~
+            </button>
+          )}
+          <button type="button" className="note-editor__fx-remove" onClick={() => store.setAutomationEditor(true, entry.key)} title="Open this lane in the automation editor">
+            ▤
+          </button>
+          <button type="button" className="note-editor__fx-remove" onClick={() => store.setCellAutomation(cursor.trackIndex, cursor.rowIndex, entry.key, null)} title="Remove">
+            ×
+          </button>
+        </div>
+      ))}
 
-      {availableFxOptions.length > 0 && (
-        <label className="note-editor__field">
-          + ADD FX
-          <select value="" onChange={(e) => handleAddCellFx(e.target.value)}>
-            <option value="">(select)</option>
-            {availableFxOptions.map((option) => (
-              <option key={option.key} value={option.key}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        </label>
+      <label className="note-editor__field">
+        + ADD
+        <select value="" onChange={(e) => handleAddCellAutomation(e.target.value)}>
+          <option value="">(select)</option>
+          {availableOptions.map((option) => (
+            <option key={option.key} value={option.key}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      {availableOptions.length + cellEntries.length > 0 && (
+        <button type="button" className="fx-panel__target-btn" onClick={() => store.setAutomationEditor(true, cellEntries[0]?.key ?? null)} title="Draw this track's automation across its loop">
+          AUTOMATION EDITOR
+        </button>
       )}
     </div>
   );

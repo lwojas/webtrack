@@ -3,6 +3,7 @@ import TrackerGridHost from "./ui/grid/TrackerGridHost.jsx";
 import TransportBar from "./ui/chrome/TransportBar.jsx";
 import MixerFxPanel from "./ui/chrome/MixerFxPanel.jsx";
 import ChopEditor from "./ui/chrome/ChopEditor.jsx";
+import AutomationEditor from "./ui/chrome/AutomationEditor.jsx";
 import InstrumentPanel from "./ui/chrome/InstrumentPanel.jsx";
 import NoteEditor from "./ui/chrome/NoteEditor.jsx";
 import SelectionToolbar from "./ui/chrome/SelectionToolbar.jsx";
@@ -172,6 +173,7 @@ export default function App() {
             {/* Sits in the same flex column as the grid, so opening it shrinks the grid host
                 (which scrolls) instead of overlaying it; renders nothing while closed. */}
             <ChopEditor store={store} instrumentController={instrumentController} />
+            <AutomationEditor store={store} />
             <MixerFxPanel store={store} fxController={fxController} />
           </div>
           <div className="app__side">

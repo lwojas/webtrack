@@ -2,6 +2,7 @@
 // shape — no AudioRuntime calls in this file, so it's testable with plain assertions (see
 // ECS-156 plan §6).
 import { trackLocalStep } from "../model/pattern.js";
+import { listCellEntries, nextPoint } from "../model/cellAutomation.js";
 import { isSustainedSynthKind } from "../model/instrumentParams.js";
 import { effectiveVelocity } from "./trackLfo.js";
 
@@ -200,7 +201,7 @@ export function compileRowFx(pattern, transportStep) {
     if (!event?.fx) return;
 
     for (const paramId in event.fx) {
-      if (paramId === "instances") continue;
+      if (paramId === "instances" || paramId === "instruments" || paramId === "glide") continue;
       changes.push({ trackIndex, instanceId: null, paramId, value: event.fx[paramId] });
     }
     for (const instanceId in event.fx.instances ?? {}) {
@@ -212,4 +213,40 @@ export function compileRowFx(pattern, transportStep) {
   });
 
   return changes;
+}
+
+// Cell automation of FX instances and instrument slots at a row, as parameter writes to schedule on
+// the audio clock (webdsp scheduleParams): one descriptor per entry of whichever cell each track is
+// on, folded through the same trackLocalStep as everything else. The (swung) time of the row is the
+// caller's; this only says *what*:
+//
+//   { trackIndex, kind: "fx" | "inst", instanceId | slot, paramId, value }              a step
+//   { ..., from, value, ramp }                                                          a glide
+//
+// A glide entry ramps (seconds, from its own value) to the next value of the same parameter on this
+// track, found inside the track's own loop with no wrap: after the last point of a loop it simply
+// holds. The next cell's own entry steps to its value at the ramp's end, so the two agree.
+// bus.gain is not here: it has no scheduled form and stays on compileRowFx's immediate path.
+// Like compileRowFx, deliberately not gated by mute/solo.
+export function compileRowAutomation(pattern, transportStep, stepDuration = 0) {
+  const out = [];
+  pattern.tracks.forEach((track, trackIndex) => {
+    const local = trackLocalStep(track, transportStep);
+    for (const entry of listCellEntries(track.events[local])) {
+      if (entry.kind === "bus") continue;
+      const item = { trackIndex, kind: entry.kind, paramId: entry.paramId, value: entry.value };
+      if (entry.kind === "fx") item.instanceId = entry.instanceId;
+      else item.slot = entry.slot;
+      if (entry.glide) {
+        const next = nextPoint(track, local, entry.key);
+        if (next && stepDuration > 0) {
+          item.from = entry.value;
+          item.value = next.value;
+          item.ramp = (next.row - local) * stepDuration;
+        }
+      }
+      out.push(item);
+    }
+  });
+  return out;
 }

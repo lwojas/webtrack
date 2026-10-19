@@ -4,7 +4,7 @@ A browser-based music tracker built on [`webdsp`](https://github.com/lwojas/webd
 JavaScript (no TypeScript), React for the app chrome, hand-rolled DOM rendering for the dense
 pattern grid. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for how it's built,
 [`docs/EXTENDING.md`](docs/EXTENDING.md) for how to add to it,
-[`docs/FX.md`](docs/FX.md) for the track/master FX buses and cell automation, and
+[`docs/FX.md`](docs/FX.md) for the track/master FX buses, [`docs/AUTOMATION.md`](docs/AUTOMATION.md) for cell automation, LFOs and the automation editor, and
 [`docs/MIDI.md`](docs/MIDI.md) for MIDI I/O and the Ableton Push Mk1 controller integration.
 
 ## Quick start
@@ -105,10 +105,11 @@ position (`1.1`, `1.2`, ...) rather than a raw row number — labeled on each be
 
 Shows the properties of whichever note is currently selected that don't fit in the compact
 grid: **length** (steps the note holds for — blank/"auto" means hold until the next note),
-**pan**, the **effect** command + parameter, and **CELL FX** — sparse FX automation (see
-[`docs/FX.md`](docs/FX.md)): pick a parameter from the "+ ADD FX" dropdown to set its value at
-this cell; it holds from here until the next cell that sets the same parameter, or the end of
-playback. Shows a placeholder when the selected cell has no note, since editing those
+**pan**, the **effect** command + parameter, and **CELL AUTOMATION** — sparse parameter automation
+for the track's bus gain, its FX instances and the instrument slots (see
+[`docs/AUTOMATION.md`](docs/AUTOMATION.md)): pick a parameter from the "+ ADD" dropdown to set its
+value at this cell; it holds from here until the next cell that sets the same parameter, or ramps to
+it with glide. The automation editor draws a whole lane across the track's loop. Shows a placeholder when the selected cell has no note, since editing those
 properties on an empty cell is meaningless.
 
 **Piano key layout** (mirrors a keyboard's black/white keys, two octaves):

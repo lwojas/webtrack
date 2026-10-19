@@ -19,11 +19,18 @@
 import { MASTER_BUS, NodeParam, EffectKind } from "webdsp";
 import { initRuntime, ensureTrackBuses } from "./runtime.js";
 import { FX_PARAMS, getFxParamsForType } from "../model/fxParams.js";
+import { planLfoUpdates } from "./instrumentLfo.js";
 
 const NODE_PARAM_BY_ID = new Map(FX_PARAMS.map((param) => [param.id, NodeParam[param.nodeParam]]));
 
 export function resolveNodeParam(paramId) {
   return NODE_PARAM_BY_ID.get(paramId);
+}
+
+// The live EffectId of one track's chain instance (this session's own mapping), or undefined if
+// the instance has no engine-side effect (yet). Synchronous: cell automation needs it per step.
+export function getTrackEffectId(trackIndex, instanceId) {
+  return trackEffectIds[trackIndex]?.get(instanceId);
 }
 
 const EFFECT_KIND_BY_TYPE = {
@@ -35,6 +42,7 @@ const EFFECT_KIND_BY_TYPE = {
   saturation: EffectKind.Saturation,
   phaser: EffectKind.Phaser,
   bitcrusher: EffectKind.Bitcrusher,
+  utility: EffectKind.Utility,
 };
 
 // This session's own instanceId -> webdsp EffectId mapping, one Map per bus — never persisted
@@ -56,6 +64,60 @@ async function resolveBusId(target, trackIndex) {
   if (target === "master") return MASTER_BUS;
   const busIds = await ensureTrackBuses(trackIndex + 1);
   return busIds[trackIndex];
+}
+
+// --- LFO modulation (webdsp's per-effect LFO bank; docs/modulation.md) ---
+// Model LFOs (model/instrumentLfos.js shape, on the chain entry) target catalog param ids
+// ("filter.cutoff"); the engine's targets are NodeParam ids, so a catalog id is a valid target
+// when its NodeParam is in the kind's engine-reported modulation targets. Which are valid is
+// therefore asked of the engine (never listed here), and planLfoUpdates validates every slot.
+
+// What the engine offers for an FX `type`: waveform/division names, the LFO count, and the
+// modulatable catalog param ids. Null if the engine has no FX modulation (an older webdsp).
+export function fxModulationOptions(runtime, type) {
+  const kind = EFFECT_KIND_BY_TYPE[type];
+  if (kind === undefined || !runtime.getModulationInfo || !runtime.getEffectModulationTargets) return null;
+  const info = runtime.getModulationInfo();
+  const engineTargets = new Set(runtime.getEffectModulationTargets(kind).map((p) => p.id));
+  return {
+    maxLfos: info.maxLfos,
+    waveforms: info.waveforms,
+    divisions: info.divisions.map((d) => d.name),
+    targets: getFxParamsForType(type)
+      .filter((p) => engineTargets.has(NODE_PARAM_BY_ID.get(p.id)))
+      .map((p) => p.id),
+  };
+}
+
+export async function getFxModulationOptions(type) {
+  return fxModulationOptions(await initRuntime(), type);
+}
+
+// Last signature pushed per live engine effect and LFO slot ("bus:effect" -> string[]), so an
+// unchanged slot is never resent. Dropped when the instance goes away or the chain is resynced.
+const fxLfoSent = new Map();
+
+function applyFxLfos(runtime, busId, effectId, entry) {
+  const options = fxModulationOptions(runtime, entry.type);
+  if (!options) return;
+  const key = `${busId}:${effectId}`;
+  let sent = fxLfoSent.get(key);
+  if (!sent) fxLfoSent.set(key, (sent = []));
+  for (const op of planLfoUpdates(entry.lfos, options, resolveNodeParam, sent)) {
+    if (op.clear) runtime.clearEffectLfo(busId, effectId, op.slot);
+    else runtime.setEffectLfo(busId, effectId, op.slot, op.settings);
+  }
+}
+
+// appContext.js's fxController, after any LFO edit of a chain entry in the model: pushes that
+// instance's LFO slots. `trackIndex` null = the master chain. A no-op without a live instance.
+export async function syncFxInstanceLfos(trackIndex, entry) {
+  const target = trackIndex === null ? "master" : "track";
+  const runtime = await initRuntime();
+  const busId = await resolveBusId(target, trackIndex);
+  const effectId = effectIdMapFor(target, trackIndex).get(entry.id);
+  if (effectId === undefined) return;
+  applyFxLfos(runtime, busId, effectId, entry);
 }
 
 function pushInstanceValues(runtime, busId, effectId, type, values) {
@@ -137,6 +199,7 @@ export async function removeTrackFxInstance(trackIndex, instanceId) {
   const effectId = idMap.get(instanceId);
   if (effectId === undefined) return;
   runtime.removeEffect(busId, effectId);
+  fxLfoSent.delete(`${busId}:${effectId}`);
   idMap.delete(instanceId);
 }
 
@@ -146,6 +209,7 @@ export async function removeMasterFxInstance(instanceId) {
   const effectId = idMap.get(instanceId);
   if (effectId === undefined) return;
   runtime.removeEffect(MASTER_BUS, effectId);
+  fxLfoSent.delete(`${MASTER_BUS}:${effectId}`);
   idMap.delete(instanceId);
 }
 
@@ -213,11 +277,15 @@ async function resyncFxChain(target, trackIndex, fxChain, fxBag) {
   const busId = await resolveBusId(target, trackIndex);
   const idMap = effectIdMapFor(target, trackIndex);
   idMap.clear();
-  for (const info of runtime.getEffectChain(busId)) runtime.removeEffect(busId, info.id);
+  for (const info of runtime.getEffectChain(busId)) {
+    runtime.removeEffect(busId, info.id);
+    fxLfoSent.delete(`${busId}:${info.id}`);
+  }
   fxChain.forEach((entry, index) => {
     const effectId = runtime.addEffect(busId, EFFECT_KIND_BY_TYPE[entry.type], { index, enabled: !entry.bypassed });
     idMap.set(entry.id, effectId);
     pushInstanceValues(runtime, busId, effectId, entry.type, fxBag.instances?.[entry.id] ?? {});
+    applyFxLfos(runtime, busId, effectId, entry);
   });
 }
 

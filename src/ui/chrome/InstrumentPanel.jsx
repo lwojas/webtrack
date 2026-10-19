@@ -1,17 +1,13 @@
+import LfoEditor from "./LfoEditor.jsx";
+import ModBadge from "./ModBadge.jsx";
+import { automatedKeys, instKey } from "../../model/cellAutomation.js";
 import { useEffect, useState } from "react";
 import { useStore } from "../../state/useStore.js";
 import * as events from "../../state/events.js";
 import { loadSample } from "../../audio/instrumentLoader.js";
 import { initRuntime } from "../../audio/runtime.js";
 import { getModulationOptions } from "../../audio/instrument.js";
-import {
-  LFO_WAVEFORM_LABELS,
-  LFO_RATE_STEPS,
-  MAX_INSTRUMENT_LFOS,
-  formatLfoRate,
-  rateToSlider,
-  sliderToRate,
-} from "../../model/instrumentLfos.js";
+import { MAX_INSTRUMENT_LFOS } from "../../model/instrumentLfos.js";
 import { toHex } from "../../model/notes.js";
 import { ENVELOPE_PARAMS, formatEnvelopeValue } from "../../model/envelopeParams.js";
 import { SYNTH_KINDS, getSynthParams, formatSynthParamValue, synthParamControl } from "../../model/instrumentParams.js";
@@ -104,95 +100,21 @@ function InstrumentSlotRow({ store, instrumentController, index }) {
 const MIDI_CHANNEL_MIN = 0;
 const MIDI_CHANNEL_MAX = 15;
 
-// One LFO of the modulation slot. Primitive selector (the LFO serialised) because the model
+// One LFO of the synth's modulation slot. Primitive selector (the LFO serialised) because the model
 // replaces the lfos array on every edit but selectors must return primitives (Gotcha #1).
 function LfoRow({ store, instrumentController, index, lfoIndex, options, labelFor }) {
   const json = useStore(store, events.INSTRUMENTS_CHANGED, (s) => JSON.stringify(s.instruments[index]?.instrumentLfos?.[lfoIndex] ?? null));
   const lfo = JSON.parse(json);
   if (!lfo) return null;
-  const set = (patch) => instrumentController.setLfo(index, lfoIndex, patch);
-  const targetKnown = options.targets.includes(lfo.target);
   return (
-    <div className="lfo-row">
-      <div className="lfo-row__head">
-        <span>LFO {lfoIndex + 1}</span>
-        <button type="button" className="fx-panel__target-btn" onClick={() => instrumentController.removeLfo(index, lfoIndex)}>
-          REMOVE
-        </button>
-      </div>
-      <div className="fx-panel__target">
-        {options.waveforms.map((w) => (
-          <button
-            type="button"
-            key={w}
-            className={`fx-panel__target-btn${lfo.waveform === w ? " fx-panel__target-btn--active" : ""}`}
-            onClick={() => set({ waveform: w })}
-          >
-            {LFO_WAVEFORM_LABELS[w] ?? w.toUpperCase()}
-          </button>
-        ))}
-      </div>
-      <div className="fx-panel__target">
-        <button type="button" className={`fx-panel__target-btn${lfo.sync ? "" : " fx-panel__target-btn--active"}`} onClick={() => set({ sync: false })}>
-          FREE
-        </button>
-        <button type="button" className={`fx-panel__target-btn${lfo.sync ? " fx-panel__target-btn--active" : ""}`} onClick={() => set({ sync: true })}>
-          BPM
-        </button>
-      </div>
-      {lfo.sync ? (
-        <label className="fx-module__field">
-          <span className="fx-module__field-label">Division</span>
-          <select value={options.divisions.includes(lfo.division) ? lfo.division : ""} onChange={(e) => set({ division: e.target.value })}>
-            {options.divisions.map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </select>
-          <span className="fx-module__value" />
-        </label>
-      ) : (
-        <label className="fx-module__field">
-          <span className="fx-module__field-label">Rate</span>
-          <input
-            type="range"
-            min={0}
-            max={LFO_RATE_STEPS}
-            step={1}
-            value={rateToSlider(lfo.rateHz)}
-            onChange={(e) => set({ rateHz: sliderToRate(Number(e.target.value)) })}
-            style={rangeFillStyle(rateToSlider(lfo.rateHz), 0, LFO_RATE_STEPS)}
-          />
-          <span className="fx-module__value">{formatLfoRate(lfo.rateHz)}</span>
-        </label>
-      )}
-      <label className="fx-module__field">
-        <span className="fx-module__field-label">Amount</span>
-        <input
-          type="range"
-          min={-100}
-          max={100}
-          step={1}
-          value={Math.round(lfo.amount * 100)}
-          onChange={(e) => set({ amount: Number(e.target.value) / 100 })}
-          style={rangeFillStyle(Math.round(lfo.amount * 100), -100, 100)}
-        />
-        <span className="fx-module__value">{Math.round(lfo.amount * 100)}%</span>
-      </label>
-      <label className="fx-module__field">
-        <span className="fx-module__field-label">Target</span>
-        <select value={lfo.target} onChange={(e) => set({ target: e.target.value })}>
-          {!targetKnown && <option value={lfo.target}>{labelFor(lfo.target)} (n/a)</option>}
-          {options.targets.map((t) => (
-            <option key={t} value={t}>
-              {labelFor(t)}
-            </option>
-          ))}
-        </select>
-        <span className="fx-module__value" />
-      </label>
-    </div>
+    <LfoEditor
+      lfo={lfo}
+      lfoIndex={lfoIndex}
+      options={options}
+      labelFor={labelFor}
+      onChange={(patch) => instrumentController.setLfo(index, lfoIndex, patch)}
+      onRemove={() => instrumentController.removeLfo(index, lfoIndex)}
+    />
   );
 }
 
@@ -239,6 +161,13 @@ function InstrumentEditor({ store, instrumentController }) {
   const exists = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index] != null);
   const hasSample = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.sampleId != null);
   const gain = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.gain ?? 1);
+  // Which of this slot's parameters are moved by cells (anywhere in the song) or by LFOs, for the
+  // markers beside their names. Primitive selectors (sorted, joined), per the in-place gotcha.
+  const automatedParams = useStore(store, events.CELL_CHANGED, (s) =>
+    [...automatedKeys(s.song)].filter((k) => k.startsWith(`inst:${index}:`)).map((k) => k.slice(`inst:${index}:`.length)).sort().join(","),
+  ).split(",");
+  const lfoTargets = useStore(store, events.INSTRUMENTS_CHANGED, (s) => (s.instruments[index]?.instrumentLfos ?? []).map((l) => l.target).join(","));
+  const lfoCountFor = (id) => (lfoTargets ? lfoTargets.split(",").filter((t) => t === id).length : 0);
   const outputType = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.output?.type ?? "sample");
   const outputChannel = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.output?.channel ?? null);
   const outputKind = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.output?.kind ?? null);
@@ -445,6 +374,7 @@ function InstrumentEditor({ store, instrumentController }) {
               <label className="fx-module__field" key={param.id}>
                 <span className="fx-module__field-label" title={param.label}>
                   {param.label}
+                  <ModBadge automated={automatedParams.includes(param.id)} lfos={lfoCountFor(param.id)} />
                 </span>
                 <input
                   type="range"
@@ -521,6 +451,7 @@ function InstrumentEditor({ store, instrumentController }) {
               <label className="fx-module__field" key={param.id}>
                 <span className="fx-module__field-label" title={param.label}>
                   {param.label}
+                  <ModBadge automated={automatedParams.includes(param.id)} lfos={0} />
                 </span>
                 <input
                   type="range"

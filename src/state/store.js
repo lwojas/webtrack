@@ -25,6 +25,12 @@ import {
   removeMasterFx as removeMasterFxModel,
   setMasterFxBypass as setMasterFxBypassModel,
   moveMasterFx as moveMasterFxModel,
+  setCellAutomation as setCellAutomationModel,
+  replaceTrackAutomationRange as replaceTrackAutomationRangeModel,
+  purgeInstrumentAutomation,
+  addFxLfo as addFxLfoModel,
+  setFxLfo as setFxLfoModel,
+  removeFxLfo as removeFxLfoModel,
   setPatternRowCount,
   setTrackLength as setTrackLengthModel,
   setSongName,
@@ -93,6 +99,9 @@ export function createStore({ song, instruments }) {
     // Whether the chop editor panel (ui/chrome/ChopEditor.jsx) is open for the selected instrument.
     // Session-only like the cursor — never persisted.
     chopEditorOpen: false,
+    // The automation editor: `key` is the lane being edited (model/cellAutomation.js's key scheme),
+    // null = the panel is open with no lane picked. The track is always the cursor's.
+    automationEditor: { open: false, key: null },
     playing: false,
     patternSwitchPending: false,
     // audio/resampleController.js's own status, mirrored here purely for the UI (see
@@ -334,6 +343,26 @@ export function createStore({ song, instruments }) {
     emitter.emit(events.CELL_CHANGED, { trackIndex, rowIndex });
   }
 
+  // One automation entry of a cell, whatever it targets (model/cellAutomation.js's key scheme:
+  // bus gain, an FX instance's parameter, an instrument slot's parameter) — value === null
+  // removes it. `opts.glide` marks it as a ramp to the track's next value of the same parameter.
+  // The automation editor and the note editor both write through this.
+  function setCellAutomation(trackIndex, rowIndex, key, value, opts) {
+    const { selectedPatternId } = state.song;
+    const ref = { patternId: selectedPatternId, trackIndex, rowIndex };
+    if (setCellAutomationModel(state.song, state.instruments, ref, key, value, opts)) {
+      emitter.emit(events.CELL_CHANGED, { trackIndex, rowIndex });
+    }
+  }
+
+  // Replaces one lane's points in rows [fromRow, toRow] of a track (an automation template, or a
+  // whole-lane operation such as Clear) in one model step; a CELL_CHANGED per changed row.
+  function replaceAutomationRange(trackIndex, key, fromRow, toRow, points) {
+    const { selectedPatternId } = state.song;
+    const rows = replaceTrackAutomationRangeModel(state.song, state.instruments, { patternId: selectedPatternId, trackIndex }, key, fromRow, toRow, points);
+    for (const rowIndex of rows) emitter.emit(events.CELL_CHANGED, { trackIndex, rowIndex });
+  }
+
   // Stacking-aware counterpart to setCellFx above, for one specific chain instance's parameter
   // (model/event.js#fx's `instances[instanceId]` bag) — unambiguously automates e.g. the second
   // of two Filters on this track.
@@ -401,6 +430,22 @@ export function createStore({ song, instruments }) {
   function moveTrackFx(trackIndex, instanceId, direction) {
     moveTrackFxModel(state.song, trackIndex, instanceId, direction);
     emitter.emit(events.TRACK_FX_CHANGED, { trackIndex, instanceId });
+  }
+
+  // FX LFOs (the modulation section of an FX module): `trackIndex` null = the master chain. The
+  // chain-changed events double as the FX panel's refresh (it fingerprints fxChain, lfos included).
+  function emitFxChanged(trackIndex, instanceId) {
+    if (trackIndex === null) emitter.emit(events.MASTER_FX_CHANGED, { instanceId });
+    else emitter.emit(events.TRACK_FX_CHANGED, { trackIndex, instanceId });
+  }
+  function addFxLfo(trackIndex, instanceId, paramId) {
+    if (addFxLfoModel(state.song, trackIndex, instanceId, paramId)) emitFxChanged(trackIndex, instanceId);
+  }
+  function setFxLfo(trackIndex, instanceId, lfoIndex, patch) {
+    if (setFxLfoModel(state.song, trackIndex, instanceId, lfoIndex, patch)) emitFxChanged(trackIndex, instanceId);
+  }
+  function removeFxLfo(trackIndex, instanceId, lfoIndex) {
+    if (removeFxLfoModel(state.song, trackIndex, instanceId, lfoIndex)) emitFxChanged(trackIndex, instanceId);
   }
 
   // Master-bus equivalents (model/song.js#masterFxChain) — the FX panel's MASTER view.
@@ -645,6 +690,11 @@ export function createStore({ song, instruments }) {
     emitter.emit(events.INSTRUMENTS_CHANGED, { index });
   }
 
+  function setAutomationEditor(open, key = null) {
+    state.automationEditor = { open: Boolean(open), key: open ? key : null };
+    emitter.emit(events.AUTOMATION_EDITOR_CHANGED);
+  }
+
   function setChopEditorOpen(open) {
     state.chopEditorOpen = Boolean(open);
     emitter.emit(events.CHOP_EDITOR_CHANGED);
@@ -667,6 +717,7 @@ export function createStore({ song, instruments }) {
     const instrument = state.instruments[index];
     if (!instrument) return;
     const previousKind = instrument.output?.type === "instrument" ? instrument.output.kind : null;
+    const previousOutputType = instrument.output?.type;
     const kindChanged = output.type === "instrument" && output.kind !== instrument.output?.kind;
     instrument.output = output;
     if (output.type === "instrument" && output.kind && (kindChanged || !instrument.instrumentParams)) {
@@ -674,6 +725,10 @@ export function createStore({ song, instruments }) {
     }
     // LFO targets belong to the kind's own controls, so a different kind starts with none.
     if (kindChanged) instrument.instrumentLfos = [];
+    // Cell automation names this slot's own controls, so a different kind, or a switch between
+    // synth / sample / MIDI, leaves none of it valid.
+    const typeChanged = output.type !== previousOutputType;
+    if (kindChanged || typeChanged) purgeInstrumentAutomation(state.song, index);
     // A kind whose own tune sits far from C-4 (the Bass: A-1) brings its own root note, so
     // event.note - rootNote lands on its real pitch. Switching from such a kind to one without
     // a root restores the default, rather than leaving a bass root on a kick.
@@ -804,11 +859,17 @@ export function createStore({ song, instruments }) {
     fillSelection,
     duplicateSelection,
     setCellFx,
+    setCellAutomation,
+    replaceAutomationRange,
+    setAutomationEditor,
     setCellFxInstanceParam,
     setTrackFxParam,
     setMasterFxParam,
     setTrackFxInstanceParam,
     setMasterFxInstanceParam,
+    addFxLfo,
+    setFxLfo,
+    removeFxLfo,
     addTrackFx,
     removeTrackFx,
     setTrackFxBypass,

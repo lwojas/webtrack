@@ -73,7 +73,7 @@ const PARAM_ENUM_CACHE = Object.fromEntries(
   ]),
 );
 
-function resolveInstrumentParam(kind, paramId) {
+export function resolveInstrumentParam(kind, paramId) {
   return PARAM_ENUM_CACHE[kind]?.get(paramId);
 }
 

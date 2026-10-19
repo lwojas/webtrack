@@ -1386,6 +1386,15 @@ input[type="range"].range-lg {
   gap: var(--space-xs);
 }
 
+/* The label wraps the entry's name and its slider (see NoteEditor.jsx's CELL AUTOMATION rows). */
+.note-editor__fx-label {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: var(--space-xs);
+  min-width: 0;
+}
+
 .note-editor__field--fx input[type="range"] {
   flex: 1;
   width: auto;
@@ -1466,6 +1475,19 @@ input[type="range"].range-lg {
 .note-editor__fx-remove:hover {
   color: var(--crimson);
   border-color: var(--crimson);
+}
+
+/* The ramp (glide) toggle: lit while this entry ramps to the next value instead of stepping. */
+.note-editor__fx-remove--on {
+  color: var(--amber);
+  border-color: var(--amber);
+}
+
+@media (pointer: coarse) {
+  .note-editor__fx-remove {
+    width: 26px;
+    height: 26px;
+  }
 }
 
 /* --- pattern manager: deliberately simple pool + queue view (see
@@ -2123,4 +2145,175 @@ input[type="range"].range-lg {
     min-width: 6ch;
     padding: var(--space-md);
   }
+}
+
+/* --- Automation editor (ui/chrome/AutomationEditor.jsx): one lane of the cursor's track across that
+   track's own loop, in the tracker column under the grid like the chop editor. Fixed height, no
+   animation. Points are wide hit areas around a small marker so they stay grabbable by touch;
+   the lane scrolls on its own when the track is too long to fit at a tappable row width. --- */
+.automation-editor {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+}
+
+.automation-editor__bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.automation-editor__title,
+.automation-editor__label {
+  color: var(--text-dim);
+  font-size: var(--text-micro);
+  letter-spacing: 0.08em;
+}
+
+.automation-editor__title {
+  margin-right: var(--space-md);
+}
+
+.automation-editor__lane {
+  min-width: 12ch;
+  max-width: 28ch;
+  background: var(--surface-3);
+  border: 1px solid var(--border-active);
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-label);
+  padding: var(--space-xs) var(--space-sm);
+}
+
+.automation-editor__length {
+  color: var(--cyan);
+  font-size: var(--text-label);
+}
+
+.automation-editor__close {
+  margin-left: auto;
+}
+
+.automation-editor__readout {
+  margin-left: auto;
+  color: var(--cyan);
+  font-size: var(--text-label);
+}
+
+.automation-editor__scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.automation-editor__lane-canvas {
+  position: relative;
+  cursor: crosshair;
+  touch-action: manipulation;
+  user-select: none;
+}
+
+.automation-editor__tick {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 1px solid var(--border);
+  pointer-events: none;
+}
+
+.automation-editor__tick--bar {
+  border-left-color: var(--border-active);
+}
+
+.automation-editor__tick span {
+  position: absolute;
+  top: 2px;
+  left: 3px;
+  color: var(--text-dim);
+  font-size: var(--text-micro);
+}
+
+.automation-editor__curve {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.automation-editor__curve polyline {
+  stroke: var(--cyan);
+  stroke-width: 1.5;
+  opacity: 0.7;
+}
+
+.automation-editor__point {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  margin-left: -10px;
+  margin-top: -10px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.automation-editor__point::before {
+  content: "";
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  width: 8px;
+  height: 8px;
+  background: var(--amber);
+}
+
+.automation-editor__point--ramp::before {
+  border-radius: 50%;
+}
+
+.automation-editor__point--selected::before,
+.automation-editor__point:focus-visible::before {
+  background: var(--crimson);
+}
+
+.automation-editor__point:focus {
+  outline: none;
+}
+
+.automation-editor__hint {
+  color: var(--text-dim);
+  font-size: var(--text-micro);
+}
+
+@media (pointer: coarse) {
+  .automation-editor__lane-canvas {
+    height: 148px !important;
+  }
+
+  .automation-editor__point {
+    width: 32px;
+    height: 32px;
+    margin-left: -16px;
+    margin-top: -16px;
+  }
+
+  .automation-editor__point::before {
+    left: 12px;
+    top: 12px;
+  }
+}
+
+/* Beside a parameter's name: A = automated from cells, L = LFO(s) (ui/chrome/ModBadge.jsx). */
+.mod-badge {
+  margin-left: var(--space-xs);
+  padding: 0 3px;
+  background: var(--amber);
+  color: var(--surface);
+  font-size: var(--text-micro);
+  font-weight: 700;
+  letter-spacing: 0.04em;
 }

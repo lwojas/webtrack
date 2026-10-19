@@ -5,6 +5,8 @@ import { createEmptyEvent, cloneEvent } from "./event.js";
 import { createPattern } from "./pattern.js";
 import { getEvent, getPattern, getTrackChannel } from "./query.js";
 import { getFxParamsForType } from "./fxParams.js";
+import { MAX_INSTRUMENT_LFOS, createLfo, patchLfo } from "./instrumentLfos.js";
+import { BUS_GAIN_KEY, fxKey, getAutomationParam, parseKey } from "./cellAutomation.js";
 import { VOICE_MODES } from "./trackChannel.js";
 import { eventLfoOf, normalizeParticipation, patchEventLfo } from "./eventLfo.js";
 
@@ -119,13 +121,41 @@ export function setMasterFxInstanceParam(song, instanceId, paramId, value) {
   (bag[instanceId] ??= {})[paramId] = value;
 }
 
+// Prunes what a removal can leave behind in a cell's fx map: empty bags, glide flags whose value is
+// gone, and the whole map once nothing is left (`fx: null`, never `{}` — createEmptyEvent /
+// isEmptyEvent). Safe to call after any edit.
+function normalizeFx(event) {
+  const fx = event.fx;
+  if (!fx) return;
+  for (const scope of ["instances", "instruments"]) {
+    if (!fx[scope]) continue;
+    for (const id in fx[scope]) if (Object.keys(fx[scope][id]).length === 0) delete fx[scope][id];
+    if (Object.keys(fx[scope]).length === 0) delete fx[scope];
+  }
+  if (fx.glide) {
+    for (const key in fx.glide) {
+      const t = parseKey(key);
+      const present =
+        t &&
+        (t.kind === "bus"
+          ? fx[BUS_GAIN_KEY] !== undefined
+          : t.kind === "fx"
+            ? fx.instances?.[t.instanceId]?.[t.paramId] !== undefined
+            : fx.instruments?.[t.slot]?.[t.paramId] !== undefined);
+      if (!present) delete fx.glide[key];
+    }
+    if (Object.keys(fx.glide).length === 0) delete fx.glide;
+  }
+  if (Object.keys(fx).length === 0) event.fx = null;
+}
+
 // Shared by setCellFxParam's own null-removal below and removeTrackFx's chain-removal purge
 // further down — deletes the flat "bus.gain" key from a cell's sparse fx map, collapsing back to
 // `fx: null` once the map is empty (never left as `{}` — see createEmptyEvent/isEmptyEvent).
 function removeFxEntry(event, paramId) {
   if (!event.fx || !(paramId in event.fx)) return;
   delete event.fx[paramId];
-  if (!event.fx.instances && Object.keys(event.fx).length === 0) event.fx = null;
+  normalizeFx(event);
 }
 
 // Stacking-aware counterpart to removeFxEntry above — deletes one param from one instance's bag
@@ -135,9 +165,7 @@ function removeCellFxInstanceEntry(event, instanceId, paramId) {
   const bag = event.fx?.instances?.[instanceId];
   if (!bag || !(paramId in bag)) return;
   delete bag[paramId];
-  if (Object.keys(bag).length === 0) delete event.fx.instances[instanceId];
-  if (Object.keys(event.fx.instances).length === 0) delete event.fx.instances;
-  if (Object.keys(event.fx).length === 0) event.fx = null;
+  normalizeFx(event);
 }
 
 // A cell's sparse FX automation for the always-on bus.gain param only (model/event.js#fx's flat
@@ -185,6 +213,83 @@ export function setCellFxInstanceParam(song, { patternId, trackIndex, rowIndex }
   event.fx.instances[instanceId][paramId] = value;
 }
 
+// One automation entry of a cell, whatever it targets (model/cellAutomation.js's key scheme):
+// "bus.gain", "fx:<instance>:<param>" or "inst:<slot>:<param>". `value` null/undefined removes the
+// entry (and its glide flag). A new value is refused if the target does not exist (an FX instance
+// not in this track's chain, an instrument slot or parameter that is not there) and is clamped to
+// the parameter's range. `glide` (true/false, when given) marks the entry as a ramp to the next
+// value of the same parameter on the track; it is dropped with the value.
+//
+// `instruments` is the song's instrument slots (state/store.js's `state.instruments`): instruments
+// are global, so the model needs them to validate an "inst:" key. Returns true if the cell changed.
+export function setCellAutomation(song, instruments, { patternId, trackIndex, rowIndex }, key, value, { glide } = {}) {
+  const event = getEvent(song, patternId, trackIndex, rowIndex);
+  const t = parseKey(key);
+  if (!event || !t) return false;
+
+  if (value === null || value === undefined) {
+    if (!event.fx) return false;
+    if (t.kind === "bus") delete event.fx[BUS_GAIN_KEY];
+    else if (t.kind === "fx") delete event.fx.instances?.[t.instanceId]?.[t.paramId];
+    else delete event.fx.instruments?.[t.slot]?.[t.paramId];
+    normalizeFx(event);
+    return true;
+  }
+
+  const channel = getTrackChannel(song, trackIndex);
+  const param = getAutomationParam(key, channel, instruments);
+  if (!param || !Number.isFinite(value)) return false;
+  const clamped = Math.min(param.max, Math.max(param.min, value));
+
+  event.fx ??= {};
+  if (t.kind === "bus") event.fx[BUS_GAIN_KEY] = clamped;
+  else if (t.kind === "fx") ((event.fx.instances ??= {})[t.instanceId] ??= {})[t.paramId] = clamped;
+  else ((event.fx.instruments ??= {})[t.slot] ??= {})[t.paramId] = clamped;
+  // Glide needs a scheduled ramp (webdsp scheduleParams), which bus gain does not have: it only steps.
+  if (glide === true && t.kind !== "bus") (event.fx.glide ??= {})[key] = true;
+  else if (glide === false && event.fx.glide) delete event.fx.glide[key];
+  normalizeFx(event);
+  return true;
+}
+
+// Replaces the points of one lane (a key) in rows [fromRow, toRow] of one track with `points`
+// ([{ row, value, glide? }]), leaving every other row and parameter alone: how an automation
+// template or a whole-lane edit lands. Out-of-range rows and refused values (see
+// setCellAutomation) are skipped. Returns the rows that changed, for the caller's change events.
+export function replaceTrackAutomationRange(song, instruments, { patternId, trackIndex }, key, fromRow, toRow, points) {
+  const pattern = getPattern(song, patternId);
+  const track = pattern?.tracks[trackIndex];
+  if (!track) return [];
+  const changed = [];
+  const lo = Math.max(0, Math.min(fromRow, toRow));
+  const hi = Math.min(track.events.length - 1, Math.max(fromRow, toRow));
+  for (let row = lo; row <= hi; row++) {
+    if (setCellAutomation(song, instruments, { patternId, trackIndex, rowIndex: row }, key, null)) changed.push(row);
+  }
+  for (const point of points) {
+    if (point.row < 0 || point.row >= track.events.length) continue;
+    if (setCellAutomation(song, instruments, { patternId, trackIndex, rowIndex: point.row }, key, point.value, { glide: Boolean(point.glide) })) {
+      if (!changed.includes(point.row)) changed.push(point.row);
+    }
+  }
+  return changed;
+}
+
+// Drops every cell's automation of one instrument slot, in every pattern and track. Called when
+// the slot stops being what the entries addressed (its synth kind changed, or it was switched
+// between synth, sample and MIDI), so a cell can never name a parameter the slot no longer has.
+export function purgeInstrumentAutomation(song, slotIndex) {
+  song.patterns.forEach((pattern) => {
+    pattern.tracks.forEach((track) => {
+      track.events.forEach((event) => {
+        if (!event.fx?.instruments?.[slotIndex]) return;
+        delete event.fx.instruments[slotIndex];
+        normalizeFx(event);
+      });
+    });
+  });
+}
+
 // Adds a new, independent instance of one FX_TYPES kind to a track's insert bus
 // (ui/chrome/FxPanel.jsx's "+ ADD FX") — unlike before webdsp's FX chains existed, this is never
 // a no-op for an already-present type: two Filters are two instances, each with its own id
@@ -222,9 +327,9 @@ export function removeTrackFx(song, trackIndex, instanceId) {
   song.patterns.forEach((pattern) => {
     pattern.tracks[trackIndex]?.events.forEach((event) => {
       if (event.fx?.instances?.[instanceId]) {
+        for (const paramId in event.fx.instances[instanceId]) delete event.fx.glide?.[fxKey(instanceId, paramId)];
         delete event.fx.instances[instanceId];
-        if (Object.keys(event.fx.instances).length === 0) delete event.fx.instances;
-        if (Object.keys(event.fx).length === 0) event.fx = null;
+        normalizeFx(event);
       }
     });
   });
@@ -266,6 +371,48 @@ export function addMasterFx(song, type) {
   for (const param of getFxParamsForType(type)) bag[param.id] = param.default;
   (song.masterFx.instances ??= {})[id] = bag;
   return id;
+}
+
+// --- FX LFOs (the stackable LFO bank every webdsp effect instance has — docs/modulation.md) ---
+// Stored on the chain entry (`entry.lfos`, absent = none), by the catalog's FX param ids
+// ("filter.cutoff"). The base value stays in fx.instances[id]; the engine plays base + LFOs. The
+// same LFO shape and clamping as a synth's (model/instrumentLfos.js). `trackIndex` null = master.
+function findFxEntry(song, trackIndex, instanceId) {
+  const chain = trackIndex === null ? song.masterFxChain : getTrackChannel(song, trackIndex)?.fxChain;
+  return chain?.find((entry) => entry.id === instanceId);
+}
+
+function withLfos(entry, lfos) {
+  if (lfos.length > 0) entry.lfos = lfos;
+  else delete entry.lfos;
+}
+
+// Adds an LFO aimed at `paramId` (must be a parameter of this instance's FX type). False if there
+// is no such instance/param or the bank is full.
+export function addFxLfo(song, trackIndex, instanceId, paramId) {
+  const entry = findFxEntry(song, trackIndex, instanceId);
+  if (!entry || !getFxParamsForType(entry.type).some((p) => p.id === paramId)) return false;
+  const lfos = entry.lfos ?? [];
+  if (lfos.length >= MAX_INSTRUMENT_LFOS) return false;
+  withLfos(entry, [...lfos, createLfo(paramId)]);
+  return true;
+}
+
+export function setFxLfo(song, trackIndex, instanceId, lfoIndex, patch) {
+  const entry = findFxEntry(song, trackIndex, instanceId);
+  const current = entry?.lfos?.[lfoIndex];
+  if (!current) return false;
+  const next = patchLfo(current, patch);
+  if (patch.target !== undefined && !getFxParamsForType(entry.type).some((p) => p.id === next.target)) next.target = current.target;
+  withLfos(entry, entry.lfos.map((l, i) => (i === lfoIndex ? next : l)));
+  return true;
+}
+
+export function removeFxLfo(song, trackIndex, instanceId, lfoIndex) {
+  const entry = findFxEntry(song, trackIndex, instanceId);
+  if (!entry?.lfos?.[lfoIndex]) return false;
+  withLfos(entry, entry.lfos.filter((_, i) => i !== lfoIndex));
+  return true;
 }
 
 export function removeMasterFx(song, instanceId) {
