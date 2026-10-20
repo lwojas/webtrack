@@ -31,7 +31,8 @@ export function createKeyboardNoteSource({ getOctave } = {}) {
     const octave = getOctave ? getOctave() : 4;
     const note = (octave + 1) * 12 + offset;
     activeKeys.set(key, note);
-    source.emitNoteOn({ note, velocity: 127 });
+    // Shift = "this exact semitone" when the project's scale Snap is on (editController.js).
+    source.emitNoteOn({ note, velocity: 127, chromatic: e.shiftKey });
   }
 
   function handleKeyUp(e) {

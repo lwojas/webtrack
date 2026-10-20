@@ -10,6 +10,8 @@ import { normalizeCues } from "../model/chop.js";
 import { arrayBufferToBase64, base64ToArrayBuffer } from "./base64.js";
 import { FX_TYPES, getFxParam } from "../model/fxParams.js";
 import { DEFAULT_MAX_VOICES } from "../model/trackChannel.js";
+import { normalizeScale } from "../model/scale.js";
+import { normalizeArp } from "../model/arp.js";
 
 export const PROJECT_FORMAT_VERSION = 2;
 
@@ -133,6 +135,17 @@ function ensureTrackLengths(song) {
 // every project already played before swing existed.
 function ensureSwingDefault(song) {
   if (typeof song.swing !== "number") song.swing = 0;
+}
+
+// song.scale / trackChannel.arp (model/scale.js, model/arp.js) are purely additive too: a project
+// saved before them gets the chromatic scale (every note in scale) and no arp, which is exactly
+// how it always played — nothing is rewritten. Present values are normalised (clamped, unknown
+// ids defaulted) so a hand-edited file can't carry an invalid scale/arp into playback.
+function ensureScaleAndArpDefaults(song) {
+  song.scale = normalizeScale(song.scale);
+  song.trackChannels.forEach((channel) => {
+    if (channel.arp !== undefined) channel.arp = normalizeArp(channel.arp);
+  });
 }
 
 function ensureVoiceDefaults(song) {
@@ -336,6 +349,7 @@ export async function deserializeProject(parsed, { loadSampleBytes, loadLocalAss
 
   ensureTrackLengths(parsed.song);
   ensureSwingDefault(parsed.song);
+  ensureScaleAndArpDefaults(parsed.song);
   ensureVoiceDefaults(parsed.song);
   ensurePanDefaults(parsed.song);
   ensureFxDefaults(parsed.song);

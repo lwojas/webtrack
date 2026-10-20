@@ -1,6 +1,7 @@
 import { getSelectedPattern } from "../model/query.js";
 import { triggerPreview } from "../audio/preview.js";
 import { isTypingTarget } from "./isTypingTarget.js";
+import { scaleOf, snapEnteredNote } from "../model/scale.js";
 
 // Hex-digit entry (instrument/velocity columns) and cursor navigation. Effect command/param
 // aren't part of this MVP's keyboard cursor flow — the fx column still displays and stores
@@ -125,8 +126,11 @@ export function createEditController({ store, noteSources }) {
   // Audition always plays, regardless of edit mode or which column the cursor is on —
   // writing into the model only happens when editing is on and the cursor is on the NOTE
   // column (ECS-156 plan §8).
-  function handleNoteOn({ note, velocity }) {
+  function handleNoteOn({ note: playedNote, velocity, chromatic }) {
     const { song, cursor, editMode, selectedInstrumentIndex, instruments } = store.getState();
+    // With the project's Snap on, a played note lands on the nearest scale note (heard and
+    // written alike); a source can ask for a chromatic one (Shift on the computer keyboard).
+    const note = snapEnteredNote(scaleOf(song), playedNote, { chromatic });
     const trackChannel = song.trackChannels[cursor.trackIndex];
     const previewEvent = {
       note,

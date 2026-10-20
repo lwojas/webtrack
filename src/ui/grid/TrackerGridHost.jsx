@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { createGridView } from "./gridView.js";
+import { scaleOf } from "../../model/scale.js";
 import { createPlayheadLayer } from "./playheadLayer.js";
 import { createCursorLayer } from "./cursorLayer.js";
 import { attachMutationCrossCheck } from "../../debug/renderStats.js";
@@ -154,6 +155,7 @@ export default function TrackerGridHost({ store, playbackController, renderStats
         onLengthChange: handleLengthChange,
         onVoiceModeChange: handleVoiceModeChange,
         onMaxVoicesChange: handleMaxVoicesChange,
+        getScale: () => scaleOf(store.getState().song),
       });
       gridView.mount(containerRef.current);
       renderStats?.setNodeCount(gridView.getNodeCount());
@@ -198,6 +200,7 @@ export default function TrackerGridHost({ store, playbackController, renderStats
       store.subscribe(events.PATTERN_LENGTH_CHANGED, handlePossibleResize),
       store.subscribe(events.TRACK_LENGTH_CHANGED, patchHeaderLength),
       store.subscribe(events.TRACK_CHANNEL_CHANGED, syncVoiceHeaders),
+      store.subscribe(events.SCALE_CHANGED, repaintActivePattern),
       store.subscribe(events.CURSOR_MOVED, updateCursor),
     ];
 

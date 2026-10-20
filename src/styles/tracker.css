@@ -2317,3 +2317,97 @@ input[type="range"].range-lg {
   font-weight: 700;
   letter-spacing: 0.04em;
 }
+
+/* Scale (ui/chrome/ScaleControl.jsx): a note outside the project's key stays editable but recedes. */
+.tracker-cell__note--out-of-scale {
+  color: var(--text-dim);
+  opacity: 0.7;
+}
+
+.scale-control {
+  gap: var(--space-sm);
+}
+
+.scale-control__select {
+  background: var(--surface-1);
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+}
+
+/* Arp module (ui/chrome/TrackPanel.jsx): wider than an FX module for the velocity step bars. */
+.fx-module--arp {
+  width: 430px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: var(--space-md);
+  row-gap: var(--space-xs);
+  align-content: start;
+}
+
+.fx-module--arp > .fx-module__header,
+.fx-module--arp > .arp-steps,
+.fx-module--arp > .arp-steps-tools {
+  grid-column: 1 / -1;
+}
+
+.arp-vel-modes {
+  grid-column: 2 / 4;
+  display: flex;
+  gap: var(--space-xs);
+}
+
+.arp-vel-modes__btn {
+  grid-column: auto;
+  flex: 1;
+  padding: var(--space-xs) var(--space-sm);
+}
+
+.arp-steps {
+  display: flex;
+  gap: 2px;
+  height: 28px;
+  touch-action: none;
+  user-select: none;
+  cursor: crosshair;
+}
+
+.arp-steps__bar {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.arp-steps__fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--cyan);
+  opacity: 0.75;
+}
+
+.arp-steps-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.arp-steps-tools select {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface-1);
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: var(--text-micro);
+}
+
+.arp-steps-tools__count {
+  color: var(--text);
+  font-size: var(--text-micro);
+}

@@ -9,6 +9,8 @@ import { MAX_INSTRUMENT_LFOS, createLfo, patchLfo } from "./instrumentLfos.js";
 import { BUS_GAIN_KEY, fxKey, getAutomationParam, parseKey } from "./cellAutomation.js";
 import { VOICE_MODES } from "./trackChannel.js";
 import { eventLfoOf, normalizeParticipation, patchEventLfo } from "./eventLfo.js";
+import { arpOf, patchArp } from "./arp.js";
+import { patchScale, scaleOf } from "./scale.js";
 
 export function setEventField(song, { patternId, trackIndex, rowIndex }, field, value) {
   const event = getEvent(song, patternId, trackIndex, rowIndex);
@@ -449,6 +451,18 @@ export function setTrackChannelPan(song, trackIndex, pan) {
 export function setTrackChannelEventLfo(song, trackIndex, patch) {
   const channel = getTrackChannel(song, trackIndex);
   if (channel) channel.eventLfo = patchEventLfo(eventLfoOf(channel), patch);
+}
+
+// Arpeggiator (model/arp.js): edits the track's arp (created disabled on first edit). Notes are
+// never touched: the arp generates its notes at playback.
+export function setTrackChannelArp(song, trackIndex, patch) {
+  const channel = getTrackChannel(song, trackIndex);
+  if (channel) channel.arp = patchArp(arpOf(channel), patch);
+}
+
+// The project's key (model/scale.js). A context for note entry only: no note is rewritten.
+export function setSongScale(song, patch) {
+  song.scale = patchScale(scaleOf(song), patch);
 }
 
 // Sets Track LFO participation on every step of one track that holds a note, in one pattern

@@ -5,6 +5,7 @@ import { trackLocalStep } from "../model/pattern.js";
 import { listCellEntries, nextPoint } from "../model/cellAutomation.js";
 import { isSustainedSynthKind } from "../model/instrumentParams.js";
 import { effectiveVelocity } from "./trackLfo.js";
+import { arpEventsAtRow, arpOf, isArpActive } from "../model/arp.js";
 
 // How long an un-timed (preview/audition) note of a sustained synth kind is held.
 const SUSTAINED_PREVIEW_SECONDS = 0.5;
@@ -160,11 +161,32 @@ export function compileRow(pattern, trackChannels, instruments, transportStep, t
     if (soloActive && !trackChannel.solo) return;
 
     const localStep = trackLocalStep(track, transportStep);
+    const bus = trackBusIds?.[trackIndex];
+
+    // Arp on: this row sounds whatever the arp generates for it (model/arp.js) instead of the
+    // cell's own note — zero, one or several notes, at sub-row offsets inside the row. Everything
+    // downstream (velocity/LFO, sample/synth/MIDI branches, voice limits) sees ordinary events.
+    // Arp off: the original path below, untouched.
+    if (isArpActive(trackChannel)) {
+      for (const item of arpEventsAtRow(track, localStep, arpOf(trackChannel), noteDurationSteps)) {
+        const compiled = compileEvent(
+          item.event,
+          trackChannel,
+          instruments,
+          time + item.offset * stepDurationSeconds,
+          item.durationSteps * stepDurationSeconds,
+          bus,
+          lfoClock,
+        );
+        if (compiled) events.push({ ...compiled, trackIndex });
+      }
+      return;
+    }
+
     const event = track.events[localStep];
     if (!event) return;
 
     const durationSteps = noteDurationSteps(track, localStep);
-    const bus = trackBusIds?.[trackIndex];
     const compiled = compileEvent(event, trackChannel, instruments, time, durationSteps * stepDurationSeconds, bus, lfoClock);
     // trackIndex rides along on the compiled event itself (not webdsp's ScheduledEvent shape —
     // audio/lookaheadPlayer.js strips it again before actually calling runtime.schedule()) so

@@ -1,5 +1,6 @@
 import { createPattern } from "./pattern.js";
 import { createTrackChannel } from "./trackChannel.js";
+import { createScale } from "./scale.js";
 
 // A project owns a *pool* of patterns (song.patterns, unique by id) plus an ordered
 // patternQueue of pattern ids — the queue is the sequence a project plays/is organized around,
@@ -23,6 +24,9 @@ export function createSong({ name = "Untitled Project", bpm = 120, swing = 0, tr
     // neutral/disabled. Deliberately a Song field alongside bpm, not per-pattern/per-track:
     // it's a transport-clock concept (see audio/lookaheadPlayer.js), not musical/pattern data.
     swing,
+    // The project's key (model/scale.js): a context for note entry, never applied to stored notes
+    // or to playback. Chromatic = every note in scale, i.e. what a project without one has.
+    scale: createScale(),
     trackCount,
     rowCount,
     trackChannels: Array.from({ length: trackCount }, (_, i) => createTrackChannel({ index: i })),

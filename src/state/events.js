@@ -41,3 +41,6 @@ export const CHOP_EDITOR_CHANGED = "CHOP_EDITOR_CHANGED";
 // The automation editor panel (ui/chrome/AutomationEditor.jsx) was opened/closed, or switched lane
 // (state.automationEditor).
 export const AUTOMATION_EDITOR_CHANGED = "AUTOMATION_EDITOR_CHANGED";
+// The project's key (song.scale — model/scale.js) changed. Note entry and the grid's out-of-scale
+// emphasis read it; nothing in the song's notes changes.
+export const SCALE_CHANGED = "SCALE_CHANGED";

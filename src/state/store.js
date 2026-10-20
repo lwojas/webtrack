@@ -9,6 +9,8 @@ import {
   setTrackChannelMaxVoices as setTrackChannelMaxVoicesModel,
   setTrackChannelPan as setTrackChannelPanModel,
   setTrackChannelEventLfo as setTrackChannelEventLfoModel,
+  setTrackChannelArp as setTrackChannelArpModel,
+  setSongScale as setSongScaleModel,
   setTrackStepsLfo as setTrackStepsLfoModel,
   setMasterPan as setMasterPanModel,
   setTrackFxParam as setTrackFxParamModel,
@@ -48,6 +50,7 @@ import { rowCountForBars, SWING_MIN, SWING_MAX } from "../model/timing.js";
 import { getSelectedPattern } from "../model/query.js";
 import { clearRect, captureBlock, tileBlockIntoRect } from "../model/selectionOps.js";
 import * as events from "./events.js";
+import { SCALE_PRESETS } from "../model/scale.js";
 
 // The order cursor.field cycles through on ArrowLeft/ArrowRight within a track, before
 // wrapping to the neighboring track (ECS-156 plan §8). Effect command/param aren't part of
@@ -485,6 +488,22 @@ export function createStore({ song, instruments }) {
     emitter.emit(events.TRACK_CHANNEL_CHANGED, { trackIndex });
   }
 
+  // Arp (model/arp.js): read live by the playback compile step, so there is no engine push.
+  function setTrackChannelArp(trackIndex, patch) {
+    setTrackChannelArpModel(state.song, trackIndex, patch);
+    emitter.emit(events.TRACK_CHANNEL_CHANGED, { trackIndex });
+  }
+
+  // The project's key. Picking a musical preset also moves the edit octave to its suggested one.
+  function setScale(patch) {
+    setSongScaleModel(state.song, patch);
+    if (patch.preset) {
+      const octave = SCALE_PRESETS.find((p) => p.id === patch.preset)?.octave;
+      if (octave !== undefined) setOctave(octave);
+    }
+    emitter.emit(events.SCALE_CHANGED, { scale: state.song.scale });
+  }
+
   // Participation of every note on one track in the selected pattern (All steps / None).
   function setTrackStepsLfo(trackIndex, amount) {
     setTrackStepsLfoModel(state.song, state.song.selectedPatternId, trackIndex, amount);
@@ -894,6 +913,8 @@ export function createStore({ song, instruments }) {
     setTrackChannelMuted,
     setTrackChannelSolo,
     setTrackChannelEventLfo,
+    setTrackChannelArp,
+    setScale,
     setTrackStepsLfo,
     setTrackChannelVolume,
     setTrackChannelVoiceMode,

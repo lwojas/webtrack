@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useStore } from "../../state/useStore.js";
 import * as events from "../../state/events.js";
 import { getSelectedPattern } from "../../model/query.js";
+import ScaleControl from "./ScaleControl.jsx";
 import { barsForRowCount, MAX_BARS, RESAMPLE_STEP_OPTIONS } from "../../model/timing.js";
 
 // Ordinary stateful forms-and-buttons UI with no rendering-performance requirement — exactly
@@ -67,6 +68,8 @@ export default function TransportBar({ store, playbackController, onSaveProject,
           onChange={(e) => store.setSwing(Number(e.target.value))}
         />
       </label>
+
+      <ScaleControl store={store} />
 
       <span className="transport-bar__pattern-name" title="Selected pattern — change this from the Patterns tab">
         PATTERN: {selectedPatternName}

@@ -2,6 +2,7 @@ import { formatCell } from "./rowFormatting.js";
 import { rowToBarBeat } from "../../model/timing.js";
 import { isEmptyEvent } from "../../model/event.js";
 import { VOICE_MODES, MAX_VOICES_OPTIONS } from "../../model/trackChannel.js";
+import { isChromatic, isNoteInScale } from "../../model/scale.js";
 
 // Builds the 64-row × 8-track grid exactly once via createElement (ECS-156 plan §4), caching
 // every cell's DOM refs in a 2D array. patchCell() is the single write path for all cell
@@ -16,6 +17,9 @@ export function createGridView({
   onLengthChange,
   onVoiceModeChange,
   onMaxVoicesChange,
+  // () => the song's scale (model/scale.js), read on every patch so a key change only needs a
+  // repaint; omitted = no scale emphasis.
+  getScale,
 } = {}) {
   let container = null;
   let cellRefs = null; // cellRefs[trackIndex][rowIndex] = { cellEl, noteEl, insEl, volEl, fxEl }
@@ -309,6 +313,9 @@ export function createGridView({
     refs.volEl.textContent = formatted.velocity;
     refs.fxEl.textContent = formatted.fx;
     refs.cellEl.classList.toggle("tracker-cell--empty", isEmptyEvent(event));
+    // A note outside the project's key: still fully editable, just visually secondary.
+    const scale = getScale?.();
+    refs.noteEl.classList.toggle("tracker-cell__note--out-of-scale", !!scale && !isChromatic(scale) && event.note !== null && !isNoteInScale(scale, event.note));
     // A step that takes part in the track's Track LFO (Event.lfo): a subtle marker on its velocity.
     refs.cellEl.classList.toggle("tracker-cell--lfo", (event.lfo ?? 0) > 0);
     onCellPatched?.(trackIndex, rowIndex);
