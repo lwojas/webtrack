@@ -190,8 +190,19 @@ describe("arpEventsAtRow", () => {
     expect(notesFor(0, 4)).toEqual([60, 64, 67, 60]);
     expect(notesFor(14, 16)).toEqual([64, 67]);
     expect(notesFor(16, 20).slice(0, 2)).toEqual([72, 72]);
-    // a run is clipped at the bar line (row 14's 6-step note stops at 16) and bar 2 starts a fresh pool
+    // row 14's 6-step note carries into bar 2 up to the note at row 16, which cuts it; bar 2 starts a fresh pool
     expect(notesFor(14, 18)).toEqual([64, 67, 72, 72]);
+  });
+});
+
+describe("arpEventsAtRow long notes", () => {
+  it("keeps arpeggiating in every bar a long note covers", () => {
+    const song = songWith([[0, 60, { length: 40 }]], { arpPatch: { enabled: true, rate: "1/4", gate: 1 }, length: 48 });
+    const track = getSelectedPattern(song).tracks[0];
+    const a = arpOf(song.trackChannels[0]);
+    const starts = [];
+    for (let r = 0; r < 48; r++) if (arpEventsAtRow(track, r, a, noteDurationSteps).length) starts.push(r);
+    expect(starts).toEqual([0, 4, 8, 12, 16, 20, 24, 28, 32, 36]);
   });
 });
 

@@ -30,7 +30,8 @@ webseq. Tracker specifics:
   separate "MIDI arp".
 - Source: a bar is 16 rows. The notes (with an instrument) in the bar are the pool; each note's
   length (`noteDurationSteps`, explicit or auto) is its gate window, clipped to the bar and to the
-  track's own loop length. A row is compiled on its own: the bar is re-expanded each tick (<=16 rows)
+  track's own loop length. A note still sounding at a bar line carries into that bar as a run
+  starting on the line (cut short by the bar's first note), so long notes keep arpeggiating. A row is compiled on its own: the bar is re-expanded each tick (<=16 rows)
   and only steps starting in `[row, row+1)` are emitted, so there is no state between ticks and
   looping, queued patterns and polymetric lengths stay deterministic. Empty rows inside a window sound.
 - Sub-row steps (1/32, triplets) are placed at straight offsets inside the row; swing delays the row,

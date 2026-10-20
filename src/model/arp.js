@@ -248,6 +248,28 @@ export function arpEventsAtRow(track, localStep, arp, durationOf) {
   const barEnd = Math.min(barStart + ARP_STEPS_PER_BAR, loopEnd);
   const sources = [];
   const runs = [];
+  // A note that began in an earlier bar and is still sounding at this bar line is a run starting
+  // on the bar line, so a long note keeps arpeggiating through every bar it covers.
+  for (let row = barStart - 1; row >= 0; row--) {
+    const event = track.events[row];
+    if (!event || event.note === null) continue;
+    if (event.instrument !== null && row + durationOf(track, row) > barStart) {
+      // a following note in this bar cuts the carried one short
+      let cut = barEnd;
+      for (let r = barStart; r < barEnd; r++) {
+        if (track.events[r]?.note !== null && track.events[r]?.note !== undefined) { cut = r; break; }
+      }
+      if (cut <= barStart) break;
+      sources.push(event);
+      runs.push({
+        start: barStart,
+        length: Math.min(row + durationOf(track, row), cut) - barStart,
+        pitch: event.note,
+        velocity: (event.velocity ?? 127) / 127,
+      });
+    }
+    break; // only the latest earlier note can still be sounding (notes are monophonic)
+  }
   for (let row = barStart; row < barEnd; row++) {
     const event = track.events[row];
     if (!event || event.note === null || event.instrument === null) continue;
