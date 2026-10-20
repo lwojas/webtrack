@@ -2085,6 +2085,55 @@ input[type="range"].range-lg {
   outline: none;
 }
 
+/* Chop start marker: a handle hanging to the right of its line (so it stays grabbable at 0), with
+   the skipped region before it dimmed. */
+.chop-editor__start {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 20px;
+  cursor: ew-resize;
+  touch-action: none;
+  z-index: 1;
+}
+
+.chop-editor__start::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 2px;
+  background: var(--cyan);
+}
+
+.chop-editor__start::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 2px;
+  border: 7px solid transparent;
+  border-top-color: var(--cyan);
+  border-left-color: var(--cyan);
+}
+
+.chop-editor__start:focus {
+  outline: none;
+}
+
+.chop-editor__start:focus-visible::before {
+  background: var(--crimson);
+}
+
+.chop-editor__skipped {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: rgba(0, 0, 0, 0.55);
+  pointer-events: none;
+}
+
 .chop-editor__hint {
   color: var(--text-dim);
   font-size: var(--text-micro);
@@ -2102,6 +2151,10 @@ input[type="range"].range-lg {
 
   .chop-editor__cue::before {
     left: 15px;
+  }
+
+  .chop-editor__start {
+    width: 32px;
   }
 }
 

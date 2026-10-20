@@ -6,10 +6,10 @@
 import { cueRegions } from "../model/chop.js";
 import { initRuntime } from "./runtime.js";
 
-export async function setInstrumentRegions(sampleId, cues) {
+export async function setInstrumentRegions(sampleId, cues, chopStart = 0) {
   if (sampleId === null || sampleId === undefined) return;
   const runtime = await initRuntime();
   const meta = runtime.getSample(sampleId);
   if (!meta) return;
-  runtime.setSampleRegions(sampleId, cues && cues.length > 0 ? cueRegions(cues, meta.length) : []);
+  runtime.setSampleRegions(sampleId, cues && cues.length > 0 ? cueRegions(cues, meta.length, chopStart) : []);
 }

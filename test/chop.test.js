@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { compileEvent } from "../src/audio/compile.js";
 import { computePeaks } from "webdsp";
-import { addCue, cueRegions, evenCues, MIN_SLICE, moveCue, normalizeCues, removeCue } from "../src/model/chop.js";
+import { addCue, cueRegions, evenCues, MIN_SLICE, moveCue, normalizeChopStart, normalizeCues, removeCue } from "../src/model/chop.js";
 import { createInstrumentSlot } from "../src/model/instrument.js";
 import { createSong } from "../src/model/song.js";
 import { deserializeProject, serializeProject } from "../src/persistence/projectFile.js";
@@ -109,5 +109,26 @@ describe("auditionSlice", () => {
     expect(runtime.release).toHaveBeenCalledWith(11);
     expect(await auditionSlice(null, 0)).toBe(false);
     vi.doUnmock("../src/audio/runtime.js");
+  });
+});
+
+describe("chop start marker", () => {
+  it("starts slice 1 at the marker and keeps cues after it", () => {
+    expect(cueRegions([0.5], 100, 0.2)).toEqual([{ start: 20, end: 50 }, { start: 50, end: 100 }]);
+    expect(evenCues(2, 0.5)).toEqual([0.75]);
+    expect(addCue([0.8], 0.1, 0.2)).toEqual([0.8]);
+    expect(moveCue([0.5, 0.8], 0, 0, 0.2)[0]).toBeCloseTo(0.2 + MIN_SLICE, 6);
+    expect(normalizeChopStart(0.9, [0.5])).toBeCloseTo(0.5 - MIN_SLICE, 6);
+    expect(normalizeChopStart(-1, [])).toBe(0);
+  });
+  it("stores the start on the slot, resets it with a new sample, and round-trips", async () => {
+    const instruments = [createInstrumentSlot({ id: 0, name: "Break", sampleId: "x", sampleMode: "chop", cues: [0.5], chopStart: 0.1 })];
+    const restored = await deserializeProject(serializeProject({ song: createSong(), instruments, ui: {} }), { loadSampleBytes: async () => "fresh" });
+    expect(restored.instruments[0].chopStart).toBe(0.1);
+    const store = createStore({ instruments });
+    store.setInstrumentChopStart(0, 0.9);
+    expect(store.getState().instruments[0].chopStart).toBeCloseTo(0.5 - MIN_SLICE, 6);
+    store.setInstrumentCues(0, [0.05, 0.5]);
+    expect(store.getState().instruments[0].cues).toEqual([0.5]);
   });
 });

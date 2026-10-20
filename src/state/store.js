@@ -1,4 +1,4 @@
-import { MAX_NOTE, SAMPLE_MODES, normalizeCues } from "../model/chop.js";
+import { MAX_NOTE, SAMPLE_MODES, normalizeChopStart, normalizeCues } from "../model/chop.js";
 import {
   selectPattern as selectPatternModel,
   setEventField,
@@ -659,6 +659,7 @@ export function createStore({ song, instruments }) {
     if (localAssetId !== undefined) instrument.localAssetId = localAssetId;
     // Cue points belong to the previous sample's audio; a new sample starts unsliced.
     instrument.cues = [];
+    instrument.chopStart = 0;
     emitter.emit(events.INSTRUMENTS_CHANGED, { index });
   }
 
@@ -697,7 +698,15 @@ export function createStore({ song, instruments }) {
   function setInstrumentCues(index, cues) {
     const instrument = state.instruments[index];
     if (!instrument) return;
-    instrument.cues = normalizeCues(cues);
+    instrument.cues = normalizeCues(cues, instrument.chopStart ?? 0);
+    emitter.emit(events.INSTRUMENTS_CHANGED, { index });
+  }
+
+  // Start of slice 1 (model/chop.js#normalizeChopStart): clamped before the first cue.
+  function setInstrumentChopStart(index, start) {
+    const instrument = state.instruments[index];
+    if (!instrument) return;
+    instrument.chopStart = normalizeChopStart(start, instrument.cues ?? []);
     emitter.emit(events.INSTRUMENTS_CHANGED, { index });
   }
 
@@ -924,6 +933,7 @@ export function createStore({ song, instruments }) {
     setInstrumentEnvelope,
     setInstrumentSampleMode,
     setInstrumentCues,
+    setInstrumentChopStart,
     setInstrumentRootNote,
     setChopEditorOpen,
     setInstrumentOutput,

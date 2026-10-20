@@ -9,6 +9,7 @@ audio.
 | | Where | Notes |
 | --- | --- | --- |
 | Cue points | `Instrument.cues` (`model/instrument.js`) | Sorted interior boundaries as fractions 0..1 of the sample; N cues = N+1 contiguous slices (max 49). Fractions survive a reload at another engine sample rate. Reset to `[]` when a new sample is loaded into the slot. |
+| Chop start | `Instrument.chopStart` | Fraction 0..1 where slice 1 begins (default 0), to skip leading silence. Always before the first cue (`setInstrumentChopStart` clamps; cues at/before it are dropped). Slices are `[chopStart, ...cues, 1]`; even splits span start..end. Reset to 0 when a new sample is loaded. Drag the start handle in the chop editor, or RESET START. |
 | Mode | `Instrument.sampleMode` (`"chromatic"` default, `"chop"`) | Per instrument slot. Older projects lack both fields and load chromatic with no cues, so they play as before. |
 | Slice choice | `event.note - instrument.rootNote` | Chop mode: the slot's root note plays slice 1, each semitone up the next (set the root to C-3 for C-3 = slice 1). The note never transposes. A note below the root is skipped; one past the last slice plays nothing. |
 

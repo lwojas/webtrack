@@ -52,7 +52,8 @@
 // the sample's audio and are pushed to webdsp as sample regions (audio/instrumentRegions.js);
 // `sampleMode` is how this slot plays them — in "chop" a cell's note picks a slice as
 // (note - rootNote) instead of transposing. Both additive: a project saved before they existed
-// loads chromatic with no cues, i.e. exactly as it always played.
+// loads chromatic with no cues, i.e. exactly as it always played. `chopStart` (fraction 0..1, default 0)
+// is where slice 1 begins, to skip leading silence; always before the first cue.
 // envelope: { attack, decay, sustain, release } — webdsp's per-sample ADSR amplitude envelope
 // (node_modules/webdsp's docs/adsr-envelope.md's EnvelopeParams), persistent per instrument like
 // gain (audio/instrumentEnvelope.js bridges this to runtime.setSampleEnvelope()). The default
@@ -77,6 +78,7 @@ export function createInstrumentSlot({
   envelope = { attack: 0, decay: 0, sustain: 1, release: 0.01 },
   sampleMode = "chromatic",
   cues = [],
+  chopStart = 0,
   // instrumentParams: Record<paramId, number> | null — persistent per-instance control values
   // for an "instrument"-output slot (model/instrumentParams.js's catalog for output.kind),
   // seeded with that kind's defaults the moment a slot is switched to it (state/store.js#
@@ -108,6 +110,7 @@ export function createInstrumentSlot({
     envelope,
     sampleMode,
     cues,
+    chopStart,
     instrumentParams,
     instrumentLfos,
     engineInstrumentId,

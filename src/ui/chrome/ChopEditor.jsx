@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useStore } from "../../state/useStore.js";
 import * as events from "../../state/events.js";
 import { loadPeaks } from "../../audio/peaks.js";
-import { addCue, evenCues, MAX_NOTE, MAX_SLICES, moveCue, noteForSlice, removeCue } from "../../model/chop.js";
+import { addCue, evenCues, MAX_NOTE, MAX_SLICES, moveChopStart, moveCue, noteForSlice, removeCue } from "../../model/chop.js";
 import { noteNumberToName, toHex } from "../../model/notes.js";
 
 const EVEN_SPLITS = [2, 4, 8, 16, 32];
@@ -35,14 +35,18 @@ function ChopEditorBody({ store, instrumentController, index }) {
   // The cue array is replaced (never mutated) by setInstrumentCues, so its identity is a safe
   // snapshot for useSyncExternalStore.
   const cues = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.cues ?? NO_CUES);
+  const start = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.chopStart ?? 0);
   const buffer = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.sampleAsset?.buffer ?? null);
   const [draft, setDraft] = useState(null);
+  const [startDraft, setStartDraft] = useState(null);
   const [selected, setSelected] = useState(null);
   const [peaks, setPeaks] = useState(undefined); // undefined = loading, null = unavailable
   const wrapRef = useRef(null);
   const canvasRef = useRef(null);
   const dragRef = useRef(null);
+  const startMovedRef = useRef(false);
   const shown = draft ?? cues;
+  const shownStart = startDraft ?? start;
 
   useEffect(() => {
     let live = true;
@@ -99,7 +103,7 @@ function ChopEditorBody({ store, instrumentController, index }) {
     const drag = dragRef.current;
     if (!drag) return;
     drag.moved = true;
-    setDraft(moveCue(draft ?? cues, drag.index, fractionAt(e.clientX)));
+    setDraft(moveCue(draft ?? cues, drag.index, fractionAt(e.clientX), start));
   };
   const onCuePointerUp = () => {
     const drag = dragRef.current;
@@ -110,21 +114,44 @@ function ChopEditorBody({ store, instrumentController, index }) {
   const onCueKeyDown = (i) => (e) => {
     if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
       e.preventDefault();
-      setCues(moveCue(cues, i, cues[i] + (e.key === "ArrowLeft" ? -NUDGE : NUDGE)));
+      setCues(moveCue(cues, i, cues[i] + (e.key === "ArrowLeft" ? -NUDGE : NUDGE), start));
     } else if (e.key === "Delete" || e.key === "Backspace") {
       e.preventDefault();
       setCues(removeCue(cues, i));
       setSelected(null);
     }
   };
+  const setStart = (next) => instrumentController.setChopStart(index, next);
+  const onStartPointerDown = (e) => {
+    e.stopPropagation();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    startMovedRef.current = false;
+    setStartDraft(start);
+  };
+  const onStartPointerMove = (e) => {
+    if (startDraft === null) return;
+    startMovedRef.current = true;
+    setStartDraft(moveChopStart(cues, fractionAt(e.clientX)));
+  };
+  const onStartPointerUp = () => {
+    if (startDraft !== null && startMovedRef.current) setStart(startDraft);
+    startMovedRef.current = false;
+    setStartDraft(null);
+  };
+  const onStartKeyDown = (e) => {
+    if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      e.preventDefault();
+      setStart(moveChopStart(cues, start + (e.key === "ArrowLeft" ? -NUDGE : NUDGE)));
+    }
+  };
   const onWaveformPointerDown = (e) => {
-    const next = addCue(cues, fractionAt(e.clientX));
+    const next = addCue(cues, fractionAt(e.clientX), start);
     if (next.length === cues.length) return;
     setCues(next);
     setSelected(next.findIndex((c) => !cues.includes(c)));
   };
 
-  const bounds = [0, ...shown, 1];
+  const bounds = [shownStart, ...shown, 1];
   const atMax = shown.length + 1 >= MAX_SLICES;
   const canRemove = selected !== null && selected < cues.length;
 
@@ -140,7 +167,7 @@ function ChopEditorBody({ store, instrumentController, index }) {
             key={n}
             type="button"
             className={`fx-panel__target-btn${cues.length + 1 === n ? " fx-panel__target-btn--active" : ""}`}
-            onClick={() => setCues(evenCues(n))}
+            onClick={() => setCues(evenCues(n, start))}
             title={`Split evenly into ${n} slices`}
           >
             {n}
@@ -159,6 +186,9 @@ function ChopEditorBody({ store, instrumentController, index }) {
         </button>
         <button type="button" className="fx-panel__target-btn" disabled={cues.length === 0} onClick={() => setCues([])}>
           CLEAR
+        </button>
+        <button type="button" className="fx-panel__target-btn" disabled={start === 0} onClick={() => setStart(0)} title="Move the start marker back to the beginning of the sample">
+          RESET START
         </button>
         <span className="chop-editor__label">ROOT</span>
         <button type="button" className="fx-panel__target-btn" disabled={rootNote <= 0} onClick={() => instrumentController.setRootNote(index, rootNote - 12)} title="Root down an octave">
@@ -182,6 +212,7 @@ function ChopEditorBody({ store, instrumentController, index }) {
       </div>
       <div ref={wrapRef} className="chop-editor__wave" onPointerDown={atMax ? undefined : onWaveformPointerDown}>
         <canvas ref={canvasRef} />
+        {shownStart > 0 && <span className="chop-editor__skipped" style={{ width: `${shownStart * 100}%` }} />}
         {peaks === null && <span className="chop-editor__empty">Waveform unavailable</span>}
         {bounds.slice(0, -1).map((from, i) => (
           <span key={i} className="chop-editor__slice" style={{ left: `${from * 100}%`, width: `${(bounds[i + 1] - from) * 100}%` }}>
@@ -189,6 +220,22 @@ function ChopEditorBody({ store, instrumentController, index }) {
             {noteForSlice(rootNote, i) !== null && ` ${noteNumberToName(noteForSlice(rootNote, i))}`}
           </span>
         ))}
+        <div
+          className="chop-editor__start"
+          style={{ left: `${shownStart * 100}%` }}
+          role="slider"
+          tabIndex={0}
+          aria-label="Chop start"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={Math.round(shownStart * 100)}
+          title="Start of slice 1 — drag to skip leading silence"
+          onPointerDown={onStartPointerDown}
+          onPointerMove={onStartPointerMove}
+          onPointerUp={onStartPointerUp}
+          onPointerCancel={onStartPointerUp}
+          onKeyDown={onStartKeyDown}
+        />
         {shown.map((cue, i) => (
           <div
             key={i}
@@ -229,7 +276,7 @@ function ChopEditorBody({ store, instrumentController, index }) {
       </div>
       <div className="chop-editor__hint">
         {cues.length === 0
-          ? "Tap the waveform to add cue points, or pick an even split."
+          ? "Tap the waveform to add cue points, or pick an even split. Drag the start marker to skip leading silence."
           : `${cues.length + 1} slices. A cell's note picks the slice: the root note (${noteNumberToName(rootNote)}) plays slice 1, each semitone up the next. Tap a pad to audition it.`}
       </div>
     </div>

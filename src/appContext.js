@@ -266,7 +266,13 @@ export function createAppContext() {
   function applyInstrumentCues(index, cues) {
     store.setInstrumentCues(index, cues);
     const instrument = store.getState().instruments[index];
-    if (instrument?.sampleId != null) setInstrumentRegions(instrument.sampleId, instrument.cues);
+    if (instrument?.sampleId != null) setInstrumentRegions(instrument.sampleId, instrument.cues, instrument.chopStart);
+  }
+
+  function applyInstrumentChopStart(index, start) {
+    store.setInstrumentChopStart(index, start);
+    const instrument = store.getState().instruments[index];
+    if (instrument?.sampleId != null) setInstrumentRegions(instrument.sampleId, instrument.cues, instrument.chopStart);
   }
 
   // InstrumentPanel.jsx's output toggle (SAMPLE/MIDI/an "instrument" kind like KICK) — bundles
@@ -329,7 +335,7 @@ export function createAppContext() {
     const instrument = store.getState().instruments[index];
     setInstrumentGain(sampleId, instrument.gain);
     setInstrumentEnvelope(sampleId, instrument.envelope);
-    setInstrumentRegions(sampleId, instrument.cues);
+    setInstrumentRegions(sampleId, instrument.cues, instrument.chopStart);
   }
 
   // Assigns a localAssetId (and writes bytes to localAssetStore) to any just-loaded instrument
@@ -605,7 +611,7 @@ export function createAppContext() {
       if (instrument.sampleId != null) {
         setInstrumentGain(instrument.sampleId, instrument.gain);
         setInstrumentEnvelope(instrument.sampleId, instrument.envelope);
-        setInstrumentRegions(instrument.sampleId, instrument.cues);
+        setInstrumentRegions(instrument.sampleId, instrument.cues, instrument.chopStart);
       }
     }
     await resyncSynthInstruments(instruments);
@@ -675,7 +681,7 @@ export function createAppContext() {
       if (instrument.sampleId != null) {
         setInstrumentGain(instrument.sampleId, instrument.gain);
         setInstrumentEnvelope(instrument.sampleId, instrument.envelope);
-        setInstrumentRegions(instrument.sampleId, instrument.cues);
+        setInstrumentRegions(instrument.sampleId, instrument.cues, instrument.chopStart);
       }
     }
     await resyncSynthInstruments(instruments);
@@ -704,6 +710,7 @@ export function createAppContext() {
     setEnvelope: applyInstrumentEnvelope,
     setSampleMode: applyInstrumentSampleMode,
     setCues: applyInstrumentCues,
+    setChopStart: applyInstrumentChopStart,
     setRootNote: (index, note) => store.setInstrumentRootNote(index, note),
     auditionSlice: (index, slice) => {
       const sampleId = store.getState().instruments[index]?.sampleId;

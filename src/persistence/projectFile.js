@@ -103,6 +103,7 @@ function serializeInstrument(instrument, embedSampleBytes) {
     envelope: instrument.envelope,
     sampleMode: instrument.sampleMode,
     cues: instrument.cues,
+    chopStart: instrument.chopStart,
     instrumentParams: instrument.instrumentParams,
     instrumentLfos: instrument.instrumentLfos,
     sample,
@@ -366,7 +367,9 @@ export async function deserializeProject(parsed, { loadSampleBytes, loadLocalAss
         envelope: def.envelope,
         // Additive: undefined in a project saved before chop mode -> chromatic, no cues.
         sampleMode: def.sampleMode === "chop" ? "chop" : undefined,
-        cues: Array.isArray(def.cues) ? normalizeCues(def.cues) : undefined,
+        // Additive: undefined in a project saved before the chop start marker -> 0.
+        chopStart: Number.isFinite(def.chopStart) ? Math.min(1, Math.max(0, def.chopStart)) : undefined,
+        cues: Array.isArray(def.cues) ? normalizeCues(def.cues, Number.isFinite(def.chopStart) ? def.chopStart : 0) : undefined,
         instrumentParams: def.instrumentParams,
         // Additive: undefined in a project saved before LFO slots existed -> createInstrumentSlot's [].
         instrumentLfos: Array.isArray(def.instrumentLfos) ? def.instrumentLfos : undefined,
