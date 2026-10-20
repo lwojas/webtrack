@@ -252,11 +252,28 @@ function InstrumentEditor({ store, instrumentController }) {
   const burst = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.burst ?? 0);
   const chaos = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.chaos ?? 0.4);
   const fold = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.fold ?? 0.3);
+  // Percussion Synth ids not used by any kind above (noise, cutoff, resonance, attack, decay, drive, tune and
+  // pitchDecay are shared by id; their ranges differ per kind).
+  const osc1Wave = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.osc1Wave ?? 0);
+  const osc1Level = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.osc1Level ?? 0.9);
+  const osc2Wave = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.osc2Wave ?? 1);
+  const osc2Pitch = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.osc2Pitch ?? 12);
+  const osc2Level = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.osc2Level ?? 0);
+  const osc2Fm = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.osc2Fm ?? 0);
+  const pitchEnv = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.pitchEnv ?? 2.5);
+  const osc2Env = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.osc2Env ?? 1);
+  const noiseTone = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.noiseTone ?? 0.5);
+  const noiseDecay = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.noiseDecay ?? 0.04);
+  const filterType = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.filterType ?? 0);
+  const filterEnv = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.filterEnv ?? 0);
+  const filterDecay = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.filterDecay ?? 0.15);
   const synthParamValues = {
     tune, decay: synthDecay, pitchDrop, pitchDecay, punch, drive, snap, noise, spread, body, damp, metal, tone,
     bite, cutoff, resonance, attack: synthAttack, sustain: synthSustain, release: synthRelease,
     pump, repeat, rate, diffuse, legato, slide, movement, detune, space, ratio, timbre, density,
     width, pwm, shape, harmonics, envamt, sub, fm, sweep, chick, structure, hold, burst, chaos, fold,
+    osc1Wave, osc1Level, osc2Wave, osc2Pitch, osc2Level, osc2Fm, pitchEnv, osc2Env, noiseTone, noiseDecay,
+    filterType, filterEnv, filterDecay,
   };
 
   if (!exists) return null;
@@ -264,7 +281,7 @@ function InstrumentEditor({ store, instrumentController }) {
   // Switching to "midi" needs a channel right away (compileEvent treats a missing channel as
   // "nothing to send" — see audio/compile.js) — default to the last one used, or channel 1.
   // Switching to "instrument" needs a kind, one of model/instrumentParams.js#SYNTH_KINDS
-  // (kick/snare/clap/tom/hihat/bass/pulse/pad/fm/hypersaw/pwmbeast/dm_thump/dm_metal/dm_tone/dm_crack/dm_chaos); state/store.js#setInstrumentOutput (re)seeds instrumentParams
+  // (kick/snare/clap/tom/hihat/bass/pulse/pad/fm/hypersaw/pwmbeast/dm_thump/dm_metal/dm_tone/dm_crack/dm_chaos/percsynth); state/store.js#setInstrumentOutput (re)seeds instrumentParams
   // with that kind's own catalog defaults, both the first time a slot becomes "instrument" and
   // whenever the kind itself changes. `track` carries over across a kind switch (KICK -> SNARE
   // keeps whatever bus routing was already chosen) but resets to null (MASTER_BUS) switching to

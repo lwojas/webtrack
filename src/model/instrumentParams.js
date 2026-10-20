@@ -228,6 +228,37 @@ export const DM_CHAOS_PARAMS = [
   { id: "hold", webdspParam: "Hold", label: "Hold", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
 ];
 
+// Percussion Synth — mirrors webdsp's docs/percussion-synth.md: two oscillators + noise, one pitch
+// sweep, FM, a resonant LP/HP, a drive stage. Registered as a one-shot (not sustained): `sustain` and
+// `release` are deliberately not exposed (the engine keeps sustain 0, so a hit ends itself), which means a
+// cell never needs a `duration` and a long Decay is the way to a bass/drone hit. Ids shared with other kinds
+// (tune, noise, cutoff, resonance, attack, decay, drive, pitchDecay) have their own range here.
+export const PERCSYNTH_WAVE_OPTIONS = ["Sine/Tri", "Saw", "Square"];
+export const PERCSYNTH_FILTER_OPTIONS = ["Low-pass", "High-pass"];
+export const PERCSYNTH_PARAMS = [
+  { id: "tune", webdspParam: "Tune", label: "Tune", min: 25, max: 800, default: 55, step: 0.5, unit: "Hz", scale: "note" },
+  { id: "osc1Wave", webdspParam: "Osc1Wave", label: "Osc 1", min: 0, max: 2, default: 0, step: 1, unit: "", options: PERCSYNTH_WAVE_OPTIONS },
+  { id: "osc1Level", webdspParam: "Osc1Level", label: "Osc 1 Lvl", min: 0, max: 1, default: 0.9, step: 0.01, unit: "" },
+  { id: "osc2Wave", webdspParam: "Osc2Wave", label: "Osc 2", min: 0, max: 2, default: 1, step: 1, unit: "", options: PERCSYNTH_WAVE_OPTIONS },
+  { id: "osc2Pitch", webdspParam: "Osc2Pitch", label: "Osc 2 Pitch", min: -24, max: 48, default: 12, step: 0.1, unit: "st" },
+  { id: "osc2Level", webdspParam: "Osc2Level", label: "Osc 2 Lvl", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
+  { id: "osc2Fm", webdspParam: "Osc2Fm", label: "FM", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
+  { id: "pitchEnv", webdspParam: "PitchEnv", label: "Sweep", min: 0, max: 6, default: 2.5, step: 0.05, unit: "oct" },
+  { id: "pitchDecay", webdspParam: "PitchDecay", label: "Sweep Time", min: 0.005, max: 2, default: 0.07, step: 0.005, unit: "s" },
+  { id: "osc2Env", webdspParam: "Osc2Env", label: "Osc 2 Sweep", min: 0, max: 2, default: 1, step: 0.01, unit: "" },
+  { id: "noise", webdspParam: "Noise", label: "Noise", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
+  { id: "noiseTone", webdspParam: "NoiseTone", label: "Noise Tone", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
+  { id: "noiseDecay", webdspParam: "NoiseDecay", label: "Noise Decay", min: 0.003, max: 2, default: 0.04, step: 0.001, unit: "s" },
+  { id: "filterType", webdspParam: "FilterType", label: "Filter", min: 0, max: 1, default: 0, step: 1, unit: "", options: PERCSYNTH_FILTER_OPTIONS },
+  { id: "cutoff", webdspParam: "Cutoff", label: "Cutoff", min: 40, max: 16000, default: 5000, step: 1, unit: "Hz" },
+  { id: "resonance", webdspParam: "Resonance", label: "Resonance", min: 0, max: 1, default: 0.15, step: 0.01, unit: "" },
+  { id: "filterEnv", webdspParam: "FilterEnv", label: "Filter Env", min: -1, max: 1, default: 0, step: 0.01, unit: "" },
+  { id: "filterDecay", webdspParam: "FilterDecay", label: "Filter Decay", min: 0.01, max: 2, default: 0.15, step: 0.01, unit: "s" },
+  { id: "attack", webdspParam: "Attack", label: "Attack", min: 0.0005, max: 0.25, default: 0.001, step: 0.0005, unit: "s" },
+  { id: "decay", webdspParam: "Decay", label: "Decay", min: 0.02, max: 4, default: 0.35, step: 0.01, unit: "s" },
+  { id: "drive", webdspParam: "Drive", label: "Drive", min: 0, max: 1, default: 0.2, step: 0.01, unit: "" },
+];
+
 // One entry per webdsp InstrumentKind, mirroring the `{ id, name, category, params }` shape
 // `runtime.getCapabilities().instruments` itself reports (node_modules/webdsp's
 // docs/instruments.md) — model/ stays webdsp-free (docs/EXTENDING.md's layer map) so this is a
@@ -264,6 +295,8 @@ export const SYNTH_KINDS = [
   { id: "dm_tone", name: "FM Tone", category: "digital", params: DM_TONE_PARAMS, sustained: true, rootNote: 45 },
   { id: "dm_crack", name: "FM Crack", category: "digital", params: DM_CRACK_PARAMS },
   { id: "dm_chaos", name: "FM Chaos", category: "digital", params: DM_CHAOS_PARAMS, sustained: true, rootNote: 57 },
+  // Percussion Synth (webdsp's docs/percussion-synth.md): a one-shot at the default root, like the drums.
+  { id: "percsynth", name: "Perc Synth", category: "synth", params: PERCSYNTH_PARAMS },
 ];
 
 // Registry of every synthesized-instrument kind's own param catalog, keyed by the same string

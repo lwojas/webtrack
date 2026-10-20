@@ -16,6 +16,7 @@ import {
   DM_TONE_PARAMS,
   DM_CRACK_PARAMS,
   DM_CHAOS_PARAMS,
+  PERCSYNTH_PARAMS,
   SYNTH_KINDS,
   isSustainedSynthKind,
   synthKindRootNote,
@@ -59,10 +60,10 @@ describe("model/instrumentParams.js", () => {
   });
 
   it("SYNTH_KINDS lists every webdsp instrument kind with a stable id, a display name, and a category", () => {
-    expect(SYNTH_KINDS.map((k) => k.id)).toEqual(["kick", "snare", "clap", "tom", "hihat", "bass", "pulse", "pad", "fm", "hypersaw", "pwmbeast", "dm_thump", "dm_metal", "dm_tone", "dm_crack", "dm_chaos"]);
-    expect(SYNTH_KINDS.map((k) => k.name)).toEqual(["Kick", "Snare", "Clap", "Tom", "Hi-Hat", "Bass", "Pulse", "Pad", "FM", "Hypersaw", "PWM Beast", "FM Thump", "FM Metal", "FM Tone", "FM Crack", "FM Chaos"]);
+    expect(SYNTH_KINDS.map((k) => k.id)).toEqual(["kick", "snare", "clap", "tom", "hihat", "bass", "pulse", "pad", "fm", "hypersaw", "pwmbeast", "dm_thump", "dm_metal", "dm_tone", "dm_crack", "dm_chaos", "percsynth"]);
+    expect(SYNTH_KINDS.map((k) => k.name)).toEqual(["Kick", "Snare", "Clap", "Tom", "Hi-Hat", "Bass", "Pulse", "Pad", "FM", "Hypersaw", "PWM Beast", "FM Thump", "FM Metal", "FM Tone", "FM Crack", "FM Chaos", "Perc Synth"]);
     for (const kind of SYNTH_KINDS) {
-      expect(kind.category).toBe({ bass: "bass", pulse: "synth", pad: "synth", fm: "synth", hypersaw: "synth", pwmbeast: "synth", dm_thump: "digital", dm_metal: "digital", dm_tone: "digital", dm_crack: "digital", dm_chaos: "digital" }[kind.id] ?? "drum");
+      expect(kind.category).toBe({ bass: "bass", pulse: "synth", pad: "synth", fm: "synth", hypersaw: "synth", pwmbeast: "synth", dm_thump: "digital", dm_metal: "digital", dm_tone: "digital", dm_crack: "digital", dm_chaos: "digital", percsynth: "synth" }[kind.id] ?? "drum");
       expect(getSynthParams(kind.id)).toBe(kind.params);
     }
   });
@@ -154,6 +155,22 @@ describe("model/instrumentParams.js", () => {
         expect(param.default).toBeGreaterThanOrEqual(param.min);
         expect(param.default).toBeLessThanOrEqual(param.max);
       }
+    }
+  });
+
+  it("mirrors webdsp's percussion-synth.md table — engine enum member names, one-shot, no sustain/release", () => {
+    expect(PERCSYNTH_PARAMS.map((p) => p.webdspParam)).toEqual([
+      "Tune", "Osc1Wave", "Osc1Level", "Osc2Wave", "Osc2Pitch", "Osc2Level", "Osc2Fm", "PitchEnv", "PitchDecay", "Osc2Env",
+      "Noise", "NoiseTone", "NoiseDecay", "FilterType", "Cutoff", "Resonance", "FilterEnv", "FilterDecay", "Attack", "Decay", "Drive",
+    ]);
+    expect(new Set(PERCSYNTH_PARAMS.map((p) => p.id)).size).toBe(PERCSYNTH_PARAMS.length);
+    expect(PERCSYNTH_PARAMS.find((p) => p.id === "osc1Wave").options).toHaveLength(3);
+    expect(PERCSYNTH_PARAMS.find((p) => p.id === "filterEnv").min).toBe(-1);
+    expect(isSustainedSynthKind("percsynth")).toBe(false);
+    expect(synthKindRootNote("percsynth")).toBe(60);
+    for (const param of PERCSYNTH_PARAMS) {
+      expect(param.default).toBeGreaterThanOrEqual(param.min);
+      expect(param.default).toBeLessThanOrEqual(param.max);
     }
   });
 

@@ -121,6 +121,13 @@ describe("store.setInstrumentOutput — switching synth kind", () => {
     expect(store.getState().instruments[0].instrumentParams).toMatchObject({ burst: 0, noise: 0.6, body: 0.5 });
   });
 
+  it("seeds the Percussion Synth's catalog defaults at the default root", () => {
+    const store = createStore({ song: createSong(), instruments: [createInstrumentSlot({ id: 0 })] });
+    store.setInstrumentOutput(0, { type: "instrument", channel: null, kind: "percsynth" });
+    expect(store.getState().instruments[0].rootNote).toBe(60);
+    expect(store.getState().instruments[0].instrumentParams).toMatchObject({ osc1Wave: 0, osc2Wave: 1, pitchEnv: 2.5, pitchDecay: 0.07, filterType: 0, decay: 0.35, drive: 0.2 });
+  });
+
   it("leaves a hand-set rootNote alone when switching between drum kinds", () => {
     const store = createStore({ song: createSong(), instruments: [createInstrumentSlot({ id: 0, rootNote: 48 })] });
 

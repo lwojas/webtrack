@@ -436,3 +436,18 @@ controls (`DM_*_PARAMS`); Tune, Decay and the depth control (FM, or Chaos) come 
 - **Ratio** is a 0..1 "magnetic" control (plateaus on curated ratios), unlike FM's stepped `ratio`
   (same id, own range). `structure` (Tone) is stepped: Stack, Twin, Fan, Major, Minor, Sus.
 - Constants are first-pass, not tuned by ear.
+
+## Percussion Synth (`percsynth`)
+
+Two oscillators + noise through a resonant LP/HP and a drive stage, with one shared pitch sweep
+(`PERCSYNTH_PARAMS`, 20 controls). webdsp's `docs/percussion-synth.md` is authoritative.
+
+- **One-shot.** Registered like the drums (not sustained, default root, no `duration`). `sustain` and
+  `release` are not exposed, so the engine keeps sustain 0 and a hit ends itself; a long `decay` (up to
+  4 s) is the route to bass/drone hits.
+- **Sweep / Sweep Time / Osc 2 Sweep** are the pitch envelope (octaves above Tune, time to fall ~40 dB,
+  and how much of it osc 2 follows). **FM** is osc 1 modulating osc 2 (osc 1 can be muted and still
+  modulate). **Filter Env** is bipolar (+-6 octaves).
+- `osc1Wave`, `osc2Wave` and `filterType` are stepped (not LFO/automation-smoothed targets).
+- Several ids are shared with other kinds with their own ranges (`tune`, `noise`, `cutoff`, `decay`,
+  `drive`, `pitchDecay`...). Constants are first-pass, not tuned by ear.
