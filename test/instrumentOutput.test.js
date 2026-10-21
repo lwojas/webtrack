@@ -128,6 +128,13 @@ describe("store.setInstrumentOutput — switching synth kind", () => {
     expect(store.getState().instruments[0].instrumentParams).toMatchObject({ osc1Wave: 0, osc2Wave: 1, pitchEnv: 2.5, pitchDecay: 0.07, filterType: 0, decay: 0.35, drive: 0.2 });
   });
 
+  it("seeds Edge's catalog defaults at its own root (A-3)", () => {
+    const store = createStore({ song: createSong(), instruments: [createInstrumentSlot({ id: 0 })] });
+    store.setInstrumentOutput(0, { type: "instrument", channel: null, kind: "edge" });
+    expect(store.getState().instruments[0].rootNote).toBe(57);
+    expect(store.getState().instruments[0].instrumentParams).toMatchObject({ shape: 0, bright: 0.55, pitchEnv: 3, routing: 1, filterA: 0, filterB: 2, sustain: 0, decay: 0.3 });
+  });
+
   it("leaves a hand-set rootNote alone when switching between drum kinds", () => {
     const store = createStore({ song: createSong(), instruments: [createInstrumentSlot({ id: 0, rootNote: 48 })] });
 

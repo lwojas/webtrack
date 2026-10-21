@@ -271,6 +271,17 @@ function InstrumentEditor({ store, instrumentController }) {
   const filterType = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.filterType ?? 0);
   const filterEnv = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.filterEnv ?? 0);
   const filterDecay = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.filterDecay ?? 0.15);
+  // Edge ids not used by any kind above (tune, shape, detune, cutoff, resonance, spread, attack, decay,
+  // sustain, release, pitchEnv, pitchDecay and filterEnv are shared by id; their ranges differ per kind).
+  const bright = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.bright ?? 0.55);
+  const brightEnv = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.brightEnv ?? 0.4);
+  const routing = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.routing ?? 1);
+  const filterA = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.filterA ?? 0);
+  const filterB = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.filterB ?? 2);
+  const toneDecay = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.toneDecay ?? 0.18);
+  const lfoRate = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.lfoRate ?? 5);
+  const lfoPitch = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.lfoPitch ?? 0);
+  const lfoFilter = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.lfoFilter ?? 0);
   const synthParamValues = {
     tune, decay: synthDecay, pitchDrop, pitchDecay, punch, drive, snap, noise, spread, body, damp, metal, tone,
     bite, cutoff, resonance, attack: synthAttack, sustain: synthSustain, release: synthRelease,
@@ -278,6 +289,7 @@ function InstrumentEditor({ store, instrumentController }) {
     width, pwm, shape, harmonics, envamt, sub, fm, sweep, chick, structure, hold, burst, chaos, fold,
     osc1Wave, osc1Level, osc2Wave, osc2Pitch, osc2Level, osc2Fm, pitchEnv, osc2Env, noiseTone, noiseDecay,
     filterType, filterEnv, filterDecay,
+    bright, brightEnv, routing, filterA, filterB, toneDecay, lfoRate, lfoPitch, lfoFilter,
   };
 
   if (!exists) return null;
@@ -285,7 +297,7 @@ function InstrumentEditor({ store, instrumentController }) {
   // Switching to "midi" needs a channel right away (compileEvent treats a missing channel as
   // "nothing to send" — see audio/compile.js) — default to the last one used, or channel 1.
   // Switching to "instrument" needs a kind, one of model/instrumentParams.js#SYNTH_KINDS
-  // (kick/snare/clap/tom/hihat/bass/pulse/pad/fm/hypersaw/pwmbeast/dm_thump/dm_metal/dm_tone/dm_crack/dm_chaos/percsynth); state/store.js#setInstrumentOutput (re)seeds instrumentParams
+  // (kick/snare/clap/tom/hihat/bass/pulse/pad/fm/hypersaw/pwmbeast/dm_thump/dm_metal/dm_tone/dm_crack/dm_chaos/percsynth/edge); state/store.js#setInstrumentOutput (re)seeds instrumentParams
   // with that kind's own catalog defaults, both the first time a slot becomes "instrument" and
   // whenever the kind itself changes. `track` carries over across a kind switch (KICK -> SNARE
   // keeps whatever bus routing was already chosen) but resets to null (MASTER_BUS) switching to

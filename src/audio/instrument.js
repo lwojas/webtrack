@@ -23,7 +23,7 @@
 // index, not bound to one track, so routing is the slot's own explicit choice (model/
 // instrument.js) rather than inferred from whichever track happens to trigger it — that would be
 // an arbitrary, order-dependent pick if more than one track's cells ever addressed the slot.
-import { InstrumentKind, KickParam, SnareParam, ClapParam, TomParam, HiHatParam, BassParam, PulseParam, PadParam, FmParam, HypersawParam, PwmBeastParam, DmThumpParam, DmMetalParam, DmToneParam, DmCrackParam, DmChaosParam, PercSynthParam, MASTER_BUS } from "webdsp";
+import { InstrumentKind, KickParam, SnareParam, ClapParam, TomParam, HiHatParam, BassParam, PulseParam, PadParam, FmParam, HypersawParam, PwmBeastParam, DmThumpParam, DmMetalParam, DmToneParam, DmCrackParam, DmChaosParam, PercSynthParam, EdgeParam, MASTER_BUS } from "webdsp";
 import { initRuntime, ensureTrackBuses } from "./runtime.js";
 import { getSynthParams } from "../model/instrumentParams.js";
 import { planLfoUpdates } from "./instrumentLfo.js";
@@ -46,6 +46,7 @@ const ENGINE_KIND_BY_NAME = {
   dm_crack: InstrumentKind.DmCrack,
   dm_chaos: InstrumentKind.DmChaos,
   percsynth: InstrumentKind.PercSynth,
+  edge: InstrumentKind.Edge,
 };
 
 const WEBDSP_ENUM_BY_KIND = {
@@ -66,6 +67,7 @@ const WEBDSP_ENUM_BY_KIND = {
   dm_crack: DmCrackParam,
   dm_chaos: DmChaosParam,
   percsynth: PercSynthParam,
+  edge: EdgeParam,
 };
 
 const PARAM_ENUM_CACHE = Object.fromEntries(

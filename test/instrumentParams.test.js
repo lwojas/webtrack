@@ -17,6 +17,7 @@ import {
   DM_CRACK_PARAMS,
   DM_CHAOS_PARAMS,
   PERCSYNTH_PARAMS,
+  EDGE_PARAMS,
   SYNTH_KINDS,
   isSustainedSynthKind,
   synthKindRootNote,
@@ -60,10 +61,10 @@ describe("model/instrumentParams.js", () => {
   });
 
   it("SYNTH_KINDS lists every webdsp instrument kind with a stable id, a display name, and a category", () => {
-    expect(SYNTH_KINDS.map((k) => k.id)).toEqual(["kick", "snare", "clap", "tom", "hihat", "bass", "pulse", "pad", "fm", "hypersaw", "pwmbeast", "dm_thump", "dm_metal", "dm_tone", "dm_crack", "dm_chaos", "percsynth"]);
-    expect(SYNTH_KINDS.map((k) => k.name)).toEqual(["Kick", "Snare", "Clap", "Tom", "Hi-Hat", "Bass", "Pulse", "Pad", "FM", "Hypersaw", "PWM Beast", "FM Thump", "FM Metal", "FM Tone", "FM Crack", "FM Chaos", "Perc Synth"]);
+    expect(SYNTH_KINDS.map((k) => k.id)).toEqual(["kick", "snare", "clap", "tom", "hihat", "bass", "pulse", "pad", "fm", "hypersaw", "pwmbeast", "dm_thump", "dm_metal", "dm_tone", "dm_crack", "dm_chaos", "percsynth", "edge"]);
+    expect(SYNTH_KINDS.map((k) => k.name)).toEqual(["Kick", "Snare", "Clap", "Tom", "Hi-Hat", "Bass", "Pulse", "Pad", "FM", "Hypersaw", "PWM Beast", "FM Thump", "FM Metal", "FM Tone", "FM Crack", "FM Chaos", "Perc Synth", "Edge"]);
     for (const kind of SYNTH_KINDS) {
-      expect(kind.category).toBe({ bass: "bass", pulse: "synth", pad: "synth", fm: "synth", hypersaw: "synth", pwmbeast: "synth", dm_thump: "digital", dm_metal: "digital", dm_tone: "digital", dm_crack: "digital", dm_chaos: "digital", percsynth: "synth" }[kind.id] ?? "drum");
+      expect(kind.category).toBe({ bass: "bass", pulse: "synth", pad: "synth", fm: "synth", hypersaw: "synth", pwmbeast: "synth", dm_thump: "digital", dm_metal: "digital", dm_tone: "digital", dm_crack: "digital", dm_chaos: "digital", percsynth: "synth", edge: "synth" }[kind.id] ?? "drum");
       expect(getSynthParams(kind.id)).toBe(kind.params);
     }
   });
@@ -183,8 +184,27 @@ describe("model/instrumentParams.js", () => {
     }
   });
 
+  it("mirrors webdsp's edge-instrument.md table — engine enum member names, sustained at A-3", () => {
+    expect(EDGE_PARAMS.map((p) => p.webdspParam)).toEqual([
+      "Tune", "Shape", "Bright", "BrightEnv", "Detune", "PitchEnv", "PitchDecay", "Routing", "FilterA", "FilterB",
+      "Cutoff", "Spread", "Resonance", "FilterEnv", "ToneDecay", "LfoRate", "LfoPitch", "LfoFilter", "Attack", "Decay",
+      "Sustain", "Release",
+    ]);
+    expect(new Set(EDGE_PARAMS.map((p) => p.id)).size).toBe(EDGE_PARAMS.length);
+    expect(EDGE_PARAMS.find((p) => p.id === "routing").options).toHaveLength(3);
+    expect(EDGE_PARAMS.find((p) => p.id === "filterA").options.map((o) => o)).toEqual(["LP 12", "LP 24", "HP 12", "Band-pass"]);
+    expect(EDGE_PARAMS.find((p) => p.id === "pitchEnv").min).toBeLessThan(0);   // a signed transient
+    expect(EDGE_PARAMS.find((p) => p.id === "resonance").default).toBeLessThanOrEqual(0.2);
+    expect(isSustainedSynthKind("edge")).toBe(true);
+    expect(synthKindRootNote("edge")).toBe(57);   // tune default 220 Hz = A-3
+    for (const param of EDGE_PARAMS) {
+      expect(param.default).toBeGreaterThanOrEqual(param.min);
+      expect(param.default).toBeLessThanOrEqual(param.max);
+    }
+  });
+
   it("only the Bass, Pulse, Pad and FM are sustained and bring their own root note (A-1 = 33, A-2 = 45)", () => {
-    expect(SYNTH_KINDS.filter((k) => isSustainedSynthKind(k.id)).map((k) => k.id)).toEqual(["bass", "pulse", "pad", "fm", "hypersaw", "pwmbeast", "dm_tone", "dm_chaos"]);
+    expect(SYNTH_KINDS.filter((k) => isSustainedSynthKind(k.id)).map((k) => k.id)).toEqual(["bass", "pulse", "pad", "fm", "hypersaw", "pwmbeast", "dm_tone", "dm_chaos", "edge"]);
     expect(synthKindRootNote("pad")).toBe(45);
     expect(synthKindRootNote("fm")).toBe(45);
     expect(synthKindRootNote("hypersaw")).toBe(45);

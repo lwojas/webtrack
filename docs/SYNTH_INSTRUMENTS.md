@@ -451,3 +451,25 @@ Two oscillators + noise through a resonant LP/HP and a drive stage, with one sha
 - `osc1Wave`, `osc2Wave` and `filterType` are stepped (not LFO/automation-smoothed targets).
 - Several ids are shared with other kinds with their own ranges (`tune`, `noise`, `cutoff`, `decay`,
   `drive`, `pitchDecay`...). Constants are first-pass, not tuned by ear.
+
+## Edge (`edge`)
+
+Clean, sharp plucks, stabs and leads (`EDGE_PARAMS`, 22 controls). webdsp's `docs/edge-instrument.md` is
+authoritative.
+
+- **Sustained, root A-3.** Tunes to 220 Hz = note 57; a cell's length is the note's `duration`, so a pluck
+  (Sustain 0, the default) ends itself inside the cell and a lead (Sustain 1) holds for the whole cell.
+- **Oscillator.** Bright is a harmonic count (sine to a 256-partial saw), swept by the tone envelope
+  (Bright Env, Tone Decay), so a note can get its bite with the filter open and no resonance. Shape runs
+  saw, square, narrow pulse. Detune fades a second oscillator in over its first 10 cents. **Pitch Env** is a
+  signed millisecond-scale pitch transient (positive from above, negative from below), **Pitch Time** its decay.
+- **Two filter stages.** Routing is Filter A only, Series (A then B) or Parallel (A + B); each stage is
+  LP 12, LP 24, HP 12 or Band-pass. Cutoff is stage A; **B Offset** puts stage B that many octaves away from
+  it, so the pair works as one window (series LP + HP) or scoop (parallel LP below HP). Resonance feeds both,
+  with series stage B tied to a fraction of A's so stacked resonance stays tame. Filter Env moves both
+  cutoffs together (+-6 octaves).
+- One LFO (LFO Rate) to pitch (LFO > Pitch, vibrato) and to both cutoffs (LFO > Filter).
+- `routing`, `filterA` and `filterB` are stepped (not LFO/automation-smoothed targets).
+- Several ids are shared with other kinds with their own ranges (`tune`, `shape`, `detune`, `cutoff`,
+  `resonance`, `spread`, `attack`, `decay`, `sustain`, `release`, `pitchEnv`, `pitchDecay`, `filterEnv`).
+  Constants are first-pass, not tuned by ear.

@@ -269,6 +269,40 @@ export const PERCSYNTH_PARAMS = [
   { id: "drive", webdspParam: "Drive", label: "Drive", min: 0, max: 1, default: 0.2, step: 0.01, unit: "" },
 ];
 
+// Edge — mirrors webdsp's docs/edge-instrument.md: clean, sharp plucks, stabs and leads. A band-limited
+// oscillator whose brightness is a harmonic count (enveloped by the tone envelope), a signed pitch
+// transient, and two filter stages (LP12/LP24/HP12/band-pass) with single/series/parallel routing and
+// one LFO. Sustained: it brings its own root (tune 220 Hz = A-3 = note 57) and a cell's length is the
+// note's `duration`, so a pluck (sustain 0) ends itself and a lead (sustain 1) holds for the cell.
+// Ids shared with other kinds (tune, shape, detune, cutoff, resonance, spread, attack, decay, sustain,
+// release, pitchEnv, pitchDecay, filterEnv) have their own ranges here.
+export const EDGE_ROUTING_OPTIONS = ["Filter A", "Series", "Parallel"];
+export const EDGE_FILTER_OPTIONS = ["LP 12", "LP 24", "HP 12", "Band-pass"];
+export const EDGE_PARAMS = [
+  { id: "tune", webdspParam: "Tune", label: "Tune", min: 27.5, max: 1760, default: 220, step: 0.5, unit: "Hz", scale: "note" },
+  { id: "shape", webdspParam: "Shape", label: "Shape", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
+  { id: "bright", webdspParam: "Bright", label: "Bright", min: 0, max: 1, default: 0.55, step: 0.01, unit: "" },
+  { id: "brightEnv", webdspParam: "BrightEnv", label: "Bright Env", min: -1, max: 1, default: 0.4, step: 0.01, unit: "" },
+  { id: "detune", webdspParam: "Detune", label: "Detune", min: 0, max: 50, default: 0, step: 0.5, unit: "ct" },
+  { id: "pitchEnv", webdspParam: "PitchEnv", label: "Pitch Env", min: -24, max: 24, default: 3, step: 0.1, unit: "st" },
+  { id: "pitchDecay", webdspParam: "PitchDecay", label: "Pitch Time", min: 0.002, max: 0.4, default: 0.025, step: 0.001, unit: "s" },
+  { id: "routing", webdspParam: "Routing", label: "Routing", min: 0, max: 2, default: 1, step: 1, unit: "", options: EDGE_ROUTING_OPTIONS },
+  { id: "filterA", webdspParam: "FilterA", label: "Filter A", min: 0, max: 3, default: 0, step: 1, unit: "", options: EDGE_FILTER_OPTIONS },
+  { id: "filterB", webdspParam: "FilterB", label: "Filter B", min: 0, max: 3, default: 2, step: 1, unit: "", options: EDGE_FILTER_OPTIONS },
+  { id: "cutoff", webdspParam: "Cutoff", label: "Cutoff", min: 40, max: 16000, default: 3000, step: 1, unit: "Hz" },
+  { id: "spread", webdspParam: "Spread", label: "B Offset", min: -4, max: 4, default: -3, step: 0.05, unit: "oct" },
+  { id: "resonance", webdspParam: "Resonance", label: "Resonance", min: 0, max: 1, default: 0.1, step: 0.01, unit: "" },
+  { id: "filterEnv", webdspParam: "FilterEnv", label: "Filter Env", min: -1, max: 1, default: 0.5, step: 0.01, unit: "" },
+  { id: "toneDecay", webdspParam: "ToneDecay", label: "Tone Decay", min: 0.01, max: 2, default: 0.18, step: 0.01, unit: "s" },
+  { id: "lfoRate", webdspParam: "LfoRate", label: "LFO Rate", min: 0.1, max: 20, default: 5, step: 0.1, unit: "Hz" },
+  { id: "lfoPitch", webdspParam: "LfoPitch", label: "LFO > Pitch", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
+  { id: "lfoFilter", webdspParam: "LfoFilter", label: "LFO > Filter", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
+  { id: "attack", webdspParam: "Attack", label: "Attack", min: 0.0005, max: 0.25, default: 0.001, step: 0.0005, unit: "s" },
+  { id: "decay", webdspParam: "Decay", label: "Decay", min: 0.01, max: 4, default: 0.3, step: 0.01, unit: "s" },
+  { id: "sustain", webdspParam: "Sustain", label: "Sustain", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
+  { id: "release", webdspParam: "Release", label: "Release", min: 0.005, max: 2, default: 0.08, step: 0.005, unit: "s" },
+];
+
 // One entry per webdsp InstrumentKind, mirroring the `{ id, name, category, params }` shape
 // `runtime.getCapabilities().instruments` itself reports (node_modules/webdsp's
 // docs/instruments.md) — model/ stays webdsp-free (docs/EXTENDING.md's layer map) so this is a
@@ -307,6 +341,8 @@ export const SYNTH_KINDS = [
   { id: "dm_chaos", name: "FM Chaos", category: "digital", params: DM_CHAOS_PARAMS, sustained: true, rootNote: 57 },
   // Percussion Synth (webdsp's docs/percussion-synth.md): a one-shot at the default root, like the drums.
   { id: "percsynth", name: "Perc Synth", category: "synth", params: PERCSYNTH_PARAMS },
+  // Edge (webdsp's docs/edge-instrument.md): sustained, tunes to 220 Hz = A-3 = note 57.
+  { id: "edge", name: "Edge", category: "synth", params: EDGE_PARAMS, sustained: true, rootNote: 57 },
 ];
 
 // Registry of every synthesized-instrument kind's own param catalog, keyed by the same string
