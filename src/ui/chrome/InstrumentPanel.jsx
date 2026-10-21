@@ -224,6 +224,10 @@ function InstrumentEditor({ store, instrumentController }) {
   const pump = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.pump ?? 0.5);
   const repeat = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.repeat ?? 0.4);
   const rate = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.rate ?? 2);
+  const pumpRate = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.pumpRate ?? -1);
+  const pumpAttack = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.pumpAttack ?? 0);
+  const pluck = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.pluck ?? 0);
+  const grit = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.grit ?? 0.5);
   const diffuse = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.diffuse ?? 0.3);
   // Pad-only ids (tone is shared with the Hi-Hat; attack/release with Bass and Pulse).
   const movement = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.movement ?? 0.5);
@@ -270,7 +274,7 @@ function InstrumentEditor({ store, instrumentController }) {
   const synthParamValues = {
     tune, decay: synthDecay, pitchDrop, pitchDecay, punch, drive, snap, noise, spread, body, damp, metal, tone,
     bite, cutoff, resonance, attack: synthAttack, sustain: synthSustain, release: synthRelease,
-    pump, repeat, rate, diffuse, legato, slide, movement, detune, space, ratio, timbre, density,
+    pump, pumpRate, pumpAttack, pluck, grit, repeat, rate, diffuse, legato, slide, movement, detune, space, ratio, timbre, density,
     width, pwm, shape, harmonics, envamt, sub, fm, sweep, chick, structure, hold, burst, chaos, fold,
     osc1Wave, osc1Level, osc2Wave, osc2Pitch, osc2Level, osc2Fm, pitchEnv, osc2Env, noiseTone, noiseDecay,
     filterType, filterEnv, filterDecay,

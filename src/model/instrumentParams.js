@@ -82,12 +82,22 @@ export const BASS_PARAMS = [
 // the engine (audio/lookaheadPlayer.js, runtime.setTempo), not to note starts. `rate` is a
 // *stepped* control (`options`: one label per whole step), not a continuous value. Its ADSR is
 // attack/release only (decay/sustain are private to webdsp).
+// `pumpRate` is the pumper's own cycle, independent of the repeater's `rate`; its first option
+// ("Link", webdsp value -1, the default) follows `rate`. Stepped options are indexed by
+// (value - min), see formatSynthParamValue. `pumpAttack` shapes the pump's recovery (sharp duck ->
+// long swell); `pluck` adds a per-note filter snap + pitch click + amp decay; `grit` is the
+// pre-filter drive (0.5 = classic).
 export const PULSE_RATE_OPTIONS = ["1/1", "1/2", "1/4", "1/8", "1/16", "1/32"];
+export const PULSE_PUMP_RATE_OPTIONS = ["Link", ...PULSE_RATE_OPTIONS];
 export const PULSE_PARAMS = [
   { id: "tune", webdspParam: "Tune", label: "Tune", min: 27.5, max: 440, default: 110, step: 0.5, unit: "Hz", scale: "note" },
   { id: "cutoff", webdspParam: "Cutoff", label: "Cutoff", min: 60, max: 6000, default: 500, step: 1, unit: "Hz" },
   { id: "resonance", webdspParam: "Resonance", label: "Resonance", min: 0, max: 1, default: 0.25, step: 0.01, unit: "" },
+  { id: "grit", webdspParam: "Grit", label: "Grit", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
+  { id: "pluck", webdspParam: "Pluck", label: "Pluck", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
   { id: "pump", webdspParam: "Pump", label: "Pump", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
+  { id: "pumpRate", webdspParam: "PumpRate", label: "Pump Rate", min: -1, max: 5, default: -1, step: 1, unit: "", options: PULSE_PUMP_RATE_OPTIONS },
+  { id: "pumpAttack", webdspParam: "PumpAttack", label: "Pump Attack", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
   { id: "repeat", webdspParam: "Repeat", label: "Repeat", min: 0, max: 1, default: 0.4, step: 0.01, unit: "" },
   { id: "rate", webdspParam: "Rate", label: "Rate", min: 0, max: 5, default: 2, step: 1, unit: "", options: PULSE_RATE_OPTIONS },
   { id: "diffuse", webdspParam: "Diffuse", label: "Diffuse", min: 0, max: 1, default: 0.3, step: 0.01, unit: "" },
@@ -362,7 +372,7 @@ export function formatSynthParamValue(value, param) {
     const cents = Math.round((note - nearest) * 100);
     return cents === 0 ? noteNumberToName(nearest) : `${noteNumberToName(nearest)} ${cents > 0 ? "+" : ""}${cents}c`;
   }
-  if (param.options) return param.options[Math.round(value)] ?? "--";
+  if (param.options) return param.options[Math.round(value - (param.min ?? 0))] ?? "--";
   if (param.unit === "st") return `${value > 0 ? "+" : ""}${Number(value).toFixed(decimalsForStep(param.step))} st`;
   return `${Number(value).toFixed(decimalsForStep(param.step))}${param.unit}`;
 }

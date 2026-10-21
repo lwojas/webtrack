@@ -82,12 +82,12 @@ describe("model/instrumentParams.js", () => {
     }
   });
 
-  it("mirrors webdsp's pulse-instrument.md table — nine params, rate stepped, attack/release only", () => {
+  it("mirrors webdsp's pulse-instrument.md table — thirteen params, rates stepped, attack/release only", () => {
     expect(PULSE_PARAMS.map((p) => p.id)).toEqual([
-      "tune", "cutoff", "resonance", "pump", "repeat", "rate", "diffuse", "attack", "release",
+      "tune", "cutoff", "resonance", "grit", "pluck", "pump", "pumpRate", "pumpAttack", "repeat", "rate", "diffuse", "attack", "release",
     ]);
     expect(PULSE_PARAMS.map((p) => p.webdspParam)).toEqual([
-      "Tune", "Cutoff", "Resonance", "Pump", "Repeat", "Rate", "Diffuse", "Attack", "Release",
+      "Tune", "Cutoff", "Resonance", "Grit", "Pluck", "Pump", "PumpRate", "PumpAttack", "Repeat", "Rate", "Diffuse", "Attack", "Release",
     ]);
     for (const param of PULSE_PARAMS) {
       expect(param.min).toBeLessThan(param.max);
@@ -101,6 +101,15 @@ describe("model/instrumentParams.js", () => {
     expect(rate.step).toBe(1);
     expect(rate.options).toHaveLength(rate.max - rate.min + 1);
     expect([0, 2, 4, 5].map((v) => formatSynthParamValue(v, rate))).toEqual(["1/1", "1/4", "1/16", "1/32"]);
+  });
+
+  it("shows the pumper's own rate, with -1 as Link (follows the repeater rate)", () => {
+    const pumpRate = getSynthParam("pulse", "pumpRate");
+    expect(pumpRate.default).toBe(-1);
+    expect(pumpRate.options).toHaveLength(pumpRate.max - pumpRate.min + 1);
+    expect([-1, 0, 2, 5].map((v) => formatSynthParamValue(v, pumpRate))).toEqual(["Link", "1/1", "1/4", "1/32"]);
+    expect(getSynthParam("pulse", "pluck").default).toBe(0);
+    expect(getSynthParam("pulse", "grit").default).toBe(0.5);
   });
 
   it("mirrors webdsp's pad-instrument.md table — seven params, long attack/release", () => {
