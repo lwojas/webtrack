@@ -61,6 +61,13 @@ export function setTrackChannelVoiceMode(song, trackIndex, voiceMode) {
   if (channel) channel.voiceMode = voiceMode;
 }
 
+// Choke group (model/trackChannel.js): a positive integer, or null for none. Anything else is
+// stored as none. Read live by the compile step, so there is no engine push.
+export function setTrackChannelChokeGroup(song, trackIndex, chokeGroup) {
+  const channel = getTrackChannel(song, trackIndex);
+  if (channel) channel.chokeGroup = Number.isInteger(chokeGroup) && chokeGroup >= 1 ? chokeGroup : null;
+}
+
 // Clamped to a sane minimum of 1 (a track with maxVoices = 0 could never sound at all) but not
 // to any particular maximum from the UI's own dropdown — a project could carry a value the
 // current UI doesn't offer (a future bigger option, or hand-edited JSON) without this clobbering

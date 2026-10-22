@@ -5,6 +5,7 @@ import { trackLocalStep } from "../model/pattern.js";
 import { listCellEntries, nextPoint } from "../model/cellAutomation.js";
 import { isSustainedSynthKind } from "../model/instrumentParams.js";
 import { effectiveVelocity } from "./trackLfo.js";
+import { effectiveChokeGroup } from "../model/trackChannel.js";
 import { arpEventsAtRow, arpOf, isArpActive } from "../model/arp.js";
 
 // How long an un-timed (preview/audition) note of a sustained synth kind is held.
@@ -105,6 +106,8 @@ export function compileEvent(event, trackChannel, instruments, time, durationSec
     const compiled = { kind: "instrument", instrumentId: instrument.engineInstrumentId, velocity: level, pitch };
     if (time !== undefined) compiled.time = time;
     if (event.pan !== null && event.pan !== undefined) compiled.pan = event.pan;
+    const instrumentChoke = effectiveChokeGroup(trackChannel);
+    if (instrumentChoke !== null) compiled.chokeGroup = instrumentChoke;
     if (isSustainedSynthKind(instrument.output.kind)) {
       compiled.duration = durationSeconds ?? SUSTAINED_PREVIEW_SECONDS;
     }
@@ -135,7 +138,36 @@ export function compileEvent(event, trackChannel, instruments, time, durationSec
   if (durationSeconds !== undefined) compiled.duration = durationSeconds;
   if (bus !== undefined && bus !== null) compiled.bus = bus;
   if (event.pan !== null && event.pan !== undefined) compiled.pan = event.pan;
+  // Choke group: the engine cuts the group's other tracks' voices at this event's exact start
+  // frame (webdsp docs/choke-groups.md); sources are told apart by bus, one per track.
+  const chokeGroup = effectiveChokeGroup(trackChannel);
+  if (chokeGroup !== null) compiled.chokeGroup = chokeGroup;
   return compiled;
+}
+
+// Two notes closer than this start on the same engine frame (a frame is ~21 us at 48 kHz).
+const SAME_START_SECONDS = 5e-6;
+
+// Choke-group tie-break for the events of one step: which of them must not play because a track
+// later in track order, in the same group, starts a note at the same instant. Last track wins, so
+// the outcome never depends on queue order (the engine has no priority concept). The engine would
+// cut the loser on its own start frame anyway; dropping it up front makes the result explicit.
+// Notes at different times are not ties: the later one cuts the earlier. Events without a
+// chokeGroup or a time (previews) are never dropped. Returns the events to keep.
+export function dropSimultaneousChokeLosers(events) {
+  const grouped = events
+    .filter((e) => e.chokeGroup !== undefined && e.time !== undefined)
+    .sort((a, b) => a.time - b.time);
+  const losers = new Set();
+  for (let i = 0; i < grouped.length; i++) {
+    for (let j = i + 1; j < grouped.length && grouped[j].time - grouped[i].time <= SAME_START_SECONDS; j++) {
+      const a = grouped[i];
+      const b = grouped[j];
+      if (a.chokeGroup !== b.chokeGroup || a.trackIndex === b.trackIndex) continue;
+      losers.add(a.trackIndex < b.trackIndex ? a : b);
+    }
+  }
+  return losers.size === 0 ? events : events.filter((e) => !losers.has(e));
 }
 
 // One shared transport step across every track, at one absolute engine time ->
@@ -196,7 +228,7 @@ export function compileRow(pattern, trackChannels, instruments, transportStep, t
     if (compiled) events.push({ ...compiled, trackIndex });
   });
 
-  return events;
+  return dropSimultaneousChokeLosers(events);
 }
 
 // Cell-level FX automation at a row — distinct from compileRow's note triggers above: a sparse

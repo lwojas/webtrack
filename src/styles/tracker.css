@@ -341,7 +341,8 @@ input[type="range"]:disabled {
 }
 
 .tracker-track-voice-header__mode,
-.tracker-track-voice-header__max {
+.tracker-track-voice-header__max,
+.tracker-track-voice-header__choke {
   min-width: 0;
   flex: 1 1 0;
   background: var(--surface-1);
@@ -351,7 +352,8 @@ input[type="range"]:disabled {
 }
 
 .tracker-track-voice-header__mode:hover,
-.tracker-track-voice-header__max:hover {
+.tracker-track-voice-header__max:hover,
+.tracker-track-voice-header__choke:hover {
   border-color: var(--border-active);
 }
 

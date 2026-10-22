@@ -1,7 +1,7 @@
 import { formatCell } from "./rowFormatting.js";
 import { rowToBarBeat } from "../../model/timing.js";
 import { isEmptyEvent } from "../../model/event.js";
-import { VOICE_MODES, MAX_VOICES_OPTIONS } from "../../model/trackChannel.js";
+import { VOICE_MODES, MAX_VOICES_OPTIONS, CHOKE_GROUP_COUNT, effectiveChokeGroup } from "../../model/trackChannel.js";
 import { isChromatic, isNoteInScale } from "../../model/scale.js";
 
 // Builds the 64-row × 8-track grid exactly once via createElement (ECS-156 plan §4), caching
@@ -16,6 +16,7 @@ export function createGridView({
   onCellMouseEnter,
   onLengthChange,
   onVoiceModeChange,
+  onChokeGroupChange,
   onMaxVoicesChange,
   // () => the song's scale (model/scale.js), read on every patch so a key change only needs a
   // repaint; omitted = no scale emphasis.
@@ -128,6 +129,13 @@ export function createGridView({
   // own row right below LEN rather than crowded into the same one — both are per-column, "about
   // this track" controls that belong above the column they govern, same reasoning as
   // buildHeaderCell's own doc comment above, just two separate settings rather than one.
+  function chokeOption(group) {
+    const option = document.createElement("option");
+    option.value = group === null ? "" : String(group);
+    option.textContent = group === null ? "-" : `C${group}`;
+    return option;
+  }
+
   function buildVoiceHeaderCell(trackIndex) {
     const cellEl = document.createElement("div");
     cellEl.className = "tracker-track-header__cell tracker-track-voice-header__cell";
@@ -153,8 +161,16 @@ export function createGridView({
       maxEl.appendChild(option);
     });
 
-    cellEl.append(modeEl, maxEl);
-    return { cellEl, modeEl, maxEl };
+    // Choke group (model/trackChannel.js): "-" = none, else 1..CHOKE_GROUP_COUNT. A stored group
+    // beyond that range (hand-edited file) is added as an option by setHeaderVoiceSettings.
+    const chokeEl = document.createElement("select");
+    chokeEl.className = "tracker-track-voice-header__choke";
+    chokeEl.dataset.field = "chokeGroup";
+    chokeEl.appendChild(chokeOption(null));
+    for (let g = 1; g <= CHOKE_GROUP_COUNT; g++) chokeEl.appendChild(chokeOption(g));
+
+    cellEl.append(modeEl, maxEl, chokeEl);
+    return { cellEl, modeEl, maxEl, chokeEl };
   }
 
   function buildVoiceHeaderRow() {
@@ -187,6 +203,7 @@ export function createGridView({
     const field = e.target.dataset.field;
     if (field === "voiceMode") onVoiceModeChange?.(trackIndex, e.target.value);
     else if (field === "maxVoices") onMaxVoicesChange?.(trackIndex, Number(e.target.value));
+    else if (field === "chokeGroup") onChokeGroupChange?.(trackIndex, e.target.value === "" ? null : Number(e.target.value));
   }
 
   // Event delegation: one listener for the whole grid rather than one per cell/field, in
@@ -292,11 +309,20 @@ export function createGridView({
   // of truth. maxEl stays disabled (not hidden) while mono — the stored value is still there,
   // just not the thing currently governing playback, matching model/trackChannel.js's doc
   // comment on why mono doesn't force maxVoices to 1 in the data itself.
-  function setHeaderVoiceSettings(trackIndex, { voiceMode, maxVoices }) {
+  function setHeaderVoiceSettings(trackIndex, { voiceMode, maxVoices, chokeGroup }) {
     const refs = voiceHeaderRefs?.[trackIndex];
     if (!refs) return;
     refs.modeEl.value = voiceMode;
     refs.maxEl.value = String(maxVoices);
+    const group = effectiveChokeGroup({ chokeGroup });
+    if (group !== null && group > CHOKE_GROUP_COUNT && !refs.chokeEl.querySelector(`option[value="${group}"]`)) {
+      refs.chokeEl.appendChild(chokeOption(group));
+    }
+    refs.chokeEl.value = group === null ? "" : String(group);
+    refs.chokeEl.title =
+      group === null
+        ? "Choke group: none. Tracks in the same group cut each other off (open/closed hi-hat)"
+        : `Choke group ${group}: a note here cuts the other tracks in group ${group}`;
     refs.maxEl.disabled = voiceMode === "mono";
     refs.maxEl.title =
       voiceMode === "mono"

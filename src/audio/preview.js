@@ -53,7 +53,7 @@ export async function triggerPreview(event, trackChannel, instruments) {
   // what created it), so getRuntime() here is safe.
   if (compiled.kind === "instrument") {
     const runtime = await getRuntime();
-    runtime.instrumentNoteOn(compiled.instrumentId, { velocity: compiled.velocity, pan: compiled.pan, pitch: compiled.pitch, duration: compiled.duration });
+    runtime.instrumentNoteOn(compiled.instrumentId, { velocity: compiled.velocity, pan: compiled.pan, pitch: compiled.pitch, duration: compiled.duration, chokeGroup: compiled.chokeGroup });
     return null;
   }
 

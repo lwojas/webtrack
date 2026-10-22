@@ -9,7 +9,7 @@ import { createInstrumentSlot } from "../model/instrument.js";
 import { normalizeCues } from "../model/chop.js";
 import { arrayBufferToBase64, base64ToArrayBuffer } from "./base64.js";
 import { FX_TYPES, getFxParam } from "../model/fxParams.js";
-import { DEFAULT_MAX_VOICES } from "../model/trackChannel.js";
+import { DEFAULT_MAX_VOICES, effectiveChokeGroup } from "../model/trackChannel.js";
 import { normalizeScale } from "../model/scale.js";
 import { normalizeArp } from "../model/arp.js";
 
@@ -153,6 +153,8 @@ function ensureVoiceDefaults(song) {
   song.trackChannels.forEach((channel) => {
     if (!channel.voiceMode) channel.voiceMode = "poly";
     if (typeof channel.maxVoices !== "number") channel.maxVoices = DEFAULT_MAX_VOICES;
+    // Choke group (added later): absent or invalid = none, which is how older projects always played.
+    channel.chokeGroup = effectiveChokeGroup(channel);
   });
 }
 

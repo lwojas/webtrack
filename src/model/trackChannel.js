@@ -16,6 +16,18 @@ export const VOICE_MODES = ["poly", "mono"];
 export const MAX_VOICES_OPTIONS = [1, 2, 4, 8, 16];
 export const DEFAULT_MAX_VOICES = 4;
 //
+// chokeGroup: null (none) or a positive integer. A note on this track cuts the sounding voices of
+// every *other* track in the same group at the note's exact start frame (open/closed hi-hat). The
+// cut is made by the engine (webdsp docs/choke-groups.md); the tracker only stamps the group on
+// each event. Distinct from voiceMode (a track against itself) and from voice stealing. A group
+// only ever matters across tracks: webdsp tells sources apart by bus, and every track has its own.
+export const CHOKE_GROUP_COUNT = 8;
+// Anything a hand-edited or older project might hold (absent, 0, negative, fractional, NaN) is none.
+export function effectiveChokeGroup(channel) {
+  const g = channel?.chokeGroup;
+  return Number.isInteger(g) && g >= 1 ? g : null;
+}
+//
 // FX is a three-layer model (model/fxParams.js has the full doc comment on the catalog side),
 // built on webdsp's own ordered-FX-chain-of-*instances* primitive (node_modules/webdsp's
 // docs/fx-chain.md) rather than "one of each type":
@@ -69,6 +81,7 @@ export function createTrackChannel({
   fxChain = [],
   voiceMode = "poly",
   maxVoices = DEFAULT_MAX_VOICES,
+  chokeGroup = null,
 } = {}) {
   return {
     index,
@@ -81,5 +94,6 @@ export function createTrackChannel({
     fxChain,
     voiceMode,
     maxVoices,
+    chokeGroup,
   };
 }

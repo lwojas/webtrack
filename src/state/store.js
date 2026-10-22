@@ -6,6 +6,7 @@ import {
   setTrackChannelSolo as setTrackChannelSoloModel,
   setTrackChannelVolume as setTrackChannelVolumeModel,
   setTrackChannelVoiceMode as setTrackChannelVoiceModeModel,
+  setTrackChannelChokeGroup as setTrackChannelChokeGroupModel,
   setTrackChannelMaxVoices as setTrackChannelMaxVoicesModel,
   setTrackChannelPan as setTrackChannelPanModel,
   setTrackChannelEventLfo as setTrackChannelEventLfoModel,
@@ -629,6 +630,12 @@ export function createStore({ song, instruments }) {
     emitter.emit(events.TRACK_CHANNEL_CHANGED, { trackIndex });
   }
 
+  // Choke group (model/trackChannel.js): read live by the compile step, so there is no engine push.
+  function setTrackChannelChokeGroup(trackIndex, chokeGroup) {
+    setTrackChannelChokeGroupModel(state.song, trackIndex, chokeGroup);
+    emitter.emit(events.TRACK_CHANNEL_CHANGED, { trackIndex });
+  }
+
   // Track voice-allocation policy (model/trackChannel.js's voiceMode/maxVoices, enforced by
   // audio/voiceTracker.js) — reuses TRACK_CHANNEL_CHANGED, the same event mute/solo/volume
   // already emit, since it's the same kind of per-track mixer-level setting.
@@ -927,6 +934,7 @@ export function createStore({ song, instruments }) {
     setTrackStepsLfo,
     setTrackChannelVolume,
     setTrackChannelVoiceMode,
+    setTrackChannelChokeGroup,
     setTrackChannelMaxVoices,
     setInstrumentSample,
     setInstrumentGain,

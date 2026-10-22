@@ -67,6 +67,10 @@ export default function TrackerGridHost({ store, playbackController, renderStats
       store.setTrackChannelVoiceMode(trackIndex, voiceMode);
     }
 
+    function handleChokeGroupChange(trackIndex, chokeGroup) {
+      store.setTrackChannelChokeGroup(trackIndex, chokeGroup);
+    }
+
     function handleMaxVoicesChange(trackIndex, maxVoices) {
       store.setTrackChannelMaxVoices(trackIndex, maxVoices);
     }
@@ -154,6 +158,7 @@ export default function TrackerGridHost({ store, playbackController, renderStats
         onCellMouseEnter: handleCellMouseEnter,
         onLengthChange: handleLengthChange,
         onVoiceModeChange: handleVoiceModeChange,
+        onChokeGroupChange: handleChokeGroupChange,
         onMaxVoicesChange: handleMaxVoicesChange,
         getScale: () => scaleOf(store.getState().song),
       });
