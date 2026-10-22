@@ -604,3 +604,30 @@ describe("createLookaheadPlayer — synthesized instrument routing (webdsp Kick 
     player.stop();
   });
 });
+
+describe("createLookaheadPlayer — starting part-way into the first pattern (following an external clock)", () => {
+  it("initialRow puts that row at startAt, and never schedules the rows before it", () => {
+    vi.useFakeTimers();
+    const runtime = createFakeRuntime();
+    const rows = [];
+    const player = createLookaheadPlayer({
+      runtime,
+      compileRow: (_p, _c, _i, step, time) => {
+        rows.push({ step, time });
+        return [];
+      },
+      getStepDurationSeconds: () => 0.25,
+    });
+    player.start({ initialPattern: makePattern({ rowCount: 16 }), initialTrackChannels: [], initialInstruments: [], startAt: 2, initialRow: 8 });
+    runtime.advance(1.95);
+    vi.advanceTimersByTime(30);
+
+    expect(rows[0].step).toBe(8); // first scheduled row is the requested one
+    expect(rows[0].time).toBeCloseTo(2, 9); // sounding exactly at startAt
+    expect(rows.every((r) => r.step >= 8)).toBe(true);
+    expect(player.getPlayheadRow()).toBe(-1); // before startAt the playhead has not reached it yet
+    runtime.advance(0.3);
+    expect(player.getPlayheadRow()).toBe(9); // one step in
+    player.stop();
+  });
+});

@@ -7,6 +7,8 @@
 import { createStore } from "./state/store.js";
 import { createPlaybackController } from "./audio/playbackController.js";
 import { initRuntime } from "./audio/runtime.js";
+import { createHostSync } from "./audio/hostSync.js";
+import { hasEmbeddedHost } from "webdsp";
 import {
   setTrackFxParam,
   setMasterFxParam,
@@ -366,7 +368,7 @@ export function createAppContext() {
     getInstruments: () => store.getState().instruments,
     getBpm: () => store.getState().song.bpm,
     getSwing: () => store.getState().song.swing,
-    onTransportChange: ({ playing }) => store.setTransport(playing),
+    onTransportChange: ({ playing, hostBpm }) => store.setTransport(playing, hostBpm ?? null),
     onPatternSwitchPending: (pending) => store.setPatternSwitchPending(pending),
     // Cell FX automation already calls audio/fx.js's setTrackFxParam/setTrackFxInstanceParam
     // itself (see playbackController.js) for the real engine call — this callback only needs to
@@ -377,6 +379,15 @@ export function createAppContext() {
       else store.setTrackFxInstanceParam(trackIndex, instanceId, paramId, value);
     },
   });
+
+  // A runtime hosted by a plugin needs no user gesture, and the host's transport can start before anyone
+  // clicks Play: bring the runtime up now and follow the host's transport (audio/hostSync.js). In a
+  // browser hasEmbeddedHost() is false and none of this runs.
+  if (hasEmbeddedHost()) {
+    initRuntime()
+      .then((runtime) => createHostSync({ runtime, getTransport: () => playbackController }))
+      .catch(() => {});
+  }
 
   // Selecting a pattern always repaints the grid (the edit view) immediately — see
   // state/store.js's selectPattern. Whether that's also what plays next depends on whether
