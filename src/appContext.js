@@ -8,7 +8,8 @@ import { createStore } from "./state/store.js";
 import { createPlaybackController } from "./audio/playbackController.js";
 import { initRuntime } from "./audio/runtime.js";
 import { createHostSync } from "./audio/hostSync.js";
-import { hasEmbeddedHost } from "webdsp";
+import { getHostState, hasEmbeddedHost } from "webdsp";
+import { fromHostSnapshot, publishRecord } from "./persistence/hostState.js";
 import {
   setTrackFxParam,
   setMasterFxParam,
@@ -411,7 +412,13 @@ export function createAppContext() {
   // point of the debounce is that a burst of CELL_CHANGED events while editing (one per
   // keystroke) collapses into one write, not one per event — see persistence/recovery.js's
   // own doc comment.
-  const recoveryScheduler = createRecoveryScheduler({ writeRecoveryState: localAssetStore.putRecoveryState });
+  // A host with its own session (a plugin) keeps the project there instead (persistence/hostState.js).
+  const hostState = getHostState();
+  const recoveryScheduler = createRecoveryScheduler({
+    writeRecoveryState: hostState
+      ? async (record) => publishRecord(hostState, record, store.getState().instruments)
+      : localAssetStore.putRecoveryState,
+  });
   function scheduleRecoverySnapshot() {
     const state = store.getState();
     recoveryScheduler.schedule({
@@ -558,6 +565,9 @@ export function createAppContext() {
     if (!demoInstrumentsLoaded) {
       demoInstrumentsLoaded = (async () => {
         await initRuntime();
+        // In a host, the session may hold the project: the demo kit must not be loaded over it. Wait for the
+        // host's answer (a snapshot, or "nothing saved"); a host that never answers is treated as empty.
+        if (await hostRestored) return;
         // import.meta.env.BASE_URL (always trailing-slash-terminated) rather than a bare
         // "/samples/..." root path — GitHub Pages serves this app from a /webtrack/ subpath
         // (see vite.config.js's base), and a root-relative fetch would 404 there.
@@ -590,9 +600,12 @@ export function createAppContext() {
     // An explicit Save just produced a durable, user-owned copy of exactly this state — the
     // local recovery snapshot (which only ever existed to cover the gap *before* this) is now
     // redundant; clearing it avoids an unnecessary "restore unsaved session?" prompt next
-    // startup for a session the user already saved and closed normally.
-    recoveryScheduler.cancel();
-    dismissRecovery();
+    // startup for a session the user already saved and closed normally. A host's session is
+    // not a recovery slot: it keeps tracking the project.
+    if (!hostState) {
+      recoveryScheduler.cancel();
+      dismissRecovery();
+    }
   }
 
   async function loadProjectFromFile(file) {
@@ -669,6 +682,7 @@ export function createAppContext() {
   // the UI should offer to restore it (see persistence/recovery.js's module doc comment for
   // what it contains). Read-only; doesn't touch the open project.
   async function checkForRecovery() {
+    if (hostState) return null; // the host's session is the truth: no prompt
     return (await localAssetStore.getRecoveryState()) ?? null;
   }
 
@@ -677,12 +691,13 @@ export function createAppContext() {
   // gains), just sourced from the recovery record instead of a picked File. Keeps the
   // record's own projectId rather than minting a new one: this is a continuation of that
   // session, not a brand-new project.
-  async function restoreFromRecovery(record) {
+  // `getLocalAssetBytes` overrides where sample bytes come from (a host's snapshot carries its own).
+  async function restoreFromRecovery(record, { getLocalAssetBytes = async (id) => (await localAssetStore.getLocalAsset(id))?.data } = {}) {
     if (playbackController.isPlaying()) playbackController.stop();
     await initRuntime();
     const { song, instruments, ui } = await restoreRecoveryState(record, {
       loadSampleBytes: async (buffer, name) => (await loadSample(buffer, name)).id,
-      getLocalAssetBytes: async (id) => (await localAssetStore.getLocalAsset(id))?.data,
+      getLocalAssetBytes,
     });
     backfillLocalAssetIds(instruments);
     recoveryScheduler.cancel();
@@ -706,6 +721,29 @@ export function createAppContext() {
   function dismissRecovery() {
     localAssetStore.clearRecoveryState().catch(() => {});
   }
+
+  // Resolves true once the host's saved project (if it had one) is installed, false if the host had none, sent
+  // something unreadable, or did not answer within a few seconds. Always false without a host.
+  const HOST_ANSWER_TIMEOUT_MS = 3000;
+  const hostRestored = hostState
+    ? new Promise((resolve) => {
+        const giveUp = setTimeout(() => resolve(false), HOST_ANSWER_TIMEOUT_MS);
+        const settle = (restored) => {
+          clearTimeout(giveUp);
+          resolve(restored);
+        };
+        hostState.onRestore(async (snapshot) => {
+          const parsed = fromHostSnapshot(snapshot);
+          if (!parsed) return settle(false);
+          try {
+            await restoreFromRecovery(parsed.record, { getLocalAssetBytes: async (id) => parsed.blobs[id] });
+            settle(true);
+          } catch {
+            settle(false); // unreadable state must never wedge startup: carry on with the default project
+          }
+        });
+      })
+    : Promise.resolve(false);
 
   // Not consumed by anything in this app yet — no midi-core dependency is added for MVP (see
   // ECS-156 plan §12). It exists now so the seam has a real, internally-consistent, buildable
