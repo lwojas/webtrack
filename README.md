@@ -150,6 +150,20 @@ the seams left open rather than closed off — is listed in
 send/aux buses, playing the pattern queue in order, tracker FX columns consuming the FX
 parameter catalog, undo/redo.
 
+## Running inside the WebVST plugin
+
+webtracker also runs, unmodified, inside the [webvst](https://github.com/lwojas/webvst) VST3 plugin (a WebView loading this
+app by URL, with the audio engine native). Nothing here is plugin-specific: the app uses webdsp's host seams, which are
+`null` / never fire in a browser, so standalone behaviour is unchanged.
+
+- **Develop as usual** (`npm run dev`). To try it in a DAW, load the plugin and point it at your dev server (`WEBVST_URL` in the
+  host's environment; default `http://localhost:5174`). Restart the dev server after changing the `webdsp` dependency.
+- What the app does when hosted: follows the DAW transport and tempo (`docs/HOST_SYNC.md`); the DAW's MIDI arrives as an
+  ordinary Web MIDI input (`docs/MIDI.md`, "In a plugin host"); the project is saved in the DAW session instead of the local
+  recovery slot, and the demo kit never overwrites a restored project (`docs/HOST_STATE.md`); SAVE / LOAD use the host's file
+  dialogs, because the plugin's WebView has no file input.
+- The plugin's build pipeline, protocol and day-to-day workflow live in webvst's `docs/ARCHITECTURE.md`.
+
 ## Repository layout
 
 ```
