@@ -414,12 +414,19 @@ export function createAppContext() {
   // own doc comment.
   // A host with its own session (a plugin) keeps the project there instead (persistence/hostState.js).
   const hostState = getHostState();
+  // Until the host has said what its session holds (a snapshot, or nothing), nothing is published: a publish before the
+  // restore arrives could overwrite the saved session. A host publish is also quick (a plugin window can be closed at any
+  // moment and the page, with any pending write, goes with it); the local recovery write can afford to be slower.
+  let hostAnswered = !hostState;
+  const HOST_PUBLISH_DEBOUNCE_MS = 300;
   const recoveryScheduler = createRecoveryScheduler({
+    debounceMs: hostState ? HOST_PUBLISH_DEBOUNCE_MS : undefined,
     writeRecoveryState: hostState
       ? async (record) => publishRecord(hostState, record, store.getState().instruments)
       : localAssetStore.putRecoveryState,
   });
   function scheduleRecoverySnapshot() {
+    if (!hostAnswered) return;
     const state = store.getState();
     recoveryScheduler.schedule({
       projectId: currentProjectId,
@@ -734,6 +741,7 @@ export function createAppContext() {
           resolve(restored);
         };
         hostState.onRestore(async (snapshot) => {
+          hostAnswered = true; // from here the session follows the project, whatever the answer was
           const parsed = fromHostSnapshot(snapshot);
           if (!parsed) return settle(false);
           try {
