@@ -3,6 +3,8 @@ import { useStore } from "../../state/useStore.js";
 import * as events from "../../state/events.js";
 import { getSelectedPattern } from "../../model/query.js";
 import ScaleControl from "./ScaleControl.jsx";
+import { getHostFiles } from "webdsp";
+import { pickProjectFileFromHost } from "../../persistence/projectIO.js";
 import { barsForRowCount, MAX_BARS, RESAMPLE_STEP_OPTIONS } from "../../model/timing.js";
 
 // Ordinary stateful forms-and-buttons UI with no rendering-performance requirement — exactly
@@ -31,6 +33,14 @@ export default function TransportBar({ store, playbackController, onSaveProject,
   function togglePlay() {
     if (playing) playbackController.stop();
     else playbackController.play();
+  }
+
+  // Where the host has its own file dialogs (a plugin: its WebView has no file input), the label's input is not
+  // used: the host's dialog opens instead and hands back a File.
+  function handleLoadClick(e) {
+    if (!getHostFiles()) return; // a browser: the label opens its own file input
+    e.preventDefault();
+    pickProjectFileFromHost().then((file) => file && onLoadProjectFile?.(file));
   }
 
   function handleLoadFileChange(e) {
@@ -129,7 +139,7 @@ export default function TransportBar({ store, playbackController, onSaveProject,
           <button className="transport-bar__chip" onClick={onSaveProject}>
             SAVE
           </button>
-          <label className="transport-bar__chip transport-bar__load">
+          <label className="transport-bar__chip transport-bar__load" onClick={handleLoadClick}>
             LOAD
             <input type="file" accept="application/json" hidden onChange={handleLoadFileChange} />
           </label>

@@ -18,3 +18,11 @@ instead of in the page's storage. In a browser `getHostState()` is null and noth
   does not answer within 3 s.
 - **In a host there is no gesture veil** (the runtime needs no click) and no local recovery slot or restore prompt (a
   shared slot would be shared by every instance). Saving a project file leaves the host session tracking the project.
+
+## Project files in a host
+
+Save / Load (project files) use the host's own open and save dialogs where it has them (`getHostFiles()` from webdsp; a
+plugin's WebView has no file input and ignores downloads): `persistence/projectIO.js` (`downloadProjectFile`,
+`pickProjectFileFromHost`, which hands back a `File` so the existing loader is unchanged) and the LOAD control in
+`TransportBar.jsx`. In a browser nothing changes: the download link and the file input. Contract: webdsp's
+`docs/host-files.md`.
