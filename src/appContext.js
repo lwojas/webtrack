@@ -6,7 +6,8 @@
 // it's the one place that knows about all of them.
 import { createStore } from "./state/store.js";
 import { createPlaybackController } from "./audio/playbackController.js";
-import { initRuntime } from "./audio/runtime.js";
+import { initRuntime, peekRuntime } from "./audio/runtime.js";
+import { createMidiRouteSync } from "./audio/midiRoute.js";
 import { createHostSync } from "./audio/hostSync.js";
 import { getHostState, hasEmbeddedHost } from "webdsp";
 import { fromHostSnapshot, publishRecord } from "./persistence/hostState.js";
@@ -386,7 +387,10 @@ export function createAppContext() {
   // browser hasEmbeddedHost() is false and none of this runs.
   if (hasEmbeddedHost()) {
     initRuntime()
-      .then((runtime) => createHostSync({ runtime, getTransport: () => playbackController }))
+      .then((runtime) => {
+        createHostSync({ runtime, getTransport: () => playbackController });
+        midiRouteSync.sync();
+      })
       .catch(() => {});
   }
 
@@ -460,7 +464,15 @@ export function createAppContext() {
   // identically. See input/editController.js's own doc comment on attach() for why this is one
   // array passed to a single createEditController, not a second controller instance.
   const keyboardNoteSource = createKeyboardNoteSource({ getOctave: () => store.getState().octave });
-  const midiNoteSource = createMidiNoteSource();
+  // A host that can play incoming MIDI itself (capabilities.midiRouting) is told what a key plays (audio/midiRoute.js: what the audition of
+  // the selected instrument on the cursor's track plays) and plays it natively: low latency, with the window closed. The note is still
+  // delivered here for note entry, flagged `routed`, so it is not also played by the page. Re-declared whenever any of the things the route
+  // depends on changes (selection and cursor move on CURSOR_MOVED), and once the runtime is up.
+  const midiRouteSync = createMidiRouteSync({ getRuntime: peekRuntime, getState: () => store.getState() });
+  [events.CURSOR_MOVED, events.TRACK_CHANNEL_CHANGED, events.INSTRUMENTS_CHANGED, events.SCALE_CHANGED, events.RESAMPLE_STATUS_CHANGED].forEach((event) =>
+    store.subscribe(event, midiRouteSync.sync),
+  );
+  const midiNoteSource = createMidiNoteSource({ isRouted: midiRouteSync.isRouted });
 
   // Push Mk1, wired as a controller surface on top of (not instead of) the generic MIDI
   // keyboard path above — see src/midi/push/modeController.js's own doc comment for the
