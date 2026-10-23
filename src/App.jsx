@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { hasEmbeddedHost } from "webdsp";
 import TrackerGridHost from "./ui/grid/TrackerGridHost.jsx";
 import TransportBar from "./ui/chrome/TransportBar.jsx";
 import MixerFxPanel from "./ui/chrome/MixerFxPanel.jsx";
@@ -93,6 +94,11 @@ export default function App() {
       },
     );
   }, [ensureDemoInstrumentsLoaded]);
+
+  // A host-provided runtime needs no gesture: skip the veil and start at once (a browser still waits for the click).
+  useEffect(() => {
+    if (hasEmbeddedHost()) startAudio();
+  }, [startAudio]);
 
   useEffect(() => {
     const detachNoteSources = noteSources.map((noteSource) => noteSource.attach());
