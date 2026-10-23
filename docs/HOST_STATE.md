@@ -26,3 +26,11 @@ plugin's WebView has no file input and ignores downloads): `persistence/projectI
 `pickProjectFileFromHost`, which hands back a `File` so the existing loader is unchanged) and the LOAD control in
 `TransportBar.jsx`. In a browser nothing changes: the download link and the file input. Contract: webdsp's
 `docs/host-files.md`.
+
+## Publishing rules (what reaches the session, and when)
+
+- **Quickly.** A plugin window can be closed at any moment and the page, with any pending write, goes with it, so a host publish
+  is debounced by 300 ms, not the 1.5 s the local recovery write uses.
+- **Not before the host has answered.** A publish before the restore arrives could overwrite the saved session, so nothing is
+  published until `onRestore` has been called (with a snapshot or `null`). After that the session follows every change,
+  including a loaded project file.
