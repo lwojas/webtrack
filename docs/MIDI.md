@@ -769,3 +769,19 @@ A plugin host (webvst) provides `navigator.requestMIDIAccess` itself, returning 
 "WebVST DAW MIDI", fed by the host's MIDI. Nothing here changes: `createMidiNoteSource()` already wires every connected
 input, so the host's notes audition and enter like a keyboard's (verified against this module). The port name matches no
 Push pattern, so `pushDevice.js` ignores it, and no outputs are offered (MIDI output instruments find no port there).
+
+### Native MIDI routing (low latency, works with the window closed)
+
+When the host can play MIDI itself (`capabilities.midiRouting`, webdsp `docs/midi-routing.md`: a plugin with protocol 2), the page does not play
+MIDI notes. `audio/midiRoute.js` declares a *route*: what the audition of the selected instrument on the cursor's track plays (a sample from
+its root note, or one chop slice per key; a synth from its root note, released on key-up for sustained kinds like the Bass; scaled by the track
+volume; mono and choke group carried). The host then plays incoming notes on its audio thread, sample-accurately. The route is re-declared when
+the cursor, selection, track settings, instruments, scale or resample status change, and withdrawn (the page plays again) when it cannot
+be expressed: a muted track, a MIDI-output instrument, nothing loaded yet, a resample in progress, or Snap on (the page snaps a played note to the
+scale before it is heard and written; a raw key would not be).
+
+The note is still delivered to the page for note entry; `input/midiInputSource.js` flags it `routed: true` while the host is playing, and
+`editController.js` then enters it into the pattern without also auditioning it. Without `midiRouting` (a browser, an older plugin) nothing changes.
+
+The note source's `attach()` used to share one `detached` flag across calls, so after any detach every later attach was ignored; under React
+StrictMode (dev server) the MIDI input never worked. The flag now belongs to each attach call.

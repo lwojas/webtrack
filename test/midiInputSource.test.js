@@ -132,4 +132,19 @@ describe("createMidiNoteSource", () => {
     expect(() => source.attach()).not.toThrow();
     await new Promise((resolve) => setTimeout(resolve, 0));
   });
+
+  it("works again after a detach and re-attach (React StrictMode mounts, unmounts and mounts again in dev)", async () => {
+    const input = createFakeInput();
+    const source = createMidiNoteSource({ requestMIDIAccess: async () => createFakeMidiAccess([input]) });
+    const onNoteOn = vi.fn();
+    source.onNoteOn(onNoteOn);
+
+    const detachFirst = source.attach();
+    detachFirst(); // StrictMode's simulated unmount, before the access request has even resolved
+    source.attach();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    input.fireMessage([0x90, 60, 100]);
+    expect(onNoteOn).toHaveBeenCalledTimes(1);
+  });
 });

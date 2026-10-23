@@ -126,7 +126,7 @@ export function createEditController({ store, noteSources }) {
   // Audition always plays, regardless of edit mode or which column the cursor is on —
   // writing into the model only happens when editing is on and the cursor is on the NOTE
   // column (ECS-156 plan §8).
-  function handleNoteOn({ note: playedNote, velocity, chromatic }) {
+  function handleNoteOn({ note: playedNote, velocity, chromatic, routed }) {
     const { song, cursor, editMode, selectedInstrumentIndex, instruments } = store.getState();
     // With the project's Snap on, a played note lands on the nearest scale note (heard and
     // written alike); a source can ask for a chromatic one (Shift on the computer keyboard).
@@ -145,7 +145,8 @@ export function createEditController({ store, noteSources }) {
     // play() yet, and loading samples/triggering previews is otherwise behind a gesture too)
     // is a legitimate no-op, not an error — getRuntime() rejects in that case, and this swallows
     // it rather than leaving an unhandled rejection.
-    if (trackChannel) triggerPreview(previewEvent, trackChannel, instruments).catch(() => {});
+    // `routed`: the host is already playing this note itself (a MIDI key, audio/midiRoute.js): entering it below still happens, hearing it twice must not.
+    if (trackChannel && !routed) triggerPreview(previewEvent, trackChannel, instruments).catch(() => {});
 
     if (!editMode || cursor.field !== "note") return;
 
