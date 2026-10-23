@@ -596,7 +596,8 @@ export function createAppContext() {
         cursor: state.cursor,
       },
     });
-    downloadProjectFile(project, `webtracker-project-${Date.now()}.json`);
+    const saved = await downloadProjectFile(project, `webtracker-project-${Date.now()}.json`);
+    if (!saved) return; // the user cancelled the host's save dialog: nothing was saved, so nothing to clean up
     // An explicit Save just produced a durable, user-owned copy of exactly this state — the
     // local recovery snapshot (which only ever existed to cover the gap *before* this) is now
     // redundant; clearing it avoids an unnecessary "restore unsaved session?" prompt next
