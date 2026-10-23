@@ -60,8 +60,12 @@ export function createPlaybackController({
   // resolved runtime object, which only exists once initRuntime() has resolved.
   let resampleController = null;
 
+  // The tempo of an external clock this transport is following (audio/hostSync.js), or null when it plays on
+  // its own, at the song's BPM. Cleared by every stop.
+  let hostBpm = null;
+
   function getStepDurationSeconds() {
-    return 60 / getBpm() / STEPS_PER_BEAT;
+    return 60 / (hostBpm ?? getBpm()) / STEPS_PER_BEAT;
   }
 
   // Resolves one queue slot by index (wrapping around both ends) to its { pattern, queueIndex }
@@ -86,6 +90,37 @@ export function createPlaybackController({
   }
 
   async function play() {
+    hostBpm = null;
+    await start(initialQueueEntry(), {});
+  }
+
+  // Maps a step count from the start of the pattern queue (wrapping around the queue) to the queue entry
+  // and row it falls on.
+  function positionAtStep(step) {
+    const entries = getPatternQueueEntries(getSong());
+    const total = entries.reduce((sum, entry) => sum + entry.pattern.rowCount, 0);
+    if (entries.length === 0 || total <= 0 || !Number.isFinite(step)) return { entry: initialQueueEntry(), row: 0 };
+    let within = ((step % total) + total) % total;
+    for (let i = 0; i < entries.length; i++) {
+      const rows = entries[i].pattern.rowCount;
+      if (within < rows) return { entry: { pattern: entries[i].pattern, queueIndex: i }, row: within };
+      within -= rows;
+    }
+    return { entry: initialQueueEntry(), row: 0 };
+  }
+
+  // Starts (or restarts) playback so queue step `step` sounds at engine time `at`, at `bpm` quarter notes per
+  // minute: what following an external clock needs. `at` is clamped to just after now. The song's own BPM is
+  // not touched. A running transport is stopped first.
+  async function playAt(step, at, bpm) {
+    const runtime = await initRuntime();
+    stop();
+    hostBpm = bpm;
+    const { entry, row } = positionAtStep(step);
+    await start(entry, { startAt: Math.max(at, runtime.getCurrentTime() + 0.03), initialRow: row });
+  }
+
+  async function start({ pattern, queueIndex }, { startAt, initialRow } = {}) {
     const runtime = await initRuntime();
     // Allocated once, up front — every tick needs trackBusIds synchronously (to route note
     // voices into the right bus, audio/compile.js#compileRow), so it can't be resolved lazily
@@ -123,14 +158,15 @@ export function createPlaybackController({
     if (!resampleController) {
       resampleController = createResampleController({ runtime, isPlaying: () => player.isPlaying() });
     }
-    const { pattern, queueIndex } = initialQueueEntry();
     player.start({
       initialPattern: pattern,
       initialQueueIndex: queueIndex,
       initialTrackChannels: getTrackChannels(),
       initialInstruments: getInstruments(),
+      startAt,
+      initialRow,
     });
-    onTransportChange?.({ playing: true });
+    onTransportChange?.({ playing: true, hostBpm });
   }
 
   function stop() {
@@ -145,7 +181,8 @@ export function createPlaybackController({
         ? getBaseValue(fxKey(item.instanceId, item.paramId), channel, instruments)
         : getBaseValue(instKey(item.slot, item.paramId), channel, instruments);
     });
-    onTransportChange?.({ playing: false });
+    hostBpm = null;
+    onTransportChange?.({ playing: false, hostBpm: null });
   }
 
   // ui/chrome/TransportBar.jsx's Resample button, via appContext.js's handleResample — see
@@ -222,6 +259,7 @@ export function createPlaybackController({
 
   return {
     play,
+    playAt,
     stop,
     switchPattern,
     isPlaying,

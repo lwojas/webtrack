@@ -12,7 +12,10 @@ import { barsForRowCount, MAX_BARS, RESAMPLE_STEP_OPTIONS } from "../../model/ti
 // currently selected and lets its length be changed.
 export default function TransportBar({ store, playbackController, onSaveProject, onLoadProjectFile, onOpenSettings, onResample }) {
   const playing = useStore(store, events.TRANSPORT_CHANGED, (s) => s.playing);
-  const bpm = useStore(store, events.TRANSPORT_CHANGED, (s) => s.song.bpm);
+  const songBpm = useStore(store, events.TRANSPORT_CHANGED, (s) => s.song.bpm);
+  // The host tempo while following an external clock (audio/hostSync.js); the tempo then belongs to the host.
+  const hostBpm = useStore(store, events.TRANSPORT_CHANGED, (s) => s.hostBpm);
+  const bpm = hostBpm ?? songBpm;
   const swing = useStore(store, events.TRANSPORT_CHANGED, (s) => s.song.swing);
   const switchPending = useStore(store, events.PATTERN_SWITCH_PENDING, (s) => s.patternSwitchPending);
   const selectedPatternName = useStore(store, events.PATTERN_SELECTED, (s) => getSelectedPattern(s.song).name);
@@ -48,12 +51,13 @@ export default function TransportBar({ store, playbackController, onSaveProject,
       {switchPending && <span className="transport-bar__pending">SWITCH QUEUED</span>}
 
       <label className="transport-bar__bpm">
-        BPM
+        {hostBpm !== null ? "BPM · HOST" : "BPM"}
         <input
           type="number"
           min={40}
           max={300}
           value={bpm}
+          disabled={hostBpm !== null}
           onChange={(e) => store.setBpm(Number(e.target.value))}
         />
       </label>

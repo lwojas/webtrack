@@ -78,6 +78,8 @@ export function createLookaheadPlayer({
   let stepCounter = 0;
   let patternStartStep = 0;
   let startTime = 0;
+  // The first step that sounds (initialRow of start()); before it the transport is still in its lead-in.
+  let firstStep = 0;
   let playing = false;
   // The step duration the engine's beat grid was last told about (null = not yet this session).
   let announcedStepDuration = null;
@@ -212,15 +214,18 @@ export function createLookaheadPlayer({
     }
   }
 
-  function start({ initialPattern, initialQueueIndex = 0, initialTrackChannels, initialInstruments, startAt } = {}) {
+  // `initialRow` starts part-way into the first pattern (following an external clock, see audio/hostSync.js):
+  // `startAt` is then the time that row sounds, and earlier rows are simply never scheduled.
+  function start({ initialPattern, initialQueueIndex = 0, initialTrackChannels, initialInstruments, startAt, initialRow = 0 } = {}) {
     pattern = initialPattern;
     queueIndex = initialQueueIndex;
     pendingPattern = null;
     trackChannels = initialTrackChannels;
     instruments = initialInstruments;
-    stepCounter = 0;
+    stepCounter = initialRow;
+    firstStep = initialRow;
     patternStartStep = 0;
-    startTime = startAt ?? runtime.getCurrentTime() + 0.05;
+    startTime = (startAt ?? runtime.getCurrentTime() + 0.05) - initialRow * getStepDurationSeconds();
     playing = true;
     announcedStepDuration = null;
     // A fresh session's voice handles have nothing to do with whatever a previous one was
@@ -267,7 +272,8 @@ export function createLookaheadPlayer({
     const duration = getStepDurationSeconds();
     const elapsed = runtime.getCurrentTime() - startTime;
     if (elapsed < 0) return -1;
-    return Math.floor(elapsed / duration);
+    const step = Math.floor(elapsed / duration);
+    return step < firstStep ? -1 : step;
   }
 
   // The pattern-grid-relative row — kept for existing single-row consumers (the MVP control

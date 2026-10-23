@@ -107,6 +107,9 @@ export function createStore({ song, instruments }) {
     // null = the panel is open with no lane picked. The track is always the cursor's.
     automationEditor: { open: false, key: null },
     playing: false,
+    // The tempo of an external clock the transport is following (audio/hostSync.js), or null when it plays on
+    // its own at song.bpm. Session-only.
+    hostBpm: null,
     patternSwitchPending: false,
     // audio/resampleController.js's own status, mirrored here purely for the UI (see
     // RESAMPLE_STATUS_CHANGED) — this store never arms/cancels a resample itself, it only
@@ -203,9 +206,10 @@ export function createStore({ song, instruments }) {
   }
 
   // Used by audio/playbackController.js's onTransportChange callback (wired in appContext.js).
-  function setTransport(playing) {
+  function setTransport(playing, hostBpm = null) {
     state.playing = playing;
-    emitter.emit(events.TRANSPORT_CHANGED, { playing });
+    state.hostBpm = playing ? hostBpm : null;
+    emitter.emit(events.TRANSPORT_CHANGED, { playing, hostBpm: state.hostBpm });
   }
 
   function setBpm(bpm) {

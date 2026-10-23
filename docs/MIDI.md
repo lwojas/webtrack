@@ -762,3 +762,10 @@ own `attach()` cleanup was built to avoid (see "Lessons from real bugs" #2 below
   cell into view (e.g. a UI-driven cursor move to a step outside the current 8-step page) — the
   selected-cell cursor color simply isn't visible until the user pages there themselves, same as
   the playhead already behaves outside the visible window.
+
+## In a plugin host
+
+A plugin host (webvst) provides `navigator.requestMIDIAccess` itself, returning a MIDIAccess with one extra input,
+"WebVST DAW MIDI", fed by the host's MIDI. Nothing here changes: `createMidiNoteSource()` already wires every connected
+input, so the host's notes audition and enter like a keyboard's (verified against this module). The port name matches no
+Push pattern, so `pushDevice.js` ignores it, and no outputs are offered (MIDI output instruments find no port there).
