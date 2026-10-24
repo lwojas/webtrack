@@ -43,6 +43,7 @@ const EFFECT_KIND_BY_TYPE = {
   phaser: EffectKind.Phaser,
   bitcrusher: EffectKind.Bitcrusher,
   utility: EffectKind.Utility,
+  dubdelay: EffectKind.DubDelay,
 };
 
 // This session's own instanceId -> webdsp EffectId mapping, one Map per bus — never persisted

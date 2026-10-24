@@ -45,6 +45,27 @@ describe("filter.slope — the boolean 12dB/24dB filter FX parameter (webdsp's F
   });
 });
 
+describe("Dub Delay catalog entries (webdsp's tempo-synced delay)", () => {
+  it("is an FX type whose params map to the DubDelay NodeParams", () => {
+    expect(FX_TYPES.find((t) => t.id === "dubdelay")).toEqual({ id: "dubdelay", label: "Dub Delay" });
+    expect(getFxParamsForType("dubdelay").map((p) => [p.id, p.nodeParam])).toEqual([
+      ["dub.division", "DubDelayDivision"],
+      ["dub.feedback", "DubDelayFeedback"],
+      ["dub.tone", "DubDelayTone"],
+      ["dub.mix", "DubDelayMix"],
+    ]);
+    expect(getFxParam("dub.mix").default).toBe(0); // inert until parameterized, like every FX
+  });
+
+  it("formats the division as a note value, clamped to the table", () => {
+    const param = getFxParam("dub.division");
+    expect(formatFxValue(0, param)).toBe("1/16");
+    expect(formatFxValue(2, param)).toBe("1/8.");
+    expect(formatFxValue(5, param)).toBe("1/2");
+    expect(formatFxValue(9, param)).toBe("1/2");
+  });
+});
+
 describe("Phaser / Bitcrusher catalog entries", () => {
   it("FX_TYPES includes phaser and bitcrusher, with no bypassValues field (real per-instance enable/disable replaced it)", () => {
     const phaser = FX_TYPES.find((t) => t.id === "phaser");

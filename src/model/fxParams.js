@@ -96,6 +96,15 @@ export const FX_PARAMS = [
   // for "track -> Utility -> other FX" and automate its gain from cell FX.
   { id: "utility.gain", nodeParam: "UtilityGain", type: "utility", group: "Utility", label: "Gain", min: -60, max: 12, default: 0, step: 0.1, unit: "dB" },
 
+  // Dub Delay (webdsp EffectKind.DubDelay): a tempo-synced delay. `division` is webdsp's
+  // DubDelayDivision step index (not seconds): the engine derives the time from the transport BPM, so
+  // it follows tempo changes by itself. `labels` is this catalog's extension for a stepped value that
+  // reads as names (formatFxValue). Tone is a low-pass inside the feedback loop: repeats darken.
+  { id: "dub.division", nodeParam: "DubDelayDivision", type: "dubdelay", group: "Dub Delay", label: "Time", min: 0, max: 5, default: 2, step: 1, unit: "", labels: ["1/16", "1/8", "1/8.", "1/4", "1/4.", "1/2"] },
+  { id: "dub.feedback", nodeParam: "DubDelayFeedback", type: "dubdelay", group: "Dub Delay", label: "Feedback", min: 0, max: 0.95, default: 0.45, step: 0.01, unit: "" },
+  { id: "dub.tone", nodeParam: "DubDelayTone", type: "dubdelay", group: "Dub Delay", label: "Tone", min: 200, max: 16000, default: 3000, step: 1, unit: "Hz" },
+  { id: "dub.mix", nodeParam: "DubDelayMix", type: "dubdelay", group: "Dub Delay", label: "Mix", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
+
   // Not one of the toggleable FX nodes below — the bus's own always-present output stage
   // (see FX_TYPES' doc comment), so it has no `type` and is exempt from chain-gating wherever
   // that's checked (model/mutations.js#setCellFxParam, ui/chrome/NoteEditor.jsx).
@@ -124,6 +133,7 @@ export const FX_TYPES = [
   { id: "phaser", label: "Phaser" },
   { id: "bitcrusher", label: "Bitcrusher" },
   { id: "utility", label: "Utility" },
+  { id: "dubdelay", label: "Dub Delay" },
 ];
 
 export function getFxParam(id) {
@@ -188,6 +198,7 @@ export function getFxInstanceLabel(fxChain, entryId) {
 // has no natural numeric string — onLabel/offLabel stand in for it instead.
 export function formatFxValue(value, param) {
   if (value === null || value === undefined || !param) return "--";
+  if (param.labels) return param.labels[Math.min(param.labels.length - 1, Math.max(0, Math.round(Number(value))))] ?? "--";
   if (param.kind === "boolean") return isFxBooleanOn(value, param) ? param.onLabel ?? "ON" : param.offLabel ?? "OFF";
   return `${Number(value).toFixed(decimalsForStep(param.step))}${param.unit}`;
 }

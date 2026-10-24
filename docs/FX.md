@@ -99,11 +99,16 @@ disambiguates stacked instances of the same kind — "Filter #1", "Filter #2" �
 entry's position among same-kind siblings already in the chain), `formatFxValue(value, param)`
 (shared formatting, same precedent as `model/notes.js`'s `toHex`/`noteNumberToName`).
 
+Dub Delay (`dubdelay`, webdsp `EffectKind.DubDelay`) is a tempo-synced delay: `dub.division` is a
+step index shown as a note value (`labels` on its catalog entry, rendered by `formatFxValue`), and
+the engine derives the actual time from the transport BPM, so it follows tempo changes with no
+client work. `dub.tone` is a low-pass inside the feedback loop (repeats darken).
+
 Currently exposed: Filter (cutoff, resonance, mode, slope), Delay (time, feedback, mix), Reverb
 (decay, damping, mix), Compressor (threshold, ratio, attack, release, knee, makeup), Saturation
 (drive, asymmetry, output gain, mix), Chorus/Flanger (rate, depth, delay, feedback, stereo
 phase, mix), Phaser (rate, depth, center, feedback, stages, mix), Bitcrusher (bits, downsample,
-mix), and bus output gain. `FilterMode` (the engine's low-pass/high-pass toggle) and
+mix), Utility (gain), Dub Delay (time as a note division, feedback, tone, mix), and bus output gain. `FilterMode` (the engine's low-pass/high-pass toggle) and
 `FilterSlope` (the engine's 12dB/24dB-per-octave toggle) are both `kind: "boolean"` catalog
 entries (`model/fxParams.js`), not plain numeric sliders like everything else above — a discrete
 on/off choice isn't a great fit for "sparse automation at a cell," so both are `cellAutomatable:
