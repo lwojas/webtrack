@@ -133,6 +133,15 @@ average frame time, current playhead row, and whether playback is running. It ex
 the rendering-architecture claims below checkable, not just asserted — see
 [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md#rendering-architecture) for what it's proving.
 
+## Known limitation: Bluetooth audio on Android
+
+On Android Chrome, playback can become erratic (the playhead jumps around and the audio stutters) while a Bluetooth headset or
+speaker is the output. This is the device's audio route, not the app: Bluetooth adds large, variable buffering and the
+browser's audio clock stalls and catches up, and the playhead reads that clock. It disappears on the phone's speaker or wired
+headphones. Measured: the engine uses about 1% of its real-time budget, and desktop browsers with the main thread throttled
+20x show no playhead jumps. Raising the `AudioContext` latency hint (`"playback"`) is the usual mitigation for glitches in
+general, but it adds latency for everyone and has not been shown to help on Bluetooth, so it is not applied.
+
 ## Project status
 
 This is an MVP built against Linear issue ECS-156 (8 tracks, 1–8 bars/pattern), since extended
