@@ -15,10 +15,13 @@ import { STEPS_PER_BEAT } from "../model/timing.js";
 // Never aim sooner than this after "now": the scheduler needs a tick to put the first notes in.
 const START_MARGIN_SECONDS = 0.03;
 
+// With `native` (the host plays the song itself: capabilities.nativeSequence, audio/nativeSequence.js) nothing is scheduled from here: while the
+// host plays, the transport is handed the newest mapping (attachHost) so the playheads can follow, and a host stop lets go (detachHost).
+//
 // runtime: { getCurrentTime, getHostTransport, onHostTransport }
 // getTransport: () => { playAt(step, at, bpm), stop() } | null -- null until it exists; events that
 //   arrive earlier are applied on the next refresh.
-export function createHostSync({ runtime, getTransport }) {
+export function createHostSync({ runtime, getTransport, native = false }) {
   let prev = null;
   let following = false;
   let pendingStart = false;
@@ -34,6 +37,18 @@ export function createHostSync({ runtime, getTransport }) {
     const last = prev;
     prev = t;
     const transport = getTransport();
+
+    if (native) {
+      if (!transport?.attachHost) return; // the next refresh event (while playing) tries again
+      if (t.playing) {
+        transport.attachHost(t);
+        following = true;
+      } else if (following) {
+        transport.detachHost();
+        following = false;
+      }
+      return;
+    }
 
     if (!t.playing) {
       pendingStart = false;

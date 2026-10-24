@@ -1,4 +1,4 @@
-import { initRuntime, ensureTrackBuses, getRuntime } from "./runtime.js";
+import { initRuntime, ensureTrackBuses, getRuntime, peekRuntime } from "./runtime.js";
 import { createLookaheadPlayer } from "./lookaheadPlayer.js";
 import { createResampleController } from "./resampleController.js";
 import { compileRow, compileRowFx, compileRowAutomation } from "./compile.js";
@@ -8,7 +8,9 @@ import { resolveEnvelopeParam, setInstrumentEnvelope } from "./instrumentEnvelop
 import { createAutomationScheduler } from "./automation.js";
 import { fxKey, getBaseValue, instKey } from "../model/cellAutomation.js";
 import { voiceTracker } from "./voiceTracker.js";
+import { hostBeatAt } from "webdsp";
 import { STEPS_PER_BEAT } from "../model/timing.js";
+import { trackLocalStep } from "../model/pattern.js";
 import { getPatternQueueEntries } from "../model/query.js";
 
 // The bridge between state/store.js and audio/* — deliberately takes its state as getter
@@ -64,6 +66,18 @@ export function createPlaybackController({
   // its own, at the song's BPM. Cleared by every stop.
   let hostBpm = null;
 
+  // Non-null while the host plays the song itself (audio/nativeSequence.js; webdsp's runtime.setSequence): nothing is scheduled from here, this
+  // controller only reports the position the host's transport maps to, for the playheads. The runtime is cached for the playhead reads, which are
+  // synchronous.
+  let hosted = null;
+  let hostedRuntime = null;
+
+  // The queue entry and row the host is at right now, from its mapping.
+  function hostedPosition() {
+    const step = hostBeatAt(hosted, hostedRuntime.getCurrentTime()) * STEPS_PER_BEAT;
+    return positionAtStep(step);
+  }
+
   function getStepDurationSeconds() {
     return 60 / (hostBpm ?? getBpm()) / STEPS_PER_BEAT;
   }
@@ -89,7 +103,31 @@ export function createPlaybackController({
     return index === -1 ? { pattern: entries[0].pattern, queueIndex: 0 } : { pattern: entries[index].pattern, queueIndex: index };
   }
 
+  // The host plays the song itself: stop scheduling from here and just follow its position (`t` maps engine time to the host's position;
+  // pass the newest whenever it changes). While attached, play/stop do nothing (the host owns the transport) and resample is refused.
+  function attachHost(t) {
+    const runtime = peekRuntime(); // synchronous on purpose: a host stop right after a start must find it attached
+    if (!runtime) return;
+    if (!hosted && player?.isPlaying()) {
+      resampleController?.cancel("Resample cancelled: the host took over playback.");
+      player.stop();
+    }
+    hostedRuntime = runtime;
+    const wasHosted = hosted !== null;
+    hosted = t;
+    hostBpm = t.bpm;
+    if (!wasHosted) onTransportChange?.({ playing: true, hostBpm });
+  }
+
+  function detachHost() {
+    if (!hosted) return;
+    hosted = null;
+    hostBpm = null;
+    onTransportChange?.({ playing: false, hostBpm: null });
+  }
+
   async function play() {
+    if (hosted) return;
     hostBpm = null;
     await start(initialQueueEntry(), {});
   }
@@ -170,6 +208,7 @@ export function createPlaybackController({
   }
 
   function stop() {
+    if (hosted) return;
     resampleController?.cancel("Resample cancelled: playback stopped.");
     player?.stop();
     // After player.stop() (which cancels what is still queued in the engine): put every parameter
@@ -190,6 +229,7 @@ export function createPlaybackController({
   // synchronously (no resampleController yet, since play() hasn't run) before playback has ever
   // started once.
   function armResample(steps) {
+    if (hosted) return { ok: false, reason: "The host is playing the song; resampling needs this page to play it." };
     if (!resampleController) return { ok: false, reason: "Nothing is playing." };
     return resampleController.arm(steps, getStepDurationSeconds());
   }
@@ -206,7 +246,7 @@ export function createPlaybackController({
   // making sense afterward; if newPattern isn't queued at all (e.g. a just-duplicated pattern
   // that hasn't been queued yet), the queueIndex is left as-is.
   function switchPattern(newPattern) {
-    if (!player?.isPlaying()) return;
+    if (hosted || !player?.isPlaying()) return;
     const entries = getPatternQueueEntries(getSong());
     const matchIndex = entries.findIndex((entry) => entry.patternId === newPattern.id);
     const queueIndex = matchIndex === -1 ? player.getQueueIndex() : matchIndex;
@@ -215,7 +255,7 @@ export function createPlaybackController({
   }
 
   function isPlaying() {
-    return player?.isPlaying() ?? false;
+    return hosted !== null || (player?.isPlaying() ?? false);
   }
 
   // Stops whatever's already sounding on any track that mute/solo just made inaudible.
@@ -229,7 +269,7 @@ export function createPlaybackController({
   // actually gated keeps this correct regardless of which field changed, and releasing an
   // already-empty track is just a no-op. A no-op entirely while stopped.
   function syncTrackMuting() {
-    if (!player?.isPlaying()) return;
+    if (hosted || !player?.isPlaying()) return;
     const channels = getTrackChannels();
     const soloActive = channels.some((channel) => channel.solo);
     channels.forEach((channel, trackIndex) => {
@@ -242,24 +282,33 @@ export function createPlaybackController({
   }
 
   function getPlayheadRow() {
+    if (hosted) return hostedPosition().row;
     return player?.getPlayheadRow() ?? -1;
   }
 
   // One track's own local playhead row (model/pattern.js#trackLocalStep) — what
   // ui/grid/playheadLayer.js draws per track column instead of one shared row.
   function getTrackPlayheadRow(trackIndex) {
+    if (hosted) {
+      const { entry, row } = hostedPosition();
+      const track = entry.pattern.tracks[trackIndex];
+      return track ? trackLocalStep(track, row) : -1;
+    }
     return player?.getTrackPlayheadRow(trackIndex) ?? -1;
   }
 
   // The queue entry actually sounding right now — ui/chrome/PatternManager.jsx's playing
   // highlight polls this (see its own doc comment for why a poll, not a store event).
   function getPlayingQueueIndex() {
+    if (hosted) return hostedPosition().entry.queueIndex;
     return player?.getQueueIndex() ?? -1;
   }
 
   return {
     play,
     playAt,
+    attachHost,
+    detachHost,
     stop,
     switchPattern,
     isPlaying,
