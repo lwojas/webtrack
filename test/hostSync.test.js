@@ -74,3 +74,23 @@ describe("hostSync", () => {
     expect(playAt).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("hostSync with a native sequence", () => {
+  it("never schedules from the page: it follows the host while it plays and lets go when it stops", () => {
+    let listener = null;
+    const calls = [];
+    const transport = { playAt: vi.fn(), stop: vi.fn(), attachHost: (t) => calls.push(`attach(${t.beat})`), detachHost: () => calls.push("detach") };
+    createHostSync({
+      runtime: { getCurrentTime: () => 10, getHostTransport: () => null, onHostTransport: (fn) => ((listener = fn), () => (listener = null)) },
+      getTransport: () => transport,
+      native: true,
+    });
+    const emit = (t) => listener({ playing: true, bpm: 120, beat: 0, time: 10.1, loop: null, timeSignature: null, epoch: 1, ...t });
+    emit({ beat: 8 });
+    emit({ beat: 8.5 });
+    emit({ playing: false });
+    emit({ playing: false }); // a second stop is not a second detach
+    expect(calls).toEqual(["attach(8)", "attach(8.5)", "detach"]);
+    expect(transport.playAt).not.toHaveBeenCalled();
+  });
+});

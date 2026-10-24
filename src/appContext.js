@@ -6,9 +6,10 @@
 // it's the one place that knows about all of them.
 import { createStore } from "./state/store.js";
 import { createPlaybackController } from "./audio/playbackController.js";
-import { initRuntime, peekRuntime } from "./audio/runtime.js";
+import { initRuntime, peekRuntime, peekTrackBusIds } from "./audio/runtime.js";
 import { createMidiRouteSync } from "./audio/midiRoute.js";
 import { createHostSync } from "./audio/hostSync.js";
+import { createNativeSequenceSync } from "./audio/nativeSequenceSync.js";
 import { getHostState, hasEmbeddedHost } from "webdsp";
 import { fromHostSnapshot, publishRecord } from "./persistence/hostState.js";
 import {
@@ -388,11 +389,17 @@ export function createAppContext() {
   if (hasEmbeddedHost()) {
     initRuntime()
       .then((runtime) => {
-        createHostSync({ runtime, getTransport: () => playbackController });
+        createHostSync({ runtime, getTransport: () => playbackController, native: runtime.getCapabilities().nativeSequence === true });
         midiRouteSync.sync();
+        nativeSequenceSync.start();
       })
       .catch(() => {});
   }
+
+  // A host that can play the song itself (capabilities.nativeSequence) is handed it as a Sequence (audio/nativeSequence.js) and plays it against
+  // the DAW's transport, with this window open or closed and in an offline bounce; re-sent whenever the project changes.
+  const nativeSequenceSync = createNativeSequenceSync({ getRuntime: peekRuntime, getState: () => store.getState(), getTrackBusIds: peekTrackBusIds });
+  RECOVERY_TRACKED_EVENTS.forEach((event) => store.subscribe(event, nativeSequenceSync.schedule));
 
   // Selecting a pattern always repaints the grid (the edit view) immediately — see
   // state/store.js's selectPattern. Whether that's also what plays next depends on whether
