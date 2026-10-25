@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { EQ_MAX_HZ, EQ_MIN_HZ, eqBandResponseDb, eqBandUses, eqCurve } from "webdsp";
+import { useSpectrumCanvas } from "../viz/useSpectrumCanvas.js";
 import { EQ_VIEW_DB, bandsFromValues, dbToY, freqToX, handleDb, widenedValue, widthField, xToFreq, yToDb } from "../../model/eqGeometry.js";
 
 const W = 640;
@@ -9,14 +10,22 @@ const SAMPLE_RATE = 48000; // the curve's shape barely depends on it; only the t
 const BAND_COLORS = ["#00f0ff", "#ff9d00", "#00e676", "#ff3366"];
 const TYPE_NAMES = ["Bell", "Low shelf", "High shelf", "Low-pass", "High-pass", "Notch"];
 const GRID_HZ = [50, 100, 200, 500, 1000, 2000, 5000, 10000];
+// Live input spectrum behind the curve: its own dB scale (dBFS), independent of the EQ's +-dB axis.
+const SPECTRUM_MIN_DB = -90;
+const SPECTRUM_MAX_DB = -10;
 const FIELD_PARAM = { frequency: "Freq", gain: "Gain", q: "Q", shelfSlope: "ShelfSlope", slope: "Slope" };
 
 // Interactive EQ: the response curve is the control surface. Drag a handle = frequency (x) and gain (y);
 // wheel or shift+drag = Q (bell/notch) or slope (shelves); double-click = enable/disable. The selected
 // band's meaningful controls sit beside the graph, rendered by the caller's `renderField` so they keep
 // the panel's usual sliders, automation badges and boolean toggles.
-export default function EqCurveEditor({ values, onChange, renderField }) {
+export default function EqCurveEditor({ values, onChange, renderField, spectrumTap, spectrumKey = "" }) {
   const svgRef = useRef(null);
+  const spectrumRef = useRef(null);
+  useSpectrumCanvas(spectrumRef, () => spectrumTap?.() ?? null, spectrumKey, {
+    width: W, height: H, minDb: SPECTRUM_MIN_DB, maxDb: SPECTRUM_MAX_DB,
+    fill: "rgba(0, 240, 255, 0.10)", stroke: "rgba(0, 240, 255, 0.4)",
+  });
   const [selected, setSelected] = useState(1);
   const drag = useRef(null);
   const wasOnAtFirstClick = useRef(false);
@@ -86,6 +95,8 @@ export default function EqCurveEditor({ values, onChange, renderField }) {
   return (
     <div className="eq-editor">
       <div className="eq-editor__main">
+        <div className="eq-editor__graph-wrap">
+        <canvas ref={spectrumRef} className="eq-editor__spectrum" aria-hidden="true" />
         <svg
           ref={svgRef}
           className="eq-editor__graph"
@@ -133,6 +144,7 @@ export default function EqCurveEditor({ values, onChange, renderField }) {
             <text key={`n${i}`} className="eq-editor__num" x={freqToX(b.frequency, W)} y={dbToY(handleDb(b), H) + 3.5}>{i + 1}</text>
           ))}
         </svg>
+        </div>
         <div className="eq-editor__hint">
           Drag a handle: frequency / gain. Wheel or shift-drag: Q / slope. Double-click: on/off. +-{EQ_VIEW_DB} dB, {EQ_MIN_HZ} Hz to {EQ_MAX_HZ / 1000} kHz.
         </div>

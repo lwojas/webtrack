@@ -17,7 +17,7 @@
 // chain members — BusGain (bus.gain) and BusPan (model/trackChannel.js#pan) — exactly as
 // docs/fx-chain.md calls out ("BusGain / BusPan remain bus-level, not effects").
 import { MASTER_BUS, NodeParam, EffectKind } from "webdsp";
-import { initRuntime, ensureTrackBuses } from "./runtime.js";
+import { initRuntime, ensureTrackBuses, peekRuntime, peekTrackBusIds } from "./runtime.js";
 import { FX_PARAMS, getFxParamsForType } from "../model/fxParams.js";
 import { planLfoUpdates } from "./instrumentLfo.js";
 
@@ -31,6 +31,17 @@ export function resolveNodeParam(paramId) {
 // the instance has no engine-side effect (yet). Synchronous: cell automation needs it per step.
 export function getTrackEffectId(trackIndex, instanceId) {
   return trackEffectIds[trackIndex]?.get(instanceId);
+}
+
+// Where a live spectrum display listens: the INPUT of one chain instance's engine effect, or null
+// while the engine or the instance does not exist yet (synchronous, so a display can poll it).
+// target is "track" | "master". See ui/viz/useSpectrumCanvas.js.
+export function getSpectrumTap(target, trackIndex, instanceId) {
+  const source = peekRuntime();
+  if (!source) return null;
+  const effect = effectIdMapFor(target, trackIndex).get(instanceId);
+  const bus = target === "master" ? MASTER_BUS : peekTrackBusIds()[trackIndex];
+  return effect === undefined || bus === undefined ? null : { source, bus, effect };
 }
 
 const EFFECT_KIND_BY_TYPE = {

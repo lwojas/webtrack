@@ -723,7 +723,7 @@ input[type="range"]:disabled {
 
 /* Master: the final output channel. Pinned to the right edge of the scrolling mixer
    (margin-left:auto parks it there when the tracks don't fill the width), on a raised surface
-   with an active border so it reads as different from the track strips. Its LED meter stands in
+   with an active border so it reads as different from the track strips. Its level meter stands in
    for the fader. */
 .channel-strip--master {
   position: sticky;
@@ -758,33 +758,18 @@ input[type="range"]:disabled {
   border-color: var(--cyan);
 }
 
+/* The master level is a canvas bar (ui/viz/levelMeterView.js) on the same dB scale as the EQ spectrum;
+   colours are read from --surface-empty / --emerald / --crimson. */
 .meter {
   display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  align-items: center;
+  justify-content: center;
   width: 26px;
   height: 100px;
 }
 
-.meter-led {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--surface-empty);
-}
-
-.meter-led--lit {
-  background: var(--emerald);
-}
-
-.meter-led--red {
-  background: color-mix(in srgb, var(--crimson) 25%, var(--surface-empty));
-}
-
-.meter-led--red.meter-led--lit {
-  background: var(--crimson);
-  box-shadow: 0 0 5px var(--crimson);
+.meter__canvas {
+  width: 14px;
+  height: 100%;
 }
 
 .channel-strip__volume-track {
@@ -2486,10 +2471,28 @@ input[type="range"].range-lg {
   gap: var(--space-xs);
 }
 
-.eq-editor__graph {
-  width: 100%;
+/* The live spectrum canvas sits behind the SVG (same aspect ratio as its viewBox) and never takes pointer
+ * events, so handle dragging is unaffected. */
+.eq-editor__graph-wrap {
+  position: relative;
+  aspect-ratio: 640 / 190;
   background: var(--surface);
   border: 1px solid var(--border-active);
+}
+
+.eq-editor__spectrum {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.eq-editor__graph {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   touch-action: none;
   user-select: none;
 }

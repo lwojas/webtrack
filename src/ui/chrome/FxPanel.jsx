@@ -3,7 +3,7 @@ import EqCurveEditor from "./EqCurveEditor.jsx";
 import LfoEditor from "./LfoEditor.jsx";
 import ModBadge from "./ModBadge.jsx";
 import { automatedKeys, fxKey } from "../../model/cellAutomation.js";
-import { getFxModulationOptions } from "../../audio/fx.js";
+import { getFxModulationOptions, getSpectrumTap } from "../../audio/fx.js";
 import { MAX_INSTRUMENT_LFOS } from "../../model/instrumentLfos.js";
 import { useStore } from "../../state/useStore.js";
 import * as events from "../../state/events.js";
@@ -262,6 +262,8 @@ export default function FxPanel({ store, fxController }) {
               {entry.type === "eq" ? (
                 <EqCurveEditor
                   values={instanceValues}
+                  spectrumTap={() => getSpectrumTap(target, trackIndex, entry.id)}
+                  spectrumKey={`${target}:${trackIndex}:${entry.id}`}
                   onChange={(paramId, value) => handleInstanceChange(entry.id, paramId, value)}
                   renderField={(paramId) => {
                     const param = getFxParam(paramId);

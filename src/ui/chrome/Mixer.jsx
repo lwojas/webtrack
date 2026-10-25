@@ -1,5 +1,4 @@
 import { useRef, useState } from "react";
-import { METER_LED_DB } from "webdsp";
 import { peekRuntime } from "../../audio/runtime.js";
 import { limiterState, useMixerMeters } from "../useMixerMeters.js";
 import { useStore } from "../../state/useStore.js";
@@ -83,7 +82,7 @@ function ChannelStrip({ store, fxController, trackIndex }) {
 }
 
 // The final output channel: pinned to the right edge while the tracks scroll, carrying the one
-// detailed level meter (a column of LEDs, the top few red). The meter shows the mix level
+// detailed level meter (a canvas bar, the top zone red). The meter shows the mix level
 // *feeding* webdsp's master limiter, so red means the limiter is working. Updated straight from
 // the engine's peak stream by useMixerMeters (no React state); see webdsp docs/master-limiter.md.
 function MasterStrip() {
@@ -97,10 +96,7 @@ function MasterStrip() {
     <div className="channel-strip channel-strip--master" data-master-strip>
       <span className="channel-strip__name">MASTER</span>
       <div className="meter" role="img" aria-label="Master level">
-        {/* Highest LED first, so the danger region sits on top like a level meter. */}
-        {METER_LED_DB.map((db, i) => (
-          <span key={db} className="meter-led" data-meter-led title={`${db} dBFS`} style={{ order: METER_LED_DB.length - i }} />
-        ))}
+        <canvas className="meter__canvas" data-meter-canvas />
       </div>
       <button
         className={`channel-strip__limiter${limiterOn ? " channel-strip__limiter--active" : ""}`}
