@@ -10,7 +10,9 @@ import { paintSpectrum } from "./paint.js";
 //
 // resolve(): () => ({ source, bus, effect }) | null, polled until the engine effect exists (the
 // engine starts lazily). `key` re-attaches the display when the tapped effect changes.
-// opts: { width, height (drawing units, matching the SVG viewBox behind), minDb, maxDb, fill, stroke }.
+// opts: { width, height (drawing units, matching the SVG viewBox behind), minDb, maxDb,
+//         main: { fill, stroke } (the effect's OUTPUT, the brighter fill),
+//         input?: { fill, stroke } (the effect's INPUT, fainter behind it; omit to show only the output) }.
 // Mirrors webseq src/viz/useSpectrumCanvas.ts.
 export function useSpectrumCanvas(canvasRef, resolve, key, opts) {
   const resolveRef = useRef(resolve);
@@ -22,22 +24,35 @@ export function useSpectrumCanvas(canvasRef, resolve, key, opts) {
     const canvas = canvasRef.current;
     if (!canvas) return undefined;
     const surface = new CanvasSurface(canvas, { width: optsRef.current.width, height: optsRef.current.height });
-    const analyzer = new SpectrumAnalyzer();
-    const pts = new Float32Array(analyzer.columns * 2);
-    let feed = null;
+    const output = new SpectrumAnalyzer();
+    const input = new SpectrumAnalyzer();
+    const pts = new Float32Array(output.columns * 2);
+    let outFeed = null;
+    let inFeed = null;
     let raf = 0;
 
+    const paint = (ctx, a, style) => {
+      const o = optsRef.current;
+      spectrumPoints(a, surface.width, surface.height, o.minDb, o.maxDb, pts);
+      paintSpectrum(ctx, pts, a.columns, surface.height, style);
+    };
+
     const loop = (now) => {
-      if (!feed) {
+      if (!outFeed) {
         const tap = resolveRef.current();
-        if (tap) feed = new SpectrumFeed(tap.source, tap.bus, tap.effect, analyzer);
+        if (tap) {
+          outFeed = new SpectrumFeed(tap.source, tap.bus, tap.effect, true, output);
+          if (optsRef.current.input) inFeed = new SpectrumFeed(tap.source, tap.bus, tap.effect, false, input);
+        }
       }
-      if ((feed && feed.frame(now)) || surface.dirty) {
+      const outChanged = outFeed ? outFeed.frame(now) : false;
+      const inChanged = inFeed ? inFeed.frame(now) : false;
+      if (outChanged || inChanged || surface.dirty) {
         const o = optsRef.current;
         const ctx = surface.begin();
         if (ctx) {
-          spectrumPoints(analyzer, surface.width, surface.height, o.minDb, o.maxDb, pts);
-          paintSpectrum(ctx, pts, analyzer.columns, surface.height, o);
+          if (inFeed && o.input) paint(ctx, input, o.input);
+          paint(ctx, output, o.main);
         }
       }
       raf = requestAnimationFrame(loop);
@@ -46,7 +61,8 @@ export function useSpectrumCanvas(canvasRef, resolve, key, opts) {
     return () => {
       cancelAnimationFrame(raf);
       surface.dispose();
-      if (feed) feed.dispose();
+      if (outFeed) outFeed.dispose();
+      if (inFeed) inFeed.dispose();
     };
   }, [canvasRef, key]);
 }
