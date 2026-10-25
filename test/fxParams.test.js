@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { FX_TYPES, getFxParam, getFxParamsForType, getFxInstanceLabel, formatFxValue, isFxBooleanOn } from "../src/model/fxParams.js";
+import { NodeParam } from "webdsp";
 
 describe("filter.mode — the boolean low-pass/high-pass FX parameter", () => {
   it("is catalogued under the filter type, independent of the filter's bypass values", () => {
@@ -63,6 +64,24 @@ describe("Dub Delay catalog entries (webdsp's tempo-synced delay)", () => {
     expect(formatFxValue(2, param)).toBe("1/8.");
     expect(formatFxValue(5, param)).toBe("1/2");
     expect(formatFxValue(9, param)).toBe("1/2");
+  });
+});
+
+describe("EQ catalog entries (webdsp's 4-band parametric EQ)", () => {
+  it("is an FX type with 28 params that all resolve to EqBand NodeParams", () => {
+    expect(FX_TYPES.find((t) => t.id === "eq")).toEqual({ id: "eq", label: "EQ" });
+    const params = getFxParamsForType("eq");
+    expect(params).toHaveLength(28);
+    expect(params[0].nodeParam).toBe("EqBand1On");
+    expect(params[27].nodeParam).toBe("EqBand4Slope");
+    for (const p of params) expect(NodeParam[p.nodeParam]).toBeTypeOf("number");
+    expect(getFxParam("eq.b3Gain").default).toBe(0); // neutral until a band is enabled
+    expect(getFxParam("eq.b1On").default).toBe(0);
+  });
+
+  it("formats the band type by name", () => {
+    expect(formatFxValue(1, getFxParam("eq.b1Type"))).toBe("Low shelf");
+    expect(formatFxValue(5, getFxParam("eq.b2Type"))).toBe("Notch");
   });
 });
 

@@ -105,6 +105,38 @@ export const FX_PARAMS = [
   { id: "dub.tone", nodeParam: "DubDelayTone", type: "dubdelay", group: "Dub Delay", label: "Tone", min: 200, max: 16000, default: 3000, step: 1, unit: "Hz" },
   { id: "dub.mix", nodeParam: "DubDelayMix", type: "dubdelay", group: "Dub Delay", label: "Mix", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
 
+  // EQ (webdsp EffectKind.Eq, docs/eq.md): four serial bands. On and Slope are boolean switches, Type is a
+  // stepped value shown by name (`labels`); those and the shelf slope are setup params, not cell automation
+  // targets. Bands default off, so a new EQ is neutral. Gain/Freq/Q are the automatable controls.
+  { id: "eq.b1On", nodeParam: "EqBand1On", type: "eq", group: "EQ", label: "B1 On", kind: "boolean", min: 0, max: 1, default: 0, step: 1, unit: "", onLabel: "ON", offLabel: "OFF", cellAutomatable: false },
+  { id: "eq.b1Type", nodeParam: "EqBand1Type", type: "eq", group: "EQ", label: "B1 Type", min: 0, max: 5, default: 1, step: 1, unit: "", labels: ["Bell", "Low shelf", "High shelf", "Low-pass", "High-pass", "Notch"], cellAutomatable: false },
+  { id: "eq.b1Freq", nodeParam: "EqBand1Freq", type: "eq", group: "EQ", label: "B1 Freq", min: 20, max: 20000, default: 100, step: 1, unit: "Hz" },
+  { id: "eq.b1Gain", nodeParam: "EqBand1Gain", type: "eq", group: "EQ", label: "B1 Gain", min: -18, max: 18, default: 0, step: 0.1, unit: "dB" },
+  { id: "eq.b1Q", nodeParam: "EqBand1Q", type: "eq", group: "EQ", label: "B1 Q", min: 0.1, max: 18, default: 0.707, step: 0.01, unit: "" },
+  { id: "eq.b1ShelfSlope", nodeParam: "EqBand1ShelfSlope", type: "eq", group: "EQ", label: "B1 Shelf slope", min: 0.1, max: 1, default: 1, step: 0.01, unit: "", cellAutomatable: false },
+  { id: "eq.b1Slope", nodeParam: "EqBand1Slope", type: "eq", group: "EQ", label: "B1 Slope", kind: "boolean", min: 12, max: 24, default: 12, step: 12, unit: "", onLabel: "24dB", offLabel: "12dB", cellAutomatable: false },
+  { id: "eq.b2On", nodeParam: "EqBand2On", type: "eq", group: "EQ", label: "B2 On", kind: "boolean", min: 0, max: 1, default: 0, step: 1, unit: "", onLabel: "ON", offLabel: "OFF", cellAutomatable: false },
+  { id: "eq.b2Type", nodeParam: "EqBand2Type", type: "eq", group: "EQ", label: "B2 Type", min: 0, max: 5, default: 0, step: 1, unit: "", labels: ["Bell", "Low shelf", "High shelf", "Low-pass", "High-pass", "Notch"], cellAutomatable: false },
+  { id: "eq.b2Freq", nodeParam: "EqBand2Freq", type: "eq", group: "EQ", label: "B2 Freq", min: 20, max: 20000, default: 500, step: 1, unit: "Hz" },
+  { id: "eq.b2Gain", nodeParam: "EqBand2Gain", type: "eq", group: "EQ", label: "B2 Gain", min: -18, max: 18, default: 0, step: 0.1, unit: "dB" },
+  { id: "eq.b2Q", nodeParam: "EqBand2Q", type: "eq", group: "EQ", label: "B2 Q", min: 0.1, max: 18, default: 0.707, step: 0.01, unit: "" },
+  { id: "eq.b2ShelfSlope", nodeParam: "EqBand2ShelfSlope", type: "eq", group: "EQ", label: "B2 Shelf slope", min: 0.1, max: 1, default: 1, step: 0.01, unit: "", cellAutomatable: false },
+  { id: "eq.b2Slope", nodeParam: "EqBand2Slope", type: "eq", group: "EQ", label: "B2 Slope", kind: "boolean", min: 12, max: 24, default: 12, step: 12, unit: "", onLabel: "24dB", offLabel: "12dB", cellAutomatable: false },
+  { id: "eq.b3On", nodeParam: "EqBand3On", type: "eq", group: "EQ", label: "B3 On", kind: "boolean", min: 0, max: 1, default: 0, step: 1, unit: "", onLabel: "ON", offLabel: "OFF", cellAutomatable: false },
+  { id: "eq.b3Type", nodeParam: "EqBand3Type", type: "eq", group: "EQ", label: "B3 Type", min: 0, max: 5, default: 0, step: 1, unit: "", labels: ["Bell", "Low shelf", "High shelf", "Low-pass", "High-pass", "Notch"], cellAutomatable: false },
+  { id: "eq.b3Freq", nodeParam: "EqBand3Freq", type: "eq", group: "EQ", label: "B3 Freq", min: 20, max: 20000, default: 2000, step: 1, unit: "Hz" },
+  { id: "eq.b3Gain", nodeParam: "EqBand3Gain", type: "eq", group: "EQ", label: "B3 Gain", min: -18, max: 18, default: 0, step: 0.1, unit: "dB" },
+  { id: "eq.b3Q", nodeParam: "EqBand3Q", type: "eq", group: "EQ", label: "B3 Q", min: 0.1, max: 18, default: 0.707, step: 0.01, unit: "" },
+  { id: "eq.b3ShelfSlope", nodeParam: "EqBand3ShelfSlope", type: "eq", group: "EQ", label: "B3 Shelf slope", min: 0.1, max: 1, default: 1, step: 0.01, unit: "", cellAutomatable: false },
+  { id: "eq.b3Slope", nodeParam: "EqBand3Slope", type: "eq", group: "EQ", label: "B3 Slope", kind: "boolean", min: 12, max: 24, default: 12, step: 12, unit: "", onLabel: "24dB", offLabel: "12dB", cellAutomatable: false },
+  { id: "eq.b4On", nodeParam: "EqBand4On", type: "eq", group: "EQ", label: "B4 On", kind: "boolean", min: 0, max: 1, default: 0, step: 1, unit: "", onLabel: "ON", offLabel: "OFF", cellAutomatable: false },
+  { id: "eq.b4Type", nodeParam: "EqBand4Type", type: "eq", group: "EQ", label: "B4 Type", min: 0, max: 5, default: 2, step: 1, unit: "", labels: ["Bell", "Low shelf", "High shelf", "Low-pass", "High-pass", "Notch"], cellAutomatable: false },
+  { id: "eq.b4Freq", nodeParam: "EqBand4Freq", type: "eq", group: "EQ", label: "B4 Freq", min: 20, max: 20000, default: 8000, step: 1, unit: "Hz" },
+  { id: "eq.b4Gain", nodeParam: "EqBand4Gain", type: "eq", group: "EQ", label: "B4 Gain", min: -18, max: 18, default: 0, step: 0.1, unit: "dB" },
+  { id: "eq.b4Q", nodeParam: "EqBand4Q", type: "eq", group: "EQ", label: "B4 Q", min: 0.1, max: 18, default: 0.707, step: 0.01, unit: "" },
+  { id: "eq.b4ShelfSlope", nodeParam: "EqBand4ShelfSlope", type: "eq", group: "EQ", label: "B4 Shelf slope", min: 0.1, max: 1, default: 1, step: 0.01, unit: "", cellAutomatable: false },
+  { id: "eq.b4Slope", nodeParam: "EqBand4Slope", type: "eq", group: "EQ", label: "B4 Slope", kind: "boolean", min: 12, max: 24, default: 12, step: 12, unit: "", onLabel: "24dB", offLabel: "12dB", cellAutomatable: false },
+
   // Not one of the toggleable FX nodes below — the bus's own always-present output stage
   // (see FX_TYPES' doc comment), so it has no `type` and is exempt from chain-gating wherever
   // that's checked (model/mutations.js#setCellFxParam, ui/chrome/NoteEditor.jsx).
@@ -134,6 +166,7 @@ export const FX_TYPES = [
   { id: "bitcrusher", label: "Bitcrusher" },
   { id: "utility", label: "Utility" },
   { id: "dubdelay", label: "Dub Delay" },
+  { id: "eq", label: "EQ" },
 ];
 
 export function getFxParam(id) {
