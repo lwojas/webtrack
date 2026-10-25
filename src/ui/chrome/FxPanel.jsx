@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import EqCurveEditor from "./EqCurveEditor.jsx";
 import LfoEditor from "./LfoEditor.jsx";
 import ModBadge from "./ModBadge.jsx";
 import { automatedKeys, fxKey } from "../../model/cellAutomation.js";
@@ -225,7 +226,7 @@ export default function FxPanel({ store, fxController }) {
           if (!fxType) return null;
           const instanceValues = fxBag.instances?.[entry.id] ?? {};
           return (
-            <div className="fx-module" key={entry.id}>
+            <div className={`fx-module${entry.type === "eq" ? " fx-module--eq" : ""}`} key={entry.id}>
               <div className="fx-module__header">
                 <span className="fx-module__title">{getFxInstanceLabel(fxChain, entry.id)}</span>
                 <button
@@ -258,16 +259,35 @@ export default function FxPanel({ store, fxController }) {
                   ×
                 </button>
               </div>
-              {getFxParamsForType(entry.type).map((param) => (
-                <FxParamField
-                  key={param.id}
-                  param={param}
-                  value={instanceValues[param.id] ?? param.default}
-                  onChange={(value) => handleInstanceChange(entry.id, param.id, value)}
-                  automated={automatedFx.includes(fxKey(entry.id, param.id))}
-                  lfos={(entry.lfos ?? []).filter((l) => l.target === param.id).length}
+              {entry.type === "eq" ? (
+                <EqCurveEditor
+                  values={instanceValues}
+                  onChange={(paramId, value) => handleInstanceChange(entry.id, paramId, value)}
+                  renderField={(paramId) => {
+                    const param = getFxParam(paramId);
+                    return (
+                      <FxParamField
+                        param={param}
+                        value={instanceValues[paramId] ?? param.default}
+                        onChange={(value) => handleInstanceChange(entry.id, paramId, value)}
+                        automated={automatedFx.includes(fxKey(entry.id, paramId))}
+                        lfos={(entry.lfos ?? []).filter((l) => l.target === paramId).length}
+                      />
+                    );
+                  }}
                 />
-              ))}
+              ) : (
+                getFxParamsForType(entry.type).map((param) => (
+                  <FxParamField
+                    key={param.id}
+                    param={param}
+                    value={instanceValues[param.id] ?? param.default}
+                    onChange={(value) => handleInstanceChange(entry.id, param.id, value)}
+                    automated={automatedFx.includes(fxKey(entry.id, param.id))}
+                    lfos={(entry.lfos ?? []).filter((l) => l.target === param.id).length}
+                  />
+                ))
+              )}
               <FxModulation entry={entry} lfoTrackIndex={target === "track" ? trackIndex : null} fxController={fxController} />
             </div>
           );

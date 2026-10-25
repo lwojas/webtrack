@@ -2466,3 +2466,117 @@ input[type="range"].range-lg {
   color: var(--text);
   font-size: var(--text-micro);
 }
+
+/* --- EQ curve editor (ui/chrome/EqCurveEditor.jsx) --- */
+.fx-module--eq {
+  width: 640px;
+}
+
+.eq-editor {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: flex-start;
+}
+
+.eq-editor__main {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.eq-editor__graph {
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border-active);
+  touch-action: none;
+  user-select: none;
+}
+
+.eq-editor__grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.eq-editor__zero {
+  stroke: var(--border-active);
+  stroke-width: 1;
+}
+
+.eq-editor__label {
+  fill: var(--text-dim);
+  font-size: 9px;
+  pointer-events: none;
+}
+
+.eq-editor__curve {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 2;
+  pointer-events: none;
+}
+
+.eq-editor__handle {
+  stroke-width: 2;
+  cursor: grab;
+}
+
+.eq-editor__handle--off {
+  stroke-dasharray: 3 2;
+  opacity: 0.8;
+}
+
+.eq-editor__num {
+  fill: var(--surface);
+  font-size: 9px;
+  font-weight: 700;
+  text-anchor: middle;
+  pointer-events: none;
+}
+
+.eq-editor__hint {
+  color: var(--text-dim);
+  font-size: var(--text-micro);
+}
+
+.eq-editor__band {
+  flex: 0 0 250px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-xs);
+  border: 1px solid var(--border-active);
+  background: var(--surface-2);
+}
+
+.eq-editor__band .fx-module__field {
+  grid-template-columns: 10ch 1fr 7ch;
+}
+
+.eq-editor__tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+}
+
+.eq-editor__tab {
+  background: var(--surface-1);
+  border: 1px solid var(--border-active);
+  color: var(--text-dim);
+  font: inherit;
+  font-size: var(--text-micro);
+  padding: 2px 8px;
+  cursor: pointer;
+}
+
+.eq-editor__tab--active {
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.eq-editor__readout {
+  margin-left: auto;
+  color: var(--amber);
+  font-size: var(--text-micro);
+}
