@@ -14,6 +14,7 @@ describe("store.setInstrumentOutput — switching synth kind", () => {
     store.setInstrumentOutput(0, { type: "instrument", channel: null, kind: "kick" });
 
     expect(store.getState().instruments[0].instrumentParams).toEqual({
+      gain: 0,
       tune: 50,
       pitchDrop: 2.5,
       pitchDecay: 0.04,
@@ -31,6 +32,7 @@ describe("store.setInstrumentOutput — switching synth kind", () => {
     store.setInstrumentOutput(0, { type: "instrument", channel: null, kind: "tom" });
 
     expect(store.getState().instruments[0].instrumentParams).toEqual({
+      gain: 0,
       tune: 120,
       pitchDrop: 0.6,
       decay: 0.45,

@@ -10,17 +10,24 @@ import { getModulationOptions } from "../../audio/instrument.js";
 import { MAX_INSTRUMENT_LFOS } from "../../model/instrumentLfos.js";
 import { toHex } from "../../model/notes.js";
 import { ENVELOPE_PARAMS, formatEnvelopeValue } from "../../model/envelopeParams.js";
-import { SYNTH_KINDS, getSynthParams, formatSynthParamValue, synthParamControl } from "../../model/instrumentParams.js";
+import {
+  SOURCE_GAIN_MAX_DB,
+  SOURCE_GAIN_MIN_DB,
+  SYNTH_KINDS,
+  dbToGain,
+  formatGainDb,
+  gainToDb,
+  getSynthParams,
+  formatSynthParamValue,
+  synthParamControl,
+} from "../../model/instrumentParams.js";
 import { downloadBytes } from "../../persistence/projectIO.js";
 import { rangeFillStyle } from "../rangeFill.js";
 
-// Instrument gain's own musical range — same scale as model/fxParams.js's "bus.gain" entry
-// (0..2, step 0.01, unit "x") so the two read consistently wherever a user sees both, even
-// though instrument gain isn't itself an FX_PARAMS entry (it addresses webdsp's per-sample
-// SampleParam.Gain, not a bus NodeParam — see audio/instrumentGain.js).
-const GAIN_MIN = 0;
-const GAIN_MAX = 2;
-const GAIN_STEP = 0.01;
+// A sample instrument's gain (webdsp's per-sample SampleParam.Gain, see audio/instrumentGain.js) is
+// stored linear — unchanged, so saved projects load as before — but edited and shown in dB, over the
+// same -24..+12 range as a synth's Gain control (model/instrumentParams.js#SOURCE_GAIN_PARAM).
+const GAIN_STEP_DB = 0.1;
 
 // Primitive selectors throughout — see ui/chrome/Mixer.jsx's doc comment for why
 // (useSyncExternalStore compares with Object.is; the instrument slot objects mutate in place).
@@ -161,6 +168,7 @@ function InstrumentEditor({ store, instrumentController }) {
   const exists = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index] != null);
   const hasSample = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.sampleId != null);
   const gain = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.gain ?? 1);
+  const gainDb = gainToDb(gain);
   // Which of this slot's parameters are moved by cells (anywhere in the song) or by LFOs, for the
   // markers beside their names. Primitive selectors (sorted, joined), per the in-place gotcha.
   const automatedParams = useStore(store, events.CELL_CHANGED, (s) =>
@@ -435,14 +443,15 @@ function InstrumentEditor({ store, instrumentController }) {
               </span>
               <input
                 type="range"
-                min={GAIN_MIN}
-                max={GAIN_MAX}
-                step={GAIN_STEP}
-                value={gain}
-                onChange={(e) => instrumentController.setGain(index, Number(e.target.value))}
-                style={rangeFillStyle(gain, GAIN_MIN, GAIN_MAX)}
+                min={SOURCE_GAIN_MIN_DB}
+                max={SOURCE_GAIN_MAX_DB}
+                step={GAIN_STEP_DB}
+                value={gainDb}
+                onChange={(e) => instrumentController.setGain(index, dbToGain(Number(e.target.value)))}
+                onDoubleClick={() => instrumentController.setGain(index, 1)}
+                style={rangeFillStyle(gainDb, SOURCE_GAIN_MIN_DB, SOURCE_GAIN_MAX_DB)}
               />
-              <span className="fx-module__value">{gain.toFixed(2)}x</span>
+              <span className="fx-module__value">{formatGainDb(gainDb)}</span>
             </label>
 
             {/* ADSR amplitude envelope (model/instrument.js#envelope, webdsp's

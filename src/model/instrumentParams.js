@@ -310,7 +310,31 @@ export const EDGE_PARAMS = [
 // (SYNTH_PARAMS_BY_KIND below) and the only place UI code needs to iterate to list every synth
 // kind (ui/chrome/InstrumentPanel.jsx's output-type buttons) — not a second, separate list of
 // instrument names.
-export const SYNTH_KINDS = [
+// Source gain: webdsp gives every synth kind one shared "gain" control (InstrumentCommonParam.Gain,
+// dB, default 0 = unity) applied to the instrument's output before it reaches its bus — before the
+// track's FX chain and the mixer fader. It is the first control of every kind (spliced in below),
+// so the editor, cell automation and the engine push treat it like any other control; audio/
+// instrument.js resolves its `webdspParam` to the shared id instead of a per-kind enum member.
+// A sample slot has the same stage as `gain` (linear, SampleParam.Gain) — see SOURCE_GAIN_* below.
+export const SOURCE_GAIN_MIN_DB = -24;
+export const SOURCE_GAIN_MAX_DB = 12;
+export const SOURCE_GAIN_PARAM = {
+  id: "gain", webdspParam: "Gain", label: "Gain", min: SOURCE_GAIN_MIN_DB, max: SOURCE_GAIN_MAX_DB, default: 0, step: 0.1, unit: "dB",
+};
+
+// dB <-> linear for the sample slot's `gain` (linear since before the dB display existed; kept so
+// saved projects load unchanged). 0 dB is exactly 1; a stored 0 (silence) reads as the minimum.
+export function gainToDb(gain) {
+  return gain > 0 ? Math.max(SOURCE_GAIN_MIN_DB, 20 * Math.log10(gain)) : SOURCE_GAIN_MIN_DB;
+}
+export function dbToGain(db) {
+  return Math.pow(10, db / 20);
+}
+export function formatGainDb(db) {
+  return `${Number(db).toFixed(1)} dB`;
+}
+
+const SYNTH_KIND_DEFS = [
   { id: "kick", name: "Kick", category: "drum", params: KICK_PARAMS },
   { id: "snare", name: "Snare", category: "drum", params: SNARE_PARAMS },
   { id: "clap", name: "Clap", category: "drum", params: CLAP_PARAMS },
@@ -348,6 +372,8 @@ export const SYNTH_KINDS = [
 // Registry of every synthesized-instrument kind's own param catalog, keyed by the same string
 // `Instrument.output.kind` (model/instrument.js) uses. Derived from SYNTH_KINDS above rather
 // than hand-listed again.
+export const SYNTH_KINDS = SYNTH_KIND_DEFS.map((kind) => ({ ...kind, params: [SOURCE_GAIN_PARAM, ...kind.params] }));
+
 export const SYNTH_PARAMS_BY_KIND = Object.fromEntries(SYNTH_KINDS.map((k) => [k.id, k.params]));
 
 export function getSynthKind(kind) {
@@ -409,6 +435,7 @@ export function formatSynthParamValue(value, param) {
     return cents === 0 ? noteNumberToName(nearest) : `${noteNumberToName(nearest)} ${cents > 0 ? "+" : ""}${cents}c`;
   }
   if (param.options) return param.options[Math.round(value - (param.min ?? 0))] ?? "--";
+  if (param.unit === "dB") return formatGainDb(value);
   if (param.unit === "st") return `${value > 0 ? "+" : ""}${Number(value).toFixed(decimalsForStep(param.step))} st`;
   return `${Number(value).toFixed(decimalsForStep(param.step))}${param.unit}`;
 }

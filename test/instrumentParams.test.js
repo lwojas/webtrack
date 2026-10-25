@@ -19,6 +19,9 @@ import {
   PERCSYNTH_PARAMS,
   EDGE_PARAMS,
   SYNTH_KINDS,
+  SOURCE_GAIN_PARAM,
+  dbToGain,
+  gainToDb,
   isSustainedSynthKind,
   synthKindRootNote,
   getSynthParams,
@@ -41,7 +44,7 @@ describe("model/instrumentParams.js", () => {
   });
 
   it("getSynthParams resolves 'kick' to KICK_PARAMS and an unknown kind to an empty list", () => {
-    expect(getSynthParams("kick")).toBe(KICK_PARAMS);
+    expect(getSynthParams("kick")).toEqual([SOURCE_GAIN_PARAM, ...KICK_PARAMS]);
     expect(getSynthParams("nope")).toEqual([]);
   });
 
@@ -225,6 +228,7 @@ describe("model/instrumentParams.js", () => {
 
   it("defaultSynthParamValues seeds every param at its catalog default", () => {
     expect(defaultSynthParamValues("kick")).toEqual({
+      gain: 0,
       tune: 50,
       pitchDrop: 2.5,
       pitchDecay: 0.04,
@@ -234,12 +238,34 @@ describe("model/instrumentParams.js", () => {
     });
   });
 
+  it("every synth kind leads with the same shared Gain control: dB, -24..+12, default 0", () => {
+    for (const kind of SYNTH_KINDS) {
+      expect(kind.params[0]).toBe(SOURCE_GAIN_PARAM);
+      expect(kind.params.filter((p) => p.id === "gain")).toHaveLength(1);
+    }
+    expect(SOURCE_GAIN_PARAM).toMatchObject({ id: "gain", label: "Gain", min: -24, max: 12, default: 0, unit: "dB" });
+    expect(formatSynthParamValue(-6.04, SOURCE_GAIN_PARAM)).toBe("-6.0 dB");
+    expect(formatSynthParamValue(0, SOURCE_GAIN_PARAM)).toBe("0.0 dB");
+  });
+
+  it("sample gain converts dB <-> linear with 0 dB exactly unity and a stored 0 reading as the minimum", () => {
+    expect(dbToGain(0)).toBe(1);
+    expect(gainToDb(1)).toBe(0);
+    expect(dbToGain(-6.0206)).toBeCloseTo(0.5, 4);
+    expect(dbToGain(6.0206)).toBeCloseTo(2, 3);
+    expect(gainToDb(2)).toBeCloseTo(6.0206, 3);
+    expect(gainToDb(0)).toBe(-24);          // silence from an old project: clamped on screen
+    expect(gainToDb(0.001)).toBe(-24);
+    expect(dbToGain(gainToDb(0.7))).toBeCloseTo(0.7, 10);
+  });
+
   it("defaultSynthParamValues returns an empty object for an unknown kind", () => {
     expect(defaultSynthParamValues("nope")).toEqual({});
   });
 
   it("defaultSynthParamValues seeds every param at its catalog default for Tom (pitch-sensitive kind)", () => {
     expect(defaultSynthParamValues("tom")).toEqual({
+      gain: 0,
       tune: 120,
       pitchDrop: 0.6,
       decay: 0.45,
