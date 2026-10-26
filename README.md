@@ -6,7 +6,7 @@ pattern grid. See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for how it's bu
 [`docs/EXTENDING.md`](docs/EXTENDING.md) for how to add to it,
 [`docs/FX.md`](docs/FX.md) for the track/master FX buses, [`docs/AUTOMATION.md`](docs/AUTOMATION.md) for cell automation, LFOs and the automation editor, and
 [`docs/MIDI.md`](docs/MIDI.md) for MIDI I/O and the Ableton Push Mk1 controller integration, and
-[`docs/CHOKE_GROUPS.md`](docs/CHOKE_GROUPS.md) for track choke groups (open/closed hi-hat).
+[`docs/CHOKE_GROUPS.md`](docs/CHOKE_GROUPS.md) for track choke groups (open/closed hi-hat). Live visualisations (EQ spectrum, master meter; `src/ui/viz/`) are described in webdsp's `docs/visualisation.md`.
 
 ## Quick start
 
