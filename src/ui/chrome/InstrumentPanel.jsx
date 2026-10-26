@@ -376,8 +376,10 @@ function InstrumentEditor({ store, instrumentController }) {
   const lfoRate = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.lfoRate ?? 5);
   const lfoPitch = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.lfoPitch ?? 0);
   const lfoFilter = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.lfoFilter ?? 0);
+  // Source gain (SOURCE_GAIN_PARAM, dB) is a synth control like any other; unity until set.
+  const synthGain = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.gain ?? 0);
   const synthParamValues = {
-    tune, decay: synthDecay, pitchDrop, pitchDecay, punch, drive, snap, noise, spread, body, damp, metal, tone,
+    gain: synthGain, tune, decay: synthDecay, pitchDrop, pitchDecay, punch, drive, snap, noise, spread, body, damp, metal, tone,
     bite, cutoff, resonance, attack: synthAttack, sustain: synthSustain, release: synthRelease,
     pump, pumpRate, pumpAttack, pluck, grit, repeat, rate, diffuse, legato, slide, movement, detune, space, ratio, timbre, density,
     width, pwm, shape, harmonics, envamt, sub, fm, sweep, chick, structure, hold, burst, chaos, fold,
