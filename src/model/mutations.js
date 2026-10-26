@@ -464,6 +464,17 @@ export function setSongScale(song, patch) {
   song.scale = patchScale(scaleOf(song), patch);
 }
 
+// Ties (true) or unties (null) every note of one track in one pattern whose instrument can tie
+// (`canTie(instrumentIndex)`), in one go: the Track tab's All steps / None.
+export function setTrackStepsTie(song, patternId, trackIndex, tie, canTie) {
+  const track = getPattern(song, patternId)?.tracks[trackIndex];
+  if (!track) return;
+  for (const event of track.events) {
+    if (event.note === null || !canTie(event.instrument)) continue;
+    event.tie = tie ? true : null;
+  }
+}
+
 // Sets Track LFO participation on every step of one track that holds a note, in one pattern
 // (the Track tab's All steps / None). 0/null clears it.
 export function setTrackStepsLfo(song, patternId, trackIndex, amount) {

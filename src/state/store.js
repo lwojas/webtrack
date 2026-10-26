@@ -12,6 +12,7 @@ import {
   setTrackChannelEventLfo as setTrackChannelEventLfoModel,
   setSongScale as setSongScaleModel,
   setTrackStepsLfo as setTrackStepsLfoModel,
+  setTrackStepsTie as setTrackStepsTieModel,
   setMasterPan as setMasterPanModel,
   setTrackFxParam as setTrackFxParamModel,
   setMasterFxParam as setMasterFxParamModel,
@@ -46,7 +47,7 @@ import {
 import { arpOf, patchArp } from "../model/arp.js";
 import { createInstrumentSlot } from "../model/instrument.js";
 import { MAX_INSTRUMENT_LFOS, createLfo, patchLfo } from "../model/instrumentLfos.js";
-import { DEFAULT_ROOT_NOTE, defaultSynthParamValues, synthKindRootNote } from "../model/instrumentParams.js";
+import { DEFAULT_ROOT_NOTE, defaultSynthParamValues, supportsTieKind, synthKindRootNote } from "../model/instrumentParams.js";
 import { rowCountForBars, SWING_MIN, SWING_MAX } from "../model/timing.js";
 import { getSelectedPattern } from "../model/query.js";
 import { clearRect, captureBlock, tileBlockIntoRect } from "../model/selectionOps.js";
@@ -522,6 +523,16 @@ export function createStore({ song, instruments }) {
     emitter.emit(events.PATTERN_LENGTH_CHANGED, {});
   }
 
+  // Ties (or unties) every note of one track, in the selected pattern, whose instrument can tie.
+  function setTrackStepsTie(trackIndex, tie) {
+    const canTie = (index) => {
+      const output = state.instruments[index]?.output;
+      return output?.type === "instrument" && supportsTieKind(output.kind);
+    };
+    setTrackStepsTieModel(state.song, state.song.selectedPatternId, trackIndex, tie, canTie);
+    emitter.emit(events.PATTERN_LENGTH_CHANGED, {});
+  }
+
   function setMasterPan(pan) {
     setMasterPanModel(state.song, pan);
     emitter.emit(events.MASTER_FX_CHANGED, { pan });
@@ -946,6 +957,7 @@ export function createStore({ song, instruments }) {
     setInstrumentArp,
     setScale,
     setTrackStepsLfo,
+    setTrackStepsTie,
     setTrackChannelVolume,
     setTrackChannelVoiceMode,
     setTrackChannelChokeGroup,

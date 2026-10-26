@@ -187,6 +187,7 @@ export function createLookaheadPlayer({
         if (event.pan !== undefined) params.pan = event.pan;
         if (event.pitch !== undefined) params.pitch = event.pitch;
         if (event.chokeGroup !== undefined) params.chokeGroup = event.chokeGroup;
+        if (event.tie) params.tie = true;
         // Only sustained kinds (Bass) carry one — webdsp releases the note itself, sample-
         // accurately; see audio/compile.js.
         if (event.duration !== undefined) params.duration = event.duration;

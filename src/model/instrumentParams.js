@@ -380,6 +380,11 @@ export function getSynthKind(kind) {
   return SYNTH_KINDS.find((k) => k.id === kind);
 }
 
+// Can a note of this synth kind be tied (a 303-style slide into the held note)? It needs a legato mode.
+export function supportsTieKind(kind) {
+  return getSynthKind(kind)?.params.some((p) => p.id === "legato") === true;
+}
+
 export function isSustainedSynthKind(kind) {
   return getSynthKind(kind)?.sustained === true;
 }

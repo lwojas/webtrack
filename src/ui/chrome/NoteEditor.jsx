@@ -16,6 +16,7 @@ import {
 import { formatBarBeat } from "../../model/timing.js";
 import { noteNumberToName, parseNoteName, toHex } from "../../model/notes.js";
 import { rangeFillStyle } from "../rangeFill.js";
+import { supportsTieKind } from "../../model/instrumentParams.js";
 import { normalizeParticipation } from "../../model/eventLfo.js";
 import { RATCHET_VALUES, normalizeRatchet, ratchetOf } from "../../model/event.js";
 
@@ -152,6 +153,7 @@ export default function NoteEditor({ store }) {
       selected.length,
       selected.lfo,
       selected.ratchet,
+      selected.tie,
       JSON.stringify(selected.fx),
     ].join("|");
   });
@@ -174,6 +176,9 @@ export default function NoteEditor({ store }) {
       </div>
     );
   }
+
+  const tieOutput = state.instruments[event.instrument]?.output;
+  const canTie = event.note !== null && tieOutput?.type === "instrument" && supportsTieKind(tieOutput.kind);
 
   function setField(field, value) {
     store.setCell(cursor.trackIndex, cursor.rowIndex, field, value);
@@ -296,6 +301,13 @@ export default function NoteEditor({ store }) {
           ))}
         </select>
       </label>
+
+      {canTie && (
+        <label className="note-editor__field" title="Hold this note through the next one, which glides in with no re-attack (303-style slide)">
+          TIE
+          <input type="checkbox" checked={!!event.tie} onChange={(e) => setField("tie", e.target.checked ? true : null)} />
+        </label>
+      )}
 
       <label className="note-editor__field">
         PAN

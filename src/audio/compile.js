@@ -3,7 +3,7 @@
 // ECS-156 plan §6).
 import { trackLocalStep } from "../model/pattern.js";
 import { listCellEntries, nextPoint } from "../model/cellAutomation.js";
-import { isSustainedSynthKind } from "../model/instrumentParams.js";
+import { isSustainedSynthKind, supportsTieKind } from "../model/instrumentParams.js";
 import { effectiveVelocity } from "./trackLfo.js";
 import { effectiveChokeGroup } from "../model/trackChannel.js";
 import { ratchetOf } from "../model/event.js";
@@ -61,7 +61,7 @@ export function noteDurationSteps(track, rowIndex) {
 // event's own scheduled `time` (swing included) before any output branch below uses it, so a
 // sample, a synth and a MIDI event all just receive the resulting velocity. Omitted = no
 // modulation. The stored event is never changed.
-export function compileEvent(event, trackChannel, instruments, time, durationSeconds, bus, lfoClock) {
+export function compileEvent(event, trackChannel, instruments, time, durationSeconds, bus, lfoClock, tieIn = false) {
   if (event.note === null || event.instrument === null) return null;
   if (trackChannel.muted) return null;
 
@@ -105,6 +105,8 @@ export function compileEvent(event, trackChannel, instruments, time, durationSec
     const level = Math.max(0, Math.min(1, (velocity / 127) * trackChannel.volume));
     const pitch = event.note - instrument.rootNote;
     const compiled = { kind: "instrument", instrumentId: instrument.engineInstrumentId, velocity: level, pitch };
+    // Tied in (the previous note of this track ties into this one): glide into it, no re-attack.
+    if (tieIn) compiled.tie = true;
     if (time !== undefined) compiled.time = time;
     if (event.pan !== null && event.pan !== undefined) compiled.pan = event.pan;
     const instrumentChoke = effectiveChokeGroup(trackChannel);
@@ -232,18 +234,53 @@ export function compileRow(pattern, trackChannels, instruments, transportStep, t
     // step's, so the hits never swing individually. n = 1 is exactly the single event below.
     const hits = ratchetOf(event);
     const slotSeconds = (durationSteps * stepDurationSeconds) / hits;
+    const { tieIn, holdSteps } = tieLinks(track, localStep, instruments);
     // trackIndex rides along on the compiled event itself (not webdsp's ScheduledEvent shape —
     // audio/lookaheadPlayer.js strips it again before actually calling runtime.schedule()) so
     // whichever VoiceHandle the engine hands back for this event can be attributed back to the
     // track that triggered it — audio/voiceTracker.js's whole per-track voice-limit bookkeeping
     // depends on that correlation, and this is the one place that already knows it.
     for (let hit = 0; hit < hits; hit++) {
-      const compiled = compileEvent(event, trackChannel, instruments, time + hit * slotSeconds, slotSeconds, bus, lfoClock);
+      // A note that ties into the next holds its gate to just past that note's start, on its last hit.
+      const hold = hit === hits - 1 && holdSteps !== null ? Math.max(slotSeconds, (holdSteps + 0.5) * stepDurationSeconds - hit * slotSeconds) : slotSeconds;
+      const compiled = compileEvent(event, trackChannel, instruments, time + hit * slotSeconds, hold, bus, lfoClock, tieIn && hit === 0);
       if (compiled) events.push({ ...compiled, trackIndex });
     }
   });
 
   return dropSimultaneousChokeLosers(events);
+}
+
+// Ties around one note (Event.tie), for the instrument-output synths that have a legato mode:
+//   tieIn      the previous note on this track ties into this one (same instrument): it glides in.
+//   holdSteps  this note ties into the next one: rows from here to that note, so the gate can reach it.
+// Neither crosses the track's loop end, and a tie on a note with no following note does nothing.
+function tieLinks(track, localStep, instruments) {
+  const event = track.events[localStep];
+  const none = { tieIn: false, holdSteps: null };
+  const canTie = (e) => {
+    const output = instruments[e.instrument]?.output;
+    return output?.type === "instrument" && supportsTieKind(output.kind);
+  };
+  if (event.note === null || !canTie(event)) return none;
+  const loopEnd = track.length ?? track.events.length;
+  let holdSteps = null;
+  if (event.tie) {
+    for (let i = localStep + 1; i < loopEnd; i++) {
+      const next = track.events[i];
+      if (next.note === null) continue;
+      if (next.instrument === event.instrument) holdSteps = i - localStep;
+      break;
+    }
+  }
+  let tieIn = false;
+  for (let i = localStep - 1; i >= 0; i--) {
+    const prev = track.events[i];
+    if (prev.note === null) continue;
+    tieIn = !!prev.tie && prev.instrument === event.instrument;
+    break;
+  }
+  return { tieIn, holdSteps };
 }
 
 // Cell-level FX automation at a row — distinct from compileRow's note triggers above: a sparse

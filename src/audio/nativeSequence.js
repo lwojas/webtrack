@@ -57,6 +57,7 @@ export function compileNativeSequence({ entries, trackChannels, instruments, tra
             ...(e.pitch ? { pitch: e.pitch } : {}),
             ...(e.duration !== undefined ? { durationBeats: e.duration * QUARTERS_PER_SECOND } : {}),
             ...(e.chokeGroup !== undefined ? { chokeGroup: e.chokeGroup } : {}),
+            ...(e.tie ? { tie: true } : {}),
           });
         } // MIDI output stays the page's: a plugin has no MIDI out here, and the page is not there to send it with the window closed
       }

@@ -32,6 +32,9 @@ export function createEmptyEvent() {
     // Ratchet: how many evenly spaced retriggers this note plays across its own length (see
     // RATCHET_VALUES). null = 1, a normal single trigger. A property of the note, not extra rows.
     ratchet: null,
+    // Tie: this note is held through the next note on the track, which glides in with no re-attack (a
+    // 303-style slide). true | null; only meaningful for a synth with a legato mode (supportsTieKind).
+    tie: null,
     // Sparse FX automation: { "bus.gain"?: value, instances?: { [instanceId]: { [fxParamId]:
     // value } } } | null — only the parameters actually set at this cell (model/fxParams.js is
     // the id catalog), mirroring trackChannel.fx's own shape (model/trackChannel.js's doc
@@ -72,6 +75,7 @@ export function isEmptyEvent(event) {
     event.length === null &&
     (event.lfo ?? null) === null &&
     (event.ratchet ?? null) === null &&
+    (event.tie ?? null) === null &&
     isEmptyFx(event.fx)
   );
 }

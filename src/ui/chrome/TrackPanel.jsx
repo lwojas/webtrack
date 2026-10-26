@@ -12,6 +12,7 @@ import {
   sliderToRate,
 } from "../../model/eventLfo.js";
 import { rangeFillStyle } from "../rangeFill.js";
+import { supportsTieKind } from "../../model/instrumentParams.js";
 
 // Track-level properties for the selected track (the grid cursor's track, as in FxPanel): the
 // contextual home for what belongs to the track rather than to a step or the mixer. Length and
@@ -30,7 +31,7 @@ export default function TrackPanel({ store }) {
   // The bulk buttons repaint through PATTERN_LENGTH_CHANGED; listen to it too so the counts follow.
   useStore(store, events.PATTERN_LENGTH_CHANGED, (s) => stepCounts(s, s.cursor.trackIndex).join("/"));
   const lfo = JSON.parse(lfoJson);
-  const [participating, notes] = stepsKey.split("/").map(Number);
+  const [participating, notes, tied, tieable] = stepsKey.split("/").map(Number);
   const set = (patch) => store.setTrackChannelEventLfo(trackIndex, patch);
 
   return (
@@ -122,21 +123,44 @@ export default function TrackPanel({ store }) {
           </button>
           <span className="fx-panel__empty">Per step: Note Editor, TRACK LFO</span>
         </div>
+
+        {tieable > 0 && (
+          <div className="fx-module">
+            <div className="fx-module__header">
+              <span className="fx-module__title">Ties</span>
+              <span>{`${tied}/${tieable}`}</span>
+            </div>
+            <button type="button" className="fx-panel__target-btn" onClick={() => store.setTrackStepsTie(trackIndex, true)} title="Tie every note on this track into the next (this pattern): 303-style slides on Bass and FM">
+              ALL STEPS
+            </button>
+            <button type="button" className="fx-panel__target-btn" disabled={tied === 0} onClick={() => store.setTrackStepsTie(trackIndex, false)} title="Remove every tie on this track (this pattern)">
+              NONE
+            </button>
+            <span className="fx-panel__empty">Per step: Note Editor, TIE</span>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-// [steps taking part, steps with a note] for one track of the selected pattern.
+// [steps taking part, steps with a note, tied steps, notes that can tie] for one track of the selected pattern.
 function stepCounts(state, trackIndex) {
   const track = getSelectedPattern(state.song)?.tracks[trackIndex];
-  if (!track) return [0, 0];
+  if (!track) return [0, 0, 0, 0];
   let participating = 0;
   let notes = 0;
+  let tied = 0;
+  let tieable = 0;
   for (const event of track.events) {
     if (event.note === null) continue;
     notes += 1;
     if ((event.lfo ?? 0) > 0) participating += 1;
+    const output = state.instruments[event.instrument]?.output;
+    if (output?.type === "instrument" && supportsTieKind(output.kind)) {
+      tieable += 1;
+      if (event.tie) tied += 1;
+    }
   }
-  return [participating, notes];
+  return [participating, notes, tied, tieable];
 }
