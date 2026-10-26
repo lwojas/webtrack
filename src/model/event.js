@@ -1,3 +1,20 @@
+// The ratchet counts a note can have; 1 is "normal" and is stored as null.
+export const RATCHET_VALUES = [1, 2, 3, 4, 6, 8];
+
+// A note's ratchet as playback uses it: always one of RATCHET_VALUES (a loaded project is not
+// trusted), 1 when absent or unknown.
+export function ratchetOf(event) {
+  const r = event?.ratchet;
+  return RATCHET_VALUES.includes(r) ? r : 1;
+}
+
+// The value to store for a chosen ratchet: null for "normal" (and anything unsupported), so
+// untouched notes stay identical to ones saved before ratchets existed.
+export function normalizeRatchet(value) {
+  const r = Number(value);
+  return RATCHET_VALUES.includes(r) && r > 1 ? r : null;
+}
+
 export function createEmptyEvent() {
   return {
     note: null,
@@ -12,6 +29,9 @@ export function createEmptyEvent() {
     // Track LFO participation (model/eventLfo.js): 0..1, or null = this step plays at its own
     // velocity. Authored like velocity; the effective velocity is computed at playback.
     lfo: null,
+    // Ratchet: how many evenly spaced retriggers this note plays across its own length (see
+    // RATCHET_VALUES). null = 1, a normal single trigger. A property of the note, not extra rows.
+    ratchet: null,
     // Sparse FX automation: { "bus.gain"?: value, instances?: { [instanceId]: { [fxParamId]:
     // value } } } | null — only the parameters actually set at this cell (model/fxParams.js is
     // the id catalog), mirroring trackChannel.fx's own shape (model/trackChannel.js's doc
@@ -51,6 +71,7 @@ export function isEmptyEvent(event) {
     event.effectParam === null &&
     event.length === null &&
     (event.lfo ?? null) === null &&
+    (event.ratchet ?? null) === null &&
     isEmptyFx(event.fx)
   );
 }

@@ -6,6 +6,7 @@ import { listCellEntries, nextPoint } from "../model/cellAutomation.js";
 import { isSustainedSynthKind } from "../model/instrumentParams.js";
 import { effectiveVelocity } from "./trackLfo.js";
 import { effectiveChokeGroup } from "../model/trackChannel.js";
+import { ratchetOf } from "../model/event.js";
 import { arpEventsAtRow, arpOf, isArpActive } from "../model/arp.js";
 
 // How long an un-timed (preview/audition) note of a sustained synth kind is held.
@@ -226,13 +227,20 @@ export function compileRow(pattern, trackChannels, instruments, transportStep, t
     if (event.note !== null && isArpActive(instruments[event.instrument])) return;
 
     const durationSteps = noteDurationSteps(track, localStep);
-    const compiled = compileEvent(event, trackChannel, instruments, time, durationSteps * stepDurationSeconds, bus, lfoClock);
+    // Ratchet (Event.ratchet): the note's own length split into n equal slots, one real trigger at the
+    // front of each, so synth envelopes and samples restart every time. The swung `time` is the whole
+    // step's, so the hits never swing individually. n = 1 is exactly the single event below.
+    const hits = ratchetOf(event);
+    const slotSeconds = (durationSteps * stepDurationSeconds) / hits;
     // trackIndex rides along on the compiled event itself (not webdsp's ScheduledEvent shape —
     // audio/lookaheadPlayer.js strips it again before actually calling runtime.schedule()) so
     // whichever VoiceHandle the engine hands back for this event can be attributed back to the
     // track that triggered it — audio/voiceTracker.js's whole per-track voice-limit bookkeeping
     // depends on that correlation, and this is the one place that already knows it.
-    if (compiled) events.push({ ...compiled, trackIndex });
+    for (let hit = 0; hit < hits; hit++) {
+      const compiled = compileEvent(event, trackChannel, instruments, time + hit * slotSeconds, slotSeconds, bus, lfoClock);
+      if (compiled) events.push({ ...compiled, trackIndex });
+    }
   });
 
   return dropSimultaneousChokeLosers(events);

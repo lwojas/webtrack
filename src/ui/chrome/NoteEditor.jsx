@@ -17,6 +17,7 @@ import { formatBarBeat } from "../../model/timing.js";
 import { noteNumberToName, parseNoteName, toHex } from "../../model/notes.js";
 import { rangeFillStyle } from "../rangeFill.js";
 import { normalizeParticipation } from "../../model/eventLfo.js";
+import { RATCHET_VALUES, normalizeRatchet, ratchetOf } from "../../model/event.js";
 
 // Mirrors the local-draft-state + commit-on-blur/Enter, revert-on-Escape pattern
 // ui/chrome/PatternManager.jsx's pattern-rename field already uses: typing updates only this
@@ -150,6 +151,7 @@ export default function NoteEditor({ store }) {
       selected.effectParam,
       selected.length,
       selected.lfo,
+      selected.ratchet,
       JSON.stringify(selected.fx),
     ].join("|");
   });
@@ -282,6 +284,17 @@ export default function NoteEditor({ store }) {
           value={event.length ?? ""}
           onChange={(e) => handleLengthChange(e.target.value)}
         />
+      </label>
+
+      <label className="note-editor__field" title="Retrigger this note evenly this many times within its length">
+        RATCHET
+        <select value={ratchetOf(event)} onChange={(e) => setField("ratchet", normalizeRatchet(e.target.value))}>
+          {RATCHET_VALUES.map((r) => (
+            <option key={r} value={r}>
+              {r === 1 ? "off" : `×${r}`}
+            </option>
+          ))}
+        </select>
       </label>
 
       <label className="note-editor__field">
