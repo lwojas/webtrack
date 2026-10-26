@@ -63,7 +63,8 @@ describe("Dub Delay catalog entries (webdsp's tempo-synced delay)", () => {
     expect(formatFxValue(0, param)).toBe("1/16");
     expect(formatFxValue(2, param)).toBe("1/8.");
     expect(formatFxValue(5, param)).toBe("1/2");
-    expect(formatFxValue(9, param)).toBe("1/2");
+    expect(formatFxValue(7, param)).toBe("1/8T");
+    expect(formatFxValue(99, param)).toBe("1/2T");
   });
 });
 

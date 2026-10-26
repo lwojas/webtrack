@@ -100,7 +100,7 @@ export const FX_PARAMS = [
   // DubDelayDivision step index (not seconds): the engine derives the time from the transport BPM, so
   // it follows tempo changes by itself. `labels` is this catalog's extension for a stepped value that
   // reads as names (formatFxValue). Tone is a low-pass inside the feedback loop: repeats darken.
-  { id: "dub.division", nodeParam: "DubDelayDivision", type: "dubdelay", group: "Dub Delay", label: "Time", min: 0, max: 5, default: 2, step: 1, unit: "", labels: ["1/16", "1/8", "1/8.", "1/4", "1/4.", "1/2"] },
+  { id: "dub.division", nodeParam: "DubDelayDivision", type: "dubdelay", group: "Dub Delay", label: "Time", min: 0, max: 9, default: 2, step: 1, unit: "", labels: ["1/16", "1/8", "1/8.", "1/4", "1/4.", "1/2", "1/16T", "1/8T", "1/4T", "1/2T"] },
   { id: "dub.feedback", nodeParam: "DubDelayFeedback", type: "dubdelay", group: "Dub Delay", label: "Feedback", min: 0, max: 0.95, default: 0.45, step: 0.01, unit: "" },
   { id: "dub.tone", nodeParam: "DubDelayTone", type: "dubdelay", group: "Dub Delay", label: "Tone", min: 200, max: 16000, default: 3000, step: 1, unit: "Hz" },
   { id: "dub.mix", nodeParam: "DubDelayMix", type: "dubdelay", group: "Dub Delay", label: "Mix", min: 0, max: 1, default: 0, step: 0.01, unit: "" },

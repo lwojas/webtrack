@@ -102,7 +102,7 @@ entry's position among same-kind siblings already in the chain), `formatFxValue(
 Dub Delay (`dubdelay`, webdsp `EffectKind.DubDelay`) is a tempo-synced delay: `dub.division` is a
 step index shown as a note value (`labels` on its catalog entry, rendered by `formatFxValue`), and
 the engine derives the actual time from the transport BPM, so it follows tempo changes with no
-client work. `dub.tone` is a low-pass inside the feedback loop (repeats darken).
+client work (indices 6..9 are the triplets 1/16T, 1/8T, 1/4T, 1/2T). `dub.tone` is a low-pass inside the feedback loop (repeats darken).
 
 Currently exposed: Filter (cutoff, resonance, mode, slope), Delay (time, feedback, mix), Reverb
 (decay, damping, mix), Compressor (threshold, ratio, attack, release, knee, makeup), Saturation
