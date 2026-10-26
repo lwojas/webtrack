@@ -186,6 +186,10 @@ export function dropSimultaneousChokeLosers(events) {
 export function compileRow(pattern, trackChannels, instruments, transportStep, time, stepDurationSeconds, trackBusIds, lfoClock) {
   const soloActive = trackChannels.some((channel) => channel.solo);
   const events = [];
+  const arpInstruments = [];
+  instruments.forEach((instrument, index) => {
+    if (isArpActive(instrument)) arpInstruments.push(index);
+  });
 
   pattern.tracks.forEach((track, trackIndex) => {
     const trackChannel = trackChannels[trackIndex];
@@ -195,12 +199,14 @@ export function compileRow(pattern, trackChannels, instruments, transportStep, t
     const localStep = trackLocalStep(track, transportStep);
     const bus = trackBusIds?.[trackIndex];
 
-    // Arp on: this row sounds whatever the arp generates for it (model/arp.js) instead of the
-    // cell's own note — zero, one or several notes, at sub-row offsets inside the row. Everything
-    // downstream (velocity/LFO, sample/synth/MIDI branches, voice limits) sees ordinary events.
-    // Arp off: the original path below, untouched.
-    if (isArpActive(trackChannel)) {
-      for (const item of arpEventsAtRow(track, localStep, arpOf(trackChannel), noteDurationSteps)) {
+    // The arp belongs to the instrument (model/arp.js, instrument.arp): every arp-enabled
+    // instrument sounds whatever it generates for this row from *its own* notes on this track —
+    // zero, one or several notes, at sub-row offsets inside the row. Everything downstream
+    // (velocity/LFO, sample/synth/MIDI branches, voice limits) sees ordinary events. A cell whose
+    // instrument has the arp off (or no arp) takes the original path below, untouched.
+    for (const instrumentIndex of arpInstruments) {
+      const items = arpEventsAtRow(track, localStep, arpOf(instruments[instrumentIndex]), noteDurationSteps, (e) => e.instrument === instrumentIndex);
+      for (const item of items) {
         const compiled = compileEvent(
           item.event,
           trackChannel,
@@ -212,11 +218,12 @@ export function compileRow(pattern, trackChannels, instruments, transportStep, t
         );
         if (compiled) events.push({ ...compiled, trackIndex });
       }
-      return;
     }
 
     const event = track.events[localStep];
     if (!event) return;
+    // This cell's note is played by its instrument's arp (above), not as written.
+    if (event.note !== null && isArpActive(instruments[event.instrument])) return;
 
     const durationSteps = noteDurationSteps(track, localStep);
     const compiled = compileEvent(event, trackChannel, instruments, time, durationSteps * stepDurationSeconds, bus, lfoClock);

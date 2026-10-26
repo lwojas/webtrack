@@ -10,7 +10,6 @@ import {
   setTrackChannelMaxVoices as setTrackChannelMaxVoicesModel,
   setTrackChannelPan as setTrackChannelPanModel,
   setTrackChannelEventLfo as setTrackChannelEventLfoModel,
-  setTrackChannelArp as setTrackChannelArpModel,
   setSongScale as setSongScaleModel,
   setTrackStepsLfo as setTrackStepsLfoModel,
   setMasterPan as setMasterPanModel,
@@ -44,6 +43,7 @@ import {
   deletePattern as deletePatternModel,
   renamePattern as renamePatternModel,
 } from "../model/mutations.js";
+import { arpOf, patchArp } from "../model/arp.js";
 import { createInstrumentSlot } from "../model/instrument.js";
 import { MAX_INSTRUMENT_LFOS, createLfo, patchLfo } from "../model/instrumentLfos.js";
 import { DEFAULT_ROOT_NOTE, defaultSynthParamValues, synthKindRootNote } from "../model/instrumentParams.js";
@@ -103,6 +103,8 @@ export function createStore({ song, instruments }) {
     // Whether the chop editor panel (ui/chrome/ChopEditor.jsx) is open for the selected instrument.
     // Session-only like the cursor — never persisted.
     chopEditorOpen: false,
+    // Whether the wide instrument editor panel (ui/chrome/InstrumentPanel.jsx#InstrumentEditorPanel) is open under the grid.
+    instrumentEditorOpen: false,
     // The automation editor: `key` is the lane being edited (model/cellAutomation.js's key scheme),
     // null = the panel is open with no lane picked. The track is always the cursor's.
     automationEditor: { open: false, key: null },
@@ -493,10 +495,13 @@ export function createStore({ song, instruments }) {
     emitter.emit(events.TRACK_CHANNEL_CHANGED, { trackIndex });
   }
 
-  // Arp (model/arp.js): read live by the playback compile step, so there is no engine push.
-  function setTrackChannelArp(trackIndex, patch) {
-    setTrackChannelArpModel(state.song, trackIndex, patch);
-    emitter.emit(events.TRACK_CHANNEL_CHANGED, { trackIndex });
+  // Arp (model/arp.js): belongs to the instrument slot, so it only affects notes that address it.
+  // Read live by the playback compile step, so there is no engine push. Created disabled on first edit.
+  function setInstrumentArp(index, patch) {
+    const instrument = state.instruments[index];
+    if (!instrument) return;
+    instrument.arp = patchArp(arpOf(instrument), patch);
+    emitter.emit(events.INSTRUMENTS_CHANGED, { index });
   }
 
   // The project's key. Picking a musical preset also moves the edit octave to its suggested one.
@@ -734,6 +739,11 @@ export function createStore({ song, instruments }) {
     emitter.emit(events.AUTOMATION_EDITOR_CHANGED);
   }
 
+  function setInstrumentEditorOpen(open) {
+    state.instrumentEditorOpen = Boolean(open);
+    emitter.emit(events.INSTRUMENT_EDITOR_CHANGED);
+  }
+
   function setChopEditorOpen(open) {
     state.chopEditorOpen = Boolean(open);
     emitter.emit(events.CHOP_EDITOR_CHANGED);
@@ -933,7 +943,7 @@ export function createStore({ song, instruments }) {
     setTrackChannelMuted,
     setTrackChannelSolo,
     setTrackChannelEventLfo,
-    setTrackChannelArp,
+    setInstrumentArp,
     setScale,
     setTrackStepsLfo,
     setTrackChannelVolume,
@@ -948,6 +958,7 @@ export function createStore({ song, instruments }) {
     setInstrumentChopStart,
     setInstrumentRootNote,
     setChopEditorOpen,
+    setInstrumentEditorOpen,
     setInstrumentOutput,
     setInstrumentParam,
     addInstrumentLfo,

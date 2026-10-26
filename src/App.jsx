@@ -7,6 +7,7 @@ import ChopEditor from "./ui/chrome/ChopEditor.jsx";
 import AutomationEditor from "./ui/chrome/AutomationEditor.jsx";
 import InstrumentPanel from "./ui/chrome/InstrumentPanel.jsx";
 import NoteEditor from "./ui/chrome/NoteEditor.jsx";
+import { InstrumentEditorPanel } from "./ui/chrome/InstrumentPanel.jsx";
 import SelectionToolbar from "./ui/chrome/SelectionToolbar.jsx";
 import PatternManager from "./ui/chrome/PatternManager.jsx";
 import SettingsModal from "./ui/chrome/SettingsModal.jsx";
@@ -179,13 +180,14 @@ export default function App() {
             {/* Sits in the same flex column as the grid, so opening it shrinks the grid host
                 (which scrolls) instead of overlaying it; renders nothing while closed. */}
             <ChopEditor store={store} instrumentController={instrumentController} />
+            <InstrumentEditorPanel store={store} instrumentController={instrumentController} />
             <AutomationEditor store={store} />
             <MixerFxPanel store={store} fxController={fxController} />
           </div>
           <div className="app__side">
+            <SelectionToolbar store={store} />
             <InstrumentPanel store={store} instrumentController={instrumentController} />
             <NoteEditor store={store} />
-            <SelectionToolbar store={store} />
           </div>
         </div>
       ) : (

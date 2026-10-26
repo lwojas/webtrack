@@ -38,6 +38,7 @@ export const CLIPBOARD_CHANGED = "CLIPBOARD_CHANGED";
 export const RESAMPLE_STATUS_CHANGED = "RESAMPLE_STATUS_CHANGED";
 // The chop editor panel (ui/chrome/ChopEditor.jsx) was opened or closed (state.chopEditorOpen).
 export const CHOP_EDITOR_CHANGED = "CHOP_EDITOR_CHANGED";
+export const INSTRUMENT_EDITOR_CHANGED = "INSTRUMENT_EDITOR_CHANGED";
 // The automation editor panel (ui/chrome/AutomationEditor.jsx) was opened/closed, or switched lane
 // (state.automationEditor).
 export const AUTOMATION_EDITOR_CHANGED = "AUTOMATION_EDITOR_CHANGED";

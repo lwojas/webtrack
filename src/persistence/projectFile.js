@@ -104,6 +104,7 @@ function serializeInstrument(instrument, embedSampleBytes) {
     sampleMode: instrument.sampleMode,
     cues: instrument.cues,
     chopStart: instrument.chopStart,
+    arp: instrument.arp ?? undefined,
     instrumentParams: instrument.instrumentParams,
     instrumentLfos: instrument.instrumentLfos,
     sample,
@@ -138,14 +139,32 @@ function ensureSwingDefault(song) {
   if (typeof song.swing !== "number") song.swing = 0;
 }
 
-// song.scale / trackChannel.arp (model/scale.js, model/arp.js) are purely additive too: a project
-// saved before them gets the chromatic scale (every note in scale) and no arp, which is exactly
-// how it always played — nothing is rewritten. Present values are normalised (clamped, unknown
-// ids defaulted) so a hand-edited file can't carry an invalid scale/arp into playback.
-function ensureScaleAndArpDefaults(song) {
+// song.scale (model/scale.js) is purely additive too: a project saved before it gets the chromatic
+// scale (every note in scale), which is exactly how it always played — nothing is rewritten.
+// Present values are normalised (clamped, unknown ids defaulted) so a hand-edited file can't carry
+// an invalid scale into playback.
+function ensureScaleDefaults(song) {
   song.scale = normalizeScale(song.scale);
-  song.trackChannels.forEach((channel) => {
-    if (channel.arp !== undefined) channel.arp = normalizeArp(channel.arp);
+}
+
+// The arp used to be a per-track setting (trackChannel.arp); it now belongs to the instrument
+// (instrument.arp, model/arp.js). A project saved in the track-level era keeps sounding the same:
+// an enabled track arp is handed to every instrument that track's notes address (in any pattern),
+// unless that instrument already has its own arp, and the track field is dropped. A disabled track
+// arp had no audible effect, so it is simply dropped.
+function migrateTrackArps(song, instrumentDefs) {
+  song.trackChannels.forEach((channel, trackIndex) => {
+    if (channel.arp === undefined) return;
+    const arp = normalizeArp(channel.arp);
+    delete channel.arp;
+    if (!arp.enabled) return;
+    song.patterns.forEach((pattern) => {
+      pattern.tracks[trackIndex]?.events.forEach((event) => {
+        if (event.note === null || event.instrument === null || event.instrument === undefined) return;
+        const def = instrumentDefs[event.instrument];
+        if (def && def.arp === undefined) def.arp = arp;
+      });
+    });
   });
 }
 
@@ -352,7 +371,8 @@ export async function deserializeProject(parsed, { loadSampleBytes, loadLocalAss
 
   ensureTrackLengths(parsed.song);
   ensureSwingDefault(parsed.song);
-  ensureScaleAndArpDefaults(parsed.song);
+  ensureScaleDefaults(parsed.song);
+  migrateTrackArps(parsed.song, parsed.instruments);
   ensureVoiceDefaults(parsed.song);
   ensurePanDefaults(parsed.song);
   ensureFxDefaults(parsed.song);
@@ -372,6 +392,8 @@ export async function deserializeProject(parsed, { loadSampleBytes, loadLocalAss
         // Additive: undefined in a project saved before the chop start marker -> 0.
         chopStart: Number.isFinite(def.chopStart) ? Math.min(1, Math.max(0, def.chopStart)) : undefined,
         cues: Array.isArray(def.cues) ? normalizeCues(def.cues, Number.isFinite(def.chopStart) ? def.chopStart : 0) : undefined,
+        // Additive: undefined in a project saved before the per-instrument arp -> null (no arp).
+        arp: def.arp && typeof def.arp === "object" ? normalizeArp(def.arp) : undefined,
         instrumentParams: def.instrumentParams,
         // Additive: undefined in a project saved before LFO slots existed -> createInstrumentSlot's [].
         instrumentLfos: Array.isArray(def.instrumentLfos) ? def.instrumentLfos : undefined,

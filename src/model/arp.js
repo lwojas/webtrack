@@ -1,6 +1,9 @@
-// Per-track arpeggiator: pure, deterministic note *generation* that runs inside
+// Per-instrument arpeggiator (config lives on `instrument.arp`, see model/instrument.js): pure, deterministic note *generation* that runs inside
 // audio/compile.js#compileRow, so webdsp (and MIDI output) never know an arp exists and a track
-// with the arp off takes exactly the pre-arp path (compileRow only calls in here when `enabled`).
+// with the arp off takes exactly the pre-arp path (compileRow only calls in here for instruments whose arp is `enabled`).
+// A track's cells can address different instruments, so each arp-enabled instrument reads only its
+// own notes from the track (the `include` predicate of arpEventsAtRow); other instruments' notes on
+// the same track play as written.
 // A line-for-line port of webseq's src/model/arp.ts (the apps share no package) with the same
 // test vectors; this file adds the tracker adapter at the bottom.
 //
@@ -118,13 +121,13 @@ export function normalizeArp(raw) {
   };
 }
 
-// A channel's arp, or the disabled default (a track from a project saved before arps).
-export function arpOf(channel) {
-  return normalizeArp(channel?.arp);
+// An owner's arp (an instrument slot), or the disabled default (a slot from a project saved before arps).
+export function arpOf(owner) {
+  return normalizeArp(owner?.arp);
 }
 
-export function isArpActive(channel) {
-  return channel?.arp?.enabled === true;
+export function isArpActive(owner) {
+  return owner?.arp?.enabled === true;
 }
 
 // Merges a patch into an arp; `velocity` patches merge into the existing velocity block.
@@ -238,10 +241,13 @@ export const ARP_STEPS_PER_BAR = 16;
 // { offset (steps after the row's own time), durationSteps, event } — `event` is the source
 // note's event with the generated note/velocity, so compileEvent treats it like any other cell
 // (instrument, pan, Track LFO participation all carry over). `durationOf(track, row)` is
-// compile.js#noteDurationSteps, injected so this model file stays free of audio/. The bar around
+// compile.js#noteDurationSteps, injected so this model file stays free of audio/. `include(event)`
+// picks which of the track's notes belong to this arp (compileRow passes "this instrument's"); the
+// rest are ignored as sources but still measure durations and cut carried notes, since those are
+// properties of the track's real note layout. The bar around
 // `localStep` is re-expanded on each call (16 rows at most), which is what lets any row be
 // compiled alone with no state kept between ticks.
-export function arpEventsAtRow(track, localStep, arp, durationOf) {
+export function arpEventsAtRow(track, localStep, arp, durationOf, include = () => true) {
   const loopEnd = track.length ?? track.events.length;
   const barIndex = Math.floor(localStep / ARP_STEPS_PER_BAR);
   const barStart = barIndex * ARP_STEPS_PER_BAR;
@@ -253,7 +259,7 @@ export function arpEventsAtRow(track, localStep, arp, durationOf) {
   for (let row = barStart - 1; row >= 0; row--) {
     const event = track.events[row];
     if (!event || event.note === null) continue;
-    if (event.instrument !== null && row + durationOf(track, row) > barStart) {
+    if (event.instrument !== null && include(event) && row + durationOf(track, row) > barStart) {
       // a following note in this bar cuts the carried one short
       let cut = barEnd;
       for (let r = barStart; r < barEnd; r++) {
@@ -272,7 +278,7 @@ export function arpEventsAtRow(track, localStep, arp, durationOf) {
   }
   for (let row = barStart; row < barEnd; row++) {
     const event = track.events[row];
-    if (!event || event.note === null || event.instrument === null) continue;
+    if (!event || event.note === null || event.instrument === null || !include(event)) continue;
     sources.push(event);
     runs.push({
       start: row,

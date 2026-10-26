@@ -79,6 +79,10 @@ export function createInstrumentSlot({
   sampleMode = "chromatic",
   cues = [],
   chopStart = 0,
+  // arp: this instrument's arpeggiator config (model/arp.js), or null = none (disabled). Lives on the
+  // instrument because a track's cells can address different instruments; compileRow applies it
+  // only to the notes that address this slot. Additive: a project saved before it loads as null.
+  arp = null,
   // instrumentParams: Record<paramId, number> | null — persistent per-instance control values
   // for an "instrument"-output slot (model/instrumentParams.js's catalog for output.kind),
   // seeded with that kind's defaults the moment a slot is switched to it (state/store.js#
@@ -111,6 +115,7 @@ export function createInstrumentSlot({
     sampleMode,
     cues,
     chopStart,
+    arp,
     instrumentParams,
     instrumentLfos,
     engineInstrumentId,

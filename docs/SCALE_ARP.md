@@ -1,4 +1,4 @@
-# Project scale and per-track arpeggiator
+# Project scale and per-instrument arpeggiator
 
 Client-only (webdsp untouched). `src/model/scale.js` and `src/model/arp.js` are line-for-line ports
 of webseq's `scale.ts`/`arp.ts` (docs/scale-and-arp.md there) with the same test vectors; this file
@@ -17,15 +17,19 @@ musical preset also sets the edit octave to the preset's suggestion.
   input) are snapped to the nearest scale note, for audition and write alike. **Shift** on a letter
   key bypasses it (`chromatic` in the note-on payload). Push note-entry is not snapped.
 
-## Arp (`trackChannel.arp`)
+## Arp (`instrument.arp`)
 
-Track-level, so it survives pattern switches like mute/LFO. Config shape and generation are as in
-webseq. Tracker specifics:
+Owned by the instrument slot, not the track: a track's cells can address different instruments, and
+each arp-enabled instrument arpeggiates only the notes that address it. Other instruments on the same
+track (arp off, or no arp) play as written. Config shape and generation are as in webseq. Tracker
+specifics:
 
-- Seam: `audio/compile.js#compileRow`. If `isArpActive(channel)`, the row's events come from
-  `arpEventsAtRow(track, localStep, arp, noteDurationSteps)` (`model/arp.js`), each compiled with
+- Seam: `audio/compile.js#compileRow`. For every instrument with `isArpActive(instrument)`, the row's
+  events come from `arpEventsAtRow(track, localStep, arp, noteDurationSteps, e => e.instrument === i)`
+  (`model/arp.js`); a cell whose instrument is arped is not also played as written. Each is compiled with
   `compileEvent` at `time + offset * stepDuration` and `duration = steps * stepDuration`. Arp off: the
-  original code path, unchanged. Because everything goes through `compileEvent`, samples, synths,
+  original code path, unchanged (the `include` filter only picks sources; durations and cut-offs still
+  use the track's real notes). Because everything goes through `compileEvent`, samples, synths,
   MIDI output, per-note pan, Track LFO and voice limits behave as for ordinary notes — one arp, no
   separate "MIDI arp".
 - Source: a bar is 16 rows. The notes (with an instrument) in the bar are the pool; each note's
@@ -36,7 +40,10 @@ webseq. Tracker specifics:
   looping, queued patterns and polymetric lengths stay deterministic. Empty rows inside a window sound.
 - Sub-row steps (1/32, triplets) are placed at straight offsets inside the row; swing delays the row,
   and so its sub-steps, as a block.
-- UI: "Arp" module in the Track tab (`ui/chrome/TrackPanel.jsx`); velocity step bars are drawn by
-  dragging. Velocities show 0-127.
-- Persistence: `projectFile.js#ensureScaleAndArpDefaults` — a present arp is normalised, an absent one
-  stays absent.
+- UI: "ARP — <instrument>" module in the side column directly under EDIT INSTRUMENT
+  (`ui/chrome/ArpControls.jsx`, mounted by `InstrumentPanel.jsx`); velocity step bars are drawn by
+  dragging. Velocities show 0-127. Edits: `store.setInstrumentArp(index, patch)`.
+- Persistence: saved on the instrument (`arp`, omitted when none); a present arp is normalised on load,
+  an absent one is `null`. Projects from the track-level era (`trackChannel.arp`) are migrated by
+  `projectFile.js#migrateTrackArps`: an enabled track arp is copied to each instrument that track's
+  notes address (unless the instrument already has its own arp), then the track field is dropped.

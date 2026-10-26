@@ -36,6 +36,7 @@
   --space-xl: 1rem; /* 16px */
 
   --row-height: 20px;
+  --lane-gap: 8px; /* space between track lanes; mixer strips are sized from it */
   --radius: 0; /* Shapes: "Zero Border-Radius" across every interactive surface */
   --focus-glow: 0 0 4px rgba(0, 240, 255, 0.4); /* "Phosphor Bloom" */
   --transition-fast: 100ms ease;
@@ -233,7 +234,7 @@ input[type="range"]:disabled {
 }
 
 .app__side {
-  width: 220px;
+  width: 275px; /* 25% wider than the original 220px */
   flex-shrink: 0;
   min-height: 0;
   display: flex;
@@ -265,6 +266,7 @@ input[type="range"]:disabled {
 .tracker-row {
   display: flex;
   align-items: center;
+  gap: var(--lane-gap);
   height: var(--row-height);
   border-bottom: 1px solid var(--border);
 }
@@ -281,6 +283,7 @@ input[type="range"]:disabled {
   z-index: 3;
   display: flex;
   align-items: center;
+  gap: var(--lane-gap);
   height: calc(var(--row-height) + var(--space-xs));
   background: var(--surface-2);
   border-bottom: 1px solid var(--border-active);
@@ -335,6 +338,12 @@ input[type="range"]:disabled {
   z-index: 2;
 }
 
+/* Choke-group picker: third sticky row, offset by LEN + VOI heights. */
+.tracker-track-choke-header {
+  top: calc(2 * (var(--row-height) + var(--space-xs)));
+  z-index: 2;
+}
+
 .tracker-track-voice-header__cell {
   display: flex;
   gap: var(--space-xs);
@@ -379,6 +388,9 @@ input[type="range"]:disabled {
 
 .tracker-cell {
   display: flex;
+  justify-content: space-between;
+  min-width: 112px; /* ~20% wider than the content-sized column (note/ins/vol/fx) */
+  box-sizing: border-box;
   gap: var(--space-sm);
   padding: 0 var(--space-sm);
   border-left: 1px solid var(--border);
@@ -678,7 +690,7 @@ input[type="range"]:disabled {
   display: flex;
   gap: var(--space-sm);
   padding: var(--space-sm);
-  padding-left: 4ch;
+  padding-left: calc(4ch + var(--lane-gap));
   background: var(--surface-2);
   border: 1px solid var(--border);
   overflow-x: auto; /* scroll rather than wrap/overflow on narrow viewports */
@@ -689,7 +701,8 @@ input[type="range"]:disabled {
   flex-direction: column;
   align-items: center;
   gap: var(--space-sm);
-  width: 89px;
+  /* One grid column pitch (112px cell + lane gap) minus the mixer's own gap between strips. */
+  width: calc(112px + var(--lane-gap) - var(--space-sm));
   flex-shrink: 0;
   padding: var(--space-sm) var(--space-xs);
   background: var(--surface-1);
@@ -743,8 +756,21 @@ input[type="range"]:disabled {
   color: var(--crimson);
 }
 
+/* Master strip: more breathing room than a track strip, and the limiter anchored to the strip's
+   bottom (the strips stretch to one height) with a guaranteed gap above it, so it never sits
+   flush against the meter. */
+.channel-strip--master {
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-sm);
+}
+
+.channel-strip--master .meter {
+  margin: var(--space-xs) 0;
+}
+
 .channel-strip__limiter {
-  padding: 1px var(--space-xs);
+  margin-top: auto;
+  padding: var(--space-xs) var(--space-md);
   background: var(--surface-1);
   color: var(--text-dim);
   border: 1px solid var(--border);
@@ -894,7 +920,7 @@ input[type="range"].range-lg {
   padding: var(--space-sm);
   background: var(--surface-2);
   border: 1px solid var(--border);
-  max-height: 220px;
+  max-height: 380px;
 }
 
 .fx-panel__header {
@@ -950,7 +976,7 @@ input[type="range"].range-lg {
   align-items: flex-start;
   gap: var(--space-sm);
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: auto; /* tall cards (LFO editors, arp) scroll instead of being cropped */
 }
 
 .fx-module {
@@ -963,8 +989,8 @@ input[type="range"].range-lg {
      9 characters) and longest formatted value ("20000Hz"/"-24.0dB", 7 characters) both need
      that room, or they overflow their grid cell and get painted over by the next module's
      opaque background (model/fxParams.js's FX_PARAMS has the full label/unit list). */
-  width: 196px;
-  padding: var(--space-sm) var(--space-xs);
+  width: 240px;
+  padding: var(--space-md) var(--space-md);
   background: var(--surface-1);
   border: 1px solid var(--border);
 }
@@ -1260,6 +1286,66 @@ input[type="range"].range-lg {
   margin-top: var(--space-sm);
   padding-top: var(--space-sm);
   border-top: 1px solid var(--border);
+}
+
+.instrument-panel__add--active {
+  color: var(--cyan);
+  border-color: var(--cyan);
+}
+
+/* The instrument editor as a wide panel under the grid (same slot and card treatment as
+   .chop-editor): controls flow into as many columns as fit, section headers/buttons span them,
+   and the panel scrolls internally past its max height instead of squeezing the grid further. */
+.instrument-editor-panel {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  max-height: 340px;
+  overflow-y: auto;
+  padding: var(--space-md);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+}
+
+.instrument-editor-panel .instrument-editor {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  column-gap: var(--space-xl);
+  row-gap: var(--space-sm);
+  align-content: start;
+}
+
+.instrument-editor-panel .instrument-editor > :not(.fx-module__field) {
+  grid-column: 1 / -1;
+}
+
+.instrument-editor-panel .instrument-editor .note-editor__section {
+  margin-top: var(--space-xs);
+}
+
+.instrument-editor-panel .fx-module__field {
+  grid-template-columns: 12ch 1fr 8ch;
+  gap: var(--space-md);
+  font-size: var(--text-label);
+}
+
+.instrument-editor-panel .fx-module__value {
+  font-size: var(--text-label);
+}
+
+.instrument-editor-panel input[type="range"] {
+  --range-track-h: 4px;
+  --range-thumb-w: 12px;
+  --range-thumb-h: 18px;
+}
+
+.instrument-editor-panel .fx-panel__target-btn {
+  padding: var(--space-sm) var(--space-lg);
+  font-size: var(--text-label);
 }
 
 .instrument-editor__header {
@@ -2378,7 +2464,7 @@ input[type="range"].range-lg {
 
 /* Arp module (ui/chrome/TrackPanel.jsx): wider than an FX module for the velocity step bars. */
 .fx-module--arp {
-  width: 430px;
+  width: 520px;
   display: grid;
   grid-template-columns: 1fr 1fr;
   column-gap: var(--space-md);
@@ -2390,6 +2476,13 @@ input[type="range"].range-lg {
 .fx-module--arp > .arp-steps,
 .fx-module--arp > .arp-steps-tools {
   grid-column: 1 / -1;
+}
+
+.instrument-panel .fx-module--arp-inline {
+  width: auto;
+  margin-top: var(--space-sm);
+  padding: var(--space-md);
+  grid-template-columns: 1fr;
 }
 
 .arp-vel-modes {
@@ -2454,7 +2547,7 @@ input[type="range"].range-lg {
 
 /* --- EQ curve editor (ui/chrome/EqCurveEditor.jsx) --- */
 .fx-module--eq {
-  width: 640px;
+  width: 720px;
 }
 
 .eq-editor {
@@ -2582,4 +2675,9 @@ input[type="range"].range-lg {
   margin-left: auto;
   color: var(--amber);
   font-size: var(--text-micro);
+}
+
+/* Output-type picker in the side column (InstrumentPanel.jsx#InstrumentOutputPicker). */
+.instrument-panel > .fx-panel__target {
+  margin-top: var(--space-sm);
 }

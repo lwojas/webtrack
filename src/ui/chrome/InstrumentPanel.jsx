@@ -1,5 +1,7 @@
 import LfoEditor from "./LfoEditor.jsx";
 import ModBadge from "./ModBadge.jsx";
+import ArpModule from "./ArpControls.jsx";
+import { arpOf } from "../../model/arp.js";
 import { automatedKeys, instKey } from "../../model/cellAutomation.js";
 import { useEffect, useState } from "react";
 import { useStore } from "../../state/useStore.js";
@@ -162,6 +164,90 @@ function ModulationSection({ store, instrumentController, index, kind }) {
   );
 }
 
+// Output-type picker for the selected instrument: SAMPLE, MIDI or one webdsp synth kind. Lives in
+// the side column just above the EDIT INSTRUMENT button; the wide editor panel holds the controls.
+function InstrumentOutputPicker({ store, instrumentController }) {
+  const index = useStore(store, events.CURSOR_MOVED, (s) => s.selectedInstrumentIndex);
+  const exists = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index] != null);
+  const outputType = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.output?.type ?? "sample");
+  const outputChannel = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.output?.channel ?? null);
+  const outputKind = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.output?.kind ?? null);
+  const outputTrack = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.output?.track ?? null);
+  if (!exists) return null;
+
+  // Switching to "midi" needs a channel right away (compileEvent treats a missing channel as
+  // "nothing to send" — see audio/compile.js) — default to the last one used, or channel 1.
+  // Switching to "instrument" needs a kind, one of model/instrumentParams.js#SYNTH_KINDS
+  // (kick/snare/clap/tom/hihat/bass/pulse/pad/fm/hypersaw/pwmbeast/dm_thump/dm_metal/dm_tone/dm_crack/dm_chaos/percsynth/edge); state/store.js#setInstrumentOutput (re)seeds instrumentParams
+  // with that kind's own catalog defaults, both the first time a slot becomes "instrument" and
+  // whenever the kind itself changes. `track` carries over across a kind switch (KICK -> SNARE
+  // keeps whatever bus routing was already chosen) but resets to null (MASTER_BUS) switching to
+  // "sample"/"midi", since only "instrument" output reads it. Switching to "sample" clears
+  // channel/kind (model/instrument.js's own default shape), since a sample instrument reads
+  // neither.
+  function setOutputType(type, kind = null) {
+    instrumentController.setOutput(
+      index,
+      type === "midi"
+        ? { type: "midi", channel: outputChannel ?? MIDI_CHANNEL_MIN, kind: null, track: null }
+        : type === "instrument"
+          ? { type: "instrument", channel: null, kind, track: outputTrack }
+          : { type: "sample", channel: null, kind: null, track: null },
+    );
+  }
+
+  return (
+    <>
+      <div className="fx-panel__target">
+        <button
+          type="button"
+          className={`fx-panel__target-btn${outputType === "sample" ? " fx-panel__target-btn--active" : ""}`}
+          onClick={() => setOutputType("sample")}
+        >
+          SAMPLE
+        </button>
+        <button
+          type="button"
+          className={`fx-panel__target-btn${outputType === "midi" ? " fx-panel__target-btn--active" : ""}`}
+          onClick={() => setOutputType("midi")}
+        >
+          MIDI
+        </button>
+        {/* One button per webdsp synth kind (model/instrumentParams.js#SYNTH_KINDS) — hand-
+            mirrored from the engine's own capability list (node_modules/webdsp's
+            docs/instruments.md) rather than a separate hardcoded button per kind; adding a
+            future kind here needs only a new SYNTH_KINDS entry, not a new button. */}
+        {SYNTH_KINDS.map((kind) => (
+          <button
+            type="button"
+            key={kind.id}
+            className={`fx-panel__target-btn${outputType === "instrument" && outputKind === kind.id ? " fx-panel__target-btn--active" : ""}`}
+            onClick={() => setOutputType("instrument", kind.id)}
+          >
+            {kind.name.toUpperCase()}
+          </button>
+        ))}
+      </div>
+    </>
+  );
+}
+
+export function InstrumentEditorPanel({ store, instrumentController }) {
+  const open = useStore(store, events.INSTRUMENT_EDITOR_CHANGED, (s) => s.instrumentEditorOpen);
+  if (!open) return null;
+  return (
+    <div className="instrument-editor-panel">
+      <div className="chop-editor__bar">
+        <span className="chop-editor__title">INSTRUMENT EDITOR</span>
+        <button type="button" className="fx-panel__target-btn chop-editor__close" onClick={() => store.setInstrumentEditorOpen(false)}>
+          CLOSE
+        </button>
+      </div>
+      <InstrumentEditor store={store} instrumentController={instrumentController} />
+    </div>
+  );
+}
+
 function InstrumentEditor({ store, instrumentController }) {
   const index = useStore(store, events.CURSOR_MOVED, (s) => s.selectedInstrumentIndex);
   const name = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.name ?? "");
@@ -302,27 +388,6 @@ function InstrumentEditor({ store, instrumentController }) {
 
   if (!exists) return null;
 
-  // Switching to "midi" needs a channel right away (compileEvent treats a missing channel as
-  // "nothing to send" — see audio/compile.js) — default to the last one used, or channel 1.
-  // Switching to "instrument" needs a kind, one of model/instrumentParams.js#SYNTH_KINDS
-  // (kick/snare/clap/tom/hihat/bass/pulse/pad/fm/hypersaw/pwmbeast/dm_thump/dm_metal/dm_tone/dm_crack/dm_chaos/percsynth/edge); state/store.js#setInstrumentOutput (re)seeds instrumentParams
-  // with that kind's own catalog defaults, both the first time a slot becomes "instrument" and
-  // whenever the kind itself changes. `track` carries over across a kind switch (KICK -> SNARE
-  // keeps whatever bus routing was already chosen) but resets to null (MASTER_BUS) switching to
-  // "sample"/"midi", since only "instrument" output reads it. Switching to "sample" clears
-  // channel/kind (model/instrument.js's own default shape), since a sample instrument reads
-  // neither.
-  function setOutputType(type, kind = null) {
-    instrumentController.setOutput(
-      index,
-      type === "midi"
-        ? { type: "midi", channel: outputChannel ?? MIDI_CHANNEL_MIN, kind: null, track: null }
-        : type === "instrument"
-          ? { type: "instrument", channel: null, kind, track: outputTrack }
-          : { type: "sample", channel: null, kind: null, track: null },
-    );
-  }
-
   function setChannel(displayValue) {
     const channel = Math.min(MIDI_CHANNEL_MAX, Math.max(MIDI_CHANNEL_MIN, displayValue - 1));
     instrumentController.setOutput(index, { type: "midi", channel });
@@ -340,37 +405,6 @@ function InstrumentEditor({ store, instrumentController }) {
     <div className="instrument-editor">
       <div className="instrument-editor__header">
         {toHex(index)} — {name || "(empty)"}
-      </div>
-
-      <div className="fx-panel__target">
-        <button
-          type="button"
-          className={`fx-panel__target-btn${outputType === "sample" ? " fx-panel__target-btn--active" : ""}`}
-          onClick={() => setOutputType("sample")}
-        >
-          SAMPLE
-        </button>
-        <button
-          type="button"
-          className={`fx-panel__target-btn${outputType === "midi" ? " fx-panel__target-btn--active" : ""}`}
-          onClick={() => setOutputType("midi")}
-        >
-          MIDI
-        </button>
-        {/* One button per webdsp synth kind (model/instrumentParams.js#SYNTH_KINDS) — hand-
-            mirrored from the engine's own capability list (node_modules/webdsp's
-            docs/instruments.md) rather than a separate hardcoded button per kind; adding a
-            future kind here needs only a new SYNTH_KINDS entry, not a new button. */}
-        {SYNTH_KINDS.map((kind) => (
-          <button
-            type="button"
-            key={kind.id}
-            className={`fx-panel__target-btn${outputType === "instrument" && outputKind === kind.id ? " fx-panel__target-btn--active" : ""}`}
-            onClick={() => setOutputType("instrument", kind.id)}
-          >
-            {kind.name.toUpperCase()}
-          </button>
-        ))}
       </div>
 
       {outputType === "midi" ? (
@@ -462,8 +496,8 @@ function InstrumentEditor({ store, instrumentController }) {
                 setEnvelope merges, it doesn't replace (state/store.js#setInstrumentEnvelope). */}
             {/* Chromatic: a cell's note transposes the sample. Chop: the note picks a slice of the
                 sample's cue points (root note = slice 1) — model/chop.js. EDIT CHOPS opens the
-                waveform/cue editor under the grid (ui/chrome/ChopEditor.jsx), which is too wide
-                for this column. */}
+                waveform/cue editor under the grid (ui/chrome/ChopEditor.jsx), next to this
+                editor's own wide panel. */}
             <div className="note-editor__section">PITCH</div>
             <div className="fx-panel__target">
               {["chromatic", "chop"].map((mode) => (
@@ -514,8 +548,21 @@ function InstrumentEditor({ store, instrumentController }) {
   );
 }
 
+// The selected instrument's arpeggiator (model/arp.js), just under EDIT INSTRUMENT. Per instrument:
+// it only affects notes that address this slot, so two instruments on one track can differ.
+function InstrumentArp({ store }) {
+  const index = useStore(store, events.CURSOR_MOVED, (s) => s.selectedInstrumentIndex);
+  const exists = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index] != null);
+  const name = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.name ?? "");
+  // A fingerprint, not the mutable object (ARCHITECTURE.md's in-place-mutation gotcha).
+  const arpJson = useStore(store, events.INSTRUMENTS_CHANGED, (s) => JSON.stringify(arpOf(s.instruments[index])));
+  if (!exists) return null;
+  return <ArpModule arp={JSON.parse(arpJson)} instrumentLabel={`${toHex(index)} ${name || "(empty)"}`} onChange={(patch) => store.setInstrumentArp(index, patch)} />;
+}
+
 export default function InstrumentPanel({ store, instrumentController }) {
   const instrumentCount = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments.length);
+  const editorOpen = useStore(store, events.INSTRUMENT_EDITOR_CHANGED, (s) => s.instrumentEditorOpen);
 
   return (
     <div className="instrument-panel">
@@ -526,7 +573,16 @@ export default function InstrumentPanel({ store, instrumentController }) {
       <button className="instrument-panel__add" onClick={() => store.addInstrumentSlot()}>
         + ADD SLOT
       </button>
-      <InstrumentEditor store={store} instrumentController={instrumentController} />
+      <InstrumentOutputPicker store={store} instrumentController={instrumentController} />
+      <button
+        type="button"
+        className={`instrument-panel__add${editorOpen ? " instrument-panel__add--active" : ""}`}
+        onClick={() => store.setInstrumentEditorOpen(!editorOpen)}
+        title="Open the selected instrument's controls in a wide panel under the grid"
+      >
+        {editorOpen ? "CLOSE EDITOR" : "EDIT INSTRUMENT"}
+      </button>
+      <InstrumentArp store={store} />
     </div>
   );
 }

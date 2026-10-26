@@ -28,6 +28,7 @@ export function createGridView({
   let headerRowEl = null;
   let headerRefs = null; // headerRefs[trackIndex] = { cellEl, lengthEl }
   let voiceHeaderRowEl = null;
+  let chokeHeaderRowEl = null;
   let voiceHeaderRefs = null; // voiceHeaderRefs[trackIndex] = { cellEl, modeEl, maxEl }
 
   function buildCell(trackIndex, rowIndex) {
@@ -169,8 +170,16 @@ export function createGridView({
     chokeEl.appendChild(chokeOption(null));
     for (let g = 1; g <= CHOKE_GROUP_COUNT; g++) chokeEl.appendChild(chokeOption(g));
 
-    cellEl.append(modeEl, maxEl, chokeEl);
-    return { cellEl, modeEl, maxEl, chokeEl };
+    cellEl.append(modeEl, maxEl);
+
+    // The choke picker lives in its own row below (buildChokeHeaderRow) so the Mode/Max pair
+    // above keeps enough width to stay readable; same track data attribute + cell class so
+    // handleVoiceHeaderChange's delegation covers it unchanged.
+    const chokeCellEl = document.createElement("div");
+    chokeCellEl.className = "tracker-track-header__cell tracker-track-voice-header__cell";
+    chokeCellEl.dataset.track = String(trackIndex);
+    chokeCellEl.appendChild(chokeEl);
+    return { cellEl, modeEl, maxEl, chokeEl, chokeCellEl };
   }
 
   function buildVoiceHeaderRow() {
@@ -192,6 +201,21 @@ export function createGridView({
     }
 
     return { rowEl, refsForHeader };
+  }
+
+  // Third sticky row: the choke-group picker, one cell per track (cells come from
+  // buildVoiceHeaderCell so the select and its ref stay in one place).
+  function buildChokeHeaderRow(voiceRefs) {
+    const rowEl = document.createElement("div");
+    rowEl.className = "tracker-track-header tracker-track-choke-header";
+
+    const indexEl = document.createElement("span");
+    indexEl.className = "tracker-track-header__index";
+    indexEl.textContent = "CHK";
+    rowEl.appendChild(indexEl);
+
+    voiceRefs.forEach((refs) => rowEl.appendChild(refs.chokeCellEl));
+    return rowEl;
   }
 
   // Same delegation shape as handleHeaderInput above, but for both <select>s' "change" (not
@@ -246,6 +270,10 @@ export function createGridView({
     voiceHeaderRowEl.addEventListener("change", handleVoiceHeaderChange);
     container.appendChild(voiceHeaderRowEl);
 
+    chokeHeaderRowEl = buildChokeHeaderRow(voiceHeaderRefs);
+    chokeHeaderRowEl.addEventListener("change", handleVoiceHeaderChange);
+    container.appendChild(chokeHeaderRowEl);
+
     rowEls = new Array(rowCount);
     cellRefs = Array.from({ length: trackCount }, () => new Array(rowCount));
 
@@ -271,9 +299,11 @@ export function createGridView({
       const rect = getColumnRect(t);
       if (rect) cellEl.style.width = `${rect.width}px`;
     });
-    voiceHeaderRefs.forEach(({ cellEl }, t) => {
+    voiceHeaderRefs.forEach(({ cellEl, chokeCellEl }, t) => {
       const rect = getColumnRect(t);
-      if (rect) cellEl.style.width = `${rect.width}px`;
+      if (!rect) return;
+      cellEl.style.width = `${rect.width}px`;
+      chokeCellEl.style.width = `${rect.width}px`;
     });
   }
 
@@ -282,6 +312,7 @@ export function createGridView({
     container?.removeEventListener("mouseover", handleMouseOver);
     headerRowEl?.removeEventListener("input", handleHeaderInput);
     voiceHeaderRowEl?.removeEventListener("change", handleVoiceHeaderChange);
+    chokeHeaderRowEl?.removeEventListener("change", handleVoiceHeaderChange);
     container?.remove();
     container = null;
     cellRefs = null;
@@ -289,6 +320,7 @@ export function createGridView({
     headerRowEl = null;
     headerRefs = null;
     voiceHeaderRowEl = null;
+    chokeHeaderRowEl = null;
     voiceHeaderRefs = null;
   }
 

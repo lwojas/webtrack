@@ -17,7 +17,7 @@ import {
 import { compileRow, noteDurationSteps } from "../src/audio/compile.js";
 import { createSong } from "../src/model/song.js";
 import { createInstrumentSlot } from "../src/model/instrument.js";
-import { setEventField, setTrackLength, setTrackChannelArp } from "../src/model/mutations.js";
+import { setEventField, setTrackLength } from "../src/model/mutations.js";
 import { getSelectedPattern } from "../src/model/query.js";
 import { createStore } from "../src/state/store.js";
 import { serializeProject, deserializeProject } from "../src/persistence/projectFile.js";
@@ -49,10 +49,11 @@ describe("arp config", () => {
     const a = patchArp(createArp(), { velocity: { mode: "pattern" } });
     expect(a.velocity.mode).toBe("pattern");
     expect(a.velocity.steps).toEqual(createArp().velocity.steps);
-    const song = createSong();
-    setTrackChannelArp(song, 1, { enabled: true, rate: "1/8" });
-    expect(song.trackChannels[1].arp).toMatchObject({ enabled: true, rate: "1/8" });
-    expect(song.trackChannels[0].arp).toBeUndefined();
+    const store = createStore({ song: createSong(), instruments: [createInstrumentSlot({ id: 0 }), createInstrumentSlot({ id: 1 })] });
+    store.setInstrumentArp(1, { enabled: true, rate: "1/8" });
+    const slots = store.getState().instruments;
+    expect(slots[1].arp).toMatchObject({ enabled: true, rate: "1/8" });
+    expect(slots[0].arp).toBeNull(); // another instrument is untouched
   });
 
   it("offers every requested rate and mode", () => {
@@ -151,7 +152,8 @@ describe("arp edge cases", () => {
 
 // --- tracker adapter and compileRow ---
 
-const instruments = [createInstrumentSlot({ id: 0, name: "Kick", sampleId: 1, rootNote: 60 })];
+// Shared across tests; songWith() resets/sets slot 0's arp each time (the arp lives on the instrument).
+const instruments = [createInstrumentSlot({ id: 0, name: "Kick", sampleId: 1, rootNote: 60 }), createInstrumentSlot({ id: 1, name: "Snare", sampleId: 2, rootNote: 60 })];
 const STEP = 0.125;
 
 function songWith(notes, { length, arpPatch } = {}) {
@@ -163,7 +165,8 @@ function songWith(notes, { length, arpPatch } = {}) {
     for (const [field, value] of Object.entries(extra ?? {})) setEventField(song, { patternId, trackIndex: 0, rowIndex: row }, field, value);
   }
   if (length) setTrackLength(song, patternId, 0, length);
-  if (arpPatch) setTrackChannelArp(song, 0, arpPatch);
+  instruments[0].arp = arpPatch ? patchArp(createArp(), arpPatch) : null;
+  instruments[1].arp = null;
   return song;
 }
 const rowEvents = (song, step, time = 10) => compileRow(getSelectedPattern(song), song.trackChannels, instruments, step, time, STEP);
@@ -173,7 +176,7 @@ describe("arpEventsAtRow", () => {
   it("returns only the steps that start inside the row, with sub-row offsets", () => {
     const song = songWith([[0, 60, { length: 2 }]], { arpPatch: { enabled: true, rate: "1/32", gate: 1 } });
     const track = getSelectedPattern(song).tracks[0];
-    const a = arpOf(song.trackChannels[0]);
+    const a = arpOf(instruments[0]);
     const row0 = arpEventsAtRow(track, 0, a, noteDurationSteps);
     expect(row0.map((e) => e.offset)).toEqual([0, 0.5]);
     expect(row0[0].durationSteps).toBe(0.5);
@@ -184,7 +187,7 @@ describe("arpEventsAtRow", () => {
   it("builds the chord from the whole bar and clips runs at the bar line", () => {
     const song = songWith([[0, 60, { length: 2 }], [2, 64, { length: 2 }], [14, 67, { length: 6 }], [16, 72, { length: 2 }]], { arpPatch: { enabled: true, rate: "1/16" } });
     const track = getSelectedPattern(song).tracks[0];
-    const a = arpOf(song.trackChannels[0]);
+    const a = arpOf(instruments[0]);
     const notesFor = (from, to) => Array.from({ length: to - from }, (_, i) => arpEventsAtRow(track, from + i, a, noteDurationSteps)).flat().map((e) => e.event.note);
     // the bar's pool is {60, 64, 67}; its step counter runs on across the notes: 60 64 | 67 60 ... | 64 67
     expect(notesFor(0, 4)).toEqual([60, 64, 67, 60]);
@@ -199,7 +202,7 @@ describe("arpEventsAtRow long notes", () => {
   it("keeps arpeggiating in every bar a long note covers", () => {
     const song = songWith([[0, 60, { length: 40 }]], { arpPatch: { enabled: true, rate: "1/4", gate: 1 }, length: 48 });
     const track = getSelectedPattern(song).tracks[0];
-    const a = arpOf(song.trackChannels[0]);
+    const a = arpOf(instruments[0]);
     const starts = [];
     for (let r = 0; r < 48; r++) if (arpEventsAtRow(track, r, a, noteDurationSteps).length) starts.push(r);
     expect(starts).toEqual([0, 4, 8, 12, 16, 20, 24, 28, 32, 36]);
@@ -208,11 +211,11 @@ describe("arpEventsAtRow long notes", () => {
 
 describe("compileRow with an arp", () => {
   it("an absent, or disabled, arp compiles exactly the stored notes", () => {
-    const plain = songWith([[0, 60], [4, 64]]);
-    const disabled = songWith([[0, 60], [4, 64]]);
-    disabled.trackChannels[0].arp = { ...createArp(), rate: "1/32", octaves: 4 };
-    for (let step = 0; step < 8; step++) expect(rowEvents(disabled, step)).toEqual(rowEvents(plain, step));
-    expect(rowEvents(plain, 0)).toHaveLength(1);
+    const song = songWith([[0, 60], [4, 64]]);
+    const plain = Array.from({ length: 8 }, (_, step) => rowEvents(song, step));
+    instruments[0].arp = { ...createArp(), rate: "1/32", octaves: 4 }; // configured, but off
+    for (let step = 0; step < 8; step++) expect(rowEvents(song, step)).toEqual(plain[step]);
+    expect(plain[0]).toHaveLength(1);
   });
 
   it("an enabled arp plays generated notes at sub-row times, through the normal compile", () => {
@@ -264,54 +267,123 @@ describe("compileRow with an arp", () => {
     expect(rowEvents(song, 0)).toEqual([]);
   });
 
-  it("leaves other tracks alone", () => {
+  it("leaves tracks playing other instruments alone", () => {
     const song = songWith([[0, 60, { length: 4 }]], { arpPatch: { enabled: true, rate: "1/32" } });
     const patternId = song.patterns[0].id;
     setEventField(song, { patternId, trackIndex: 1, rowIndex: 0 }, "note", 62);
-    setEventField(song, { patternId, trackIndex: 1, rowIndex: 0 }, "instrument", 0);
+    setEventField(song, { patternId, trackIndex: 1, rowIndex: 0 }, "instrument", 1);
     const events = rowEvents(song, 0);
     expect(events.filter((e) => e.trackIndex === 1)).toHaveLength(1);
     expect(events.filter((e) => e.trackIndex === 0)).toHaveLength(2);
   });
 });
 
+describe("per-instrument arps on one track", () => {
+  function twoInstrumentSong() {
+    const song = songWith([[0, 60, { length: 4 }], [4, 64, { length: 4 }]], { arpPatch: { enabled: true, rate: "1/32", gate: 1 } });
+    const patternId = song.patterns[0].id;
+    // rows 8 and 12 address the second instrument, whose arp stays off
+    for (const row of [8, 12]) {
+      setEventField(song, { patternId, trackIndex: 0, rowIndex: row }, "note", 67);
+      setEventField(song, { patternId, trackIndex: 0, rowIndex: row }, "instrument", 1);
+    }
+    return song;
+  }
+
+  it("arpeggiates only the notes of the instrument that has an arp; the others play as written", () => {
+    const song = twoInstrumentSong();
+    // instrument 0's bar pool is {60, 64} only: instrument 1's 67 never enters it
+    const arped = stepEvents(song, 0, 8);
+    expect(arped.every((e) => e.pitch === 0 || e.pitch === 4)).toBe(true);
+    expect(arped).toHaveLength(16);
+    const plain = [8, 12].map((r) => rowEvents(song, r));
+    expect(plain.every((evs) => evs.length === 1 && evs[0].pitch === 7)).toBe(true);
+    expect(plain.flat().every((e) => e.time === 10)).toBe(true); // no sub-row offsets: not arpeggiated
+  });
+
+  it("different instruments on the same track can each have their own arp", () => {
+    const song = twoInstrumentSong();
+    instruments[1].arp = patchArp(createArp(), { enabled: true, rate: "1/32", gate: 1 });
+    const second = stepEvents(song, 8, 16);
+    expect(second.every((e) => e.pitch === 7)).toBe(true);
+    expect(second.length).toBeGreaterThan(2); // 2 notes x 4 steps x 2 sub-steps, from instrument 1's arp
+    expect(stepEvents(song, 0, 8)).toHaveLength(16); // instrument 0 unchanged
+  });
+
+  it("an instrument with the arp off leaves its notes untouched when another has it on", () => {
+    const song = twoInstrumentSong();
+    instruments[0].arp = null;
+    instruments[1].arp = patchArp(createArp(), { enabled: true, rate: "1/32" });
+    expect(rowEvents(song, 0)).toHaveLength(1);
+    expect(rowEvents(song, 0)[0].pitch).toBe(0);
+    expect(rowEvents(song, 0)[0].time).toBe(10);
+  });
+});
+
 describe("arp persistence", () => {
   const ui = { selectedInstrumentIndex: 0, octave: 4, editStep: 1, cursor: { trackIndex: 0, rowIndex: 0, field: "note" } };
   const load = (file) => deserializeProject(JSON.parse(JSON.stringify(file)), { loadSampleBytes: async () => null });
+  const slot = (id, extra = {}) => createInstrumentSlot({ id, name: `I${id}`, ...extra });
 
-  it("round-trips a configured arp", async () => {
+  it("round-trips each instrument's own arp", async () => {
     const song = createSong();
-    setTrackChannelArp(song, 2, { enabled: true, mode: "pattern", pattern: "tresillo", octaves: 3, velocity: { mode: "accent", steps: [1, 0.4] } });
-    const restored = await load(serializeProject({ song, instruments: [], ui }));
-    expect(restored.song.trackChannels[2].arp).toEqual(song.trackChannels[2].arp);
+    const configured = patchArp(createArp(), { enabled: true, mode: "pattern", pattern: "tresillo", octaves: 3, velocity: { mode: "accent", steps: [1, 0.4] } });
+    const slots = [slot(0, { arp: configured }), slot(1)];
+    const restored = await load(serializeProject({ song, instruments: slots, ui }));
+    expect(restored.instruments[0].arp).toEqual(configured);
+    expect(restored.instruments[1].arp).toBeNull();
   });
 
   it("opens a project saved without arps with no arp, playing exactly as before", async () => {
     const song = songWith([[0, 60], [4, 64]]);
-    const file = JSON.parse(JSON.stringify(serializeProject({ song, instruments: [], ui })));
-    file.song.trackChannels.forEach((c) => delete c.arp);
+    const before = Array.from({ length: 8 }, (_, step) => rowEvents(song, step, 0));
+    const file = JSON.parse(JSON.stringify(serializeProject({ song, instruments: [slot(0)], ui })));
+    delete file.instruments[0].arp;
     const restored = await load(file);
+    expect(restored.instruments[0].arp).toBeNull();
     expect(restored.song.trackChannels.every((c) => c.arp === undefined)).toBe(true);
-    expect(isArpActive(restored.song.trackChannels[0])).toBe(false);
     for (let step = 0; step < 8; step++) {
-      expect(compileRow(getSelectedPattern(restored.song), restored.song.trackChannels, instruments, step, 0, STEP)).toEqual(rowEvents(song, step, 0));
+      expect(compileRow(getSelectedPattern(restored.song), restored.song.trackChannels, [{ ...instruments[0], arp: null }], step, 0, STEP)).toEqual(before[step]);
     }
   });
 
-  it("normalises a hand-edited arp on load", async () => {
-    const song = createSong();
-    const file = JSON.parse(JSON.stringify(serializeProject({ song, instruments: [], ui })));
-    file.song.trackChannels[0].arp = { enabled: true, octaves: 99, rate: "nope" };
+  it("normalises a hand-edited instrument arp on load", async () => {
+    const file = JSON.parse(JSON.stringify(serializeProject({ song: createSong(), instruments: [slot(0)], ui })));
+    file.instruments[0].arp = { enabled: true, octaves: 99, rate: "nope" };
     const restored = await load(file);
-    expect(restored.song.trackChannels[0].arp).toMatchObject({ enabled: true, octaves: 4, rate: "1/16" });
+    expect(restored.instruments[0].arp).toMatchObject({ enabled: true, octaves: 4, rate: "1/16" });
   });
 
-  it("the store edits the arp through TRACK_CHANNEL_CHANGED", () => {
-    const store = createStore({ song: createSong(), instruments: [] });
+  it("moves an enabled track-level arp from an older project onto the instruments that track plays", async () => {
+    const song = songWith([[0, 60], [4, 64]]);
+    const patternId = song.patterns[0].id;
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 8 }, "note", 67);
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 8 }, "instrument", 1);
+    const file = JSON.parse(JSON.stringify(serializeProject({ song, instruments: [slot(0), slot(1), slot(2)], ui })));
+    file.song.trackChannels[0].arp = { ...createArp(), enabled: true, rate: "1/8" };
+    file.song.trackChannels[1].arp = { ...createArp(), enabled: false, rate: "1/4" }; // off: nothing to carry over
+    const restored = await load(file);
+    expect(restored.song.trackChannels.every((c) => c.arp === undefined)).toBe(true);
+    expect(restored.instruments[0].arp).toMatchObject({ enabled: true, rate: "1/8" });
+    expect(restored.instruments[1].arp).toMatchObject({ enabled: true, rate: "1/8" });
+    expect(restored.instruments[2].arp).toBeNull(); // never addressed on that track
+  });
+
+  it("an arp already on the instrument wins over a legacy track arp", async () => {
+    const song = songWith([[0, 60]]);
+    const own = patchArp(createArp(), { enabled: true, rate: "1/4" });
+    const file = JSON.parse(JSON.stringify(serializeProject({ song, instruments: [slot(0, { arp: own })], ui })));
+    file.song.trackChannels[0].arp = { ...createArp(), enabled: true, rate: "1/8" };
+    expect((await load(file)).instruments[0].arp.rate).toBe("1/4");
+  });
+
+  it("the store edits one instrument's arp through INSTRUMENTS_CHANGED", () => {
+    const store = createStore({ song: createSong(), instruments: [slot(0), slot(1)] });
     let fired = 0;
-    store.subscribe("TRACK_CHANNEL_CHANGED", () => fired++);
-    store.setTrackChannelArp(0, { enabled: true, rate: "1/8" });
-    expect(store.getState().song.trackChannels[0].arp).toMatchObject({ enabled: true, rate: "1/8" });
+    store.subscribe("INSTRUMENTS_CHANGED", () => fired++);
+    store.setInstrumentArp(0, { enabled: true, rate: "1/8" });
+    expect(store.getState().instruments[0].arp).toMatchObject({ enabled: true, rate: "1/8" });
+    expect(store.getState().instruments[1].arp).toBeNull();
     expect(fired).toBe(1);
   });
 });
