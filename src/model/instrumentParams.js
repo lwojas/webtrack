@@ -69,6 +69,7 @@ export const BASS_PARAMS = [
   { id: "bite", webdspParam: "Bite", label: "Bite", min: 0, max: 1, default: 0.4, step: 0.01, unit: "" },
   { id: "cutoff", webdspParam: "Cutoff", label: "Cutoff", min: 40, max: 4000, default: 400, step: 1, unit: "Hz" },
   { id: "resonance", webdspParam: "Resonance", label: "Resonance", min: 0, max: 1, default: 0.25, step: 0.01, unit: "" },
+  { id: "envMod", webdspParam: "EnvMod", label: "Env Mod", min: 0, max: 1, default: 0.4, step: 0.01, unit: "" },
   { id: "attack", webdspParam: "Attack", label: "Attack", min: 0.001, max: 0.25, default: 0.003, step: 0.001, unit: "s" },
   { id: "decay", webdspParam: "Decay", label: "Decay", min: 0.03, max: 2, default: 0.35, step: 0.01, unit: "s" },
   { id: "sustain", webdspParam: "Sustain", label: "Sustain", min: 0, max: 1, default: 0.6, step: 0.01, unit: "" },

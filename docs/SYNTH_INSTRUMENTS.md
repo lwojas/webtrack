@@ -318,7 +318,7 @@ redesign, and the webtrack side needed no new abstractions to absorb four more k
 differences that come from it being a held, pitched bass voice rather than a one-shot hit:
 
 - **Its own ADSR and filter are instrument params.** `BASS_PARAMS` (`tune`, `body`, `bite`,
-  `cutoff`, `resonance`, `attack`, `decay`, `sustain`, `release`, `legato`, `slide`) mirror webdsp's
+  `cutoff`, `resonance`, `envMod`, `attack`, `decay`, `sustain`, `release`, `legato`, `slide`) mirror webdsp's
   `docs/bass-instrument.md`. They are ordinary sliders in the instrument's own control list,
   like the drums' controls.
 - **Note length is sent as `duration`.** `SYNTH_KINDS` carries `sustained: true` for it
