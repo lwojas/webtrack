@@ -72,9 +72,10 @@ export function createPlaybackController({
   let hosted = null;
   let hostedRuntime = null;
 
-  // The queue entry and row the host is at right now, from its mapping.
+  // The queue entry and row the host is at right now, from its mapping. The step is floored: the playheads index rows by whole number (a
+  // fractional row finds no row element and nothing is drawn), as the lookahead player's rows are.
   function hostedPosition() {
-    const step = hostBeatAt(hosted, hostedRuntime.getCurrentTime()) * STEPS_PER_BEAT;
+    const step = Math.floor(hostBeatAt(hosted, hostedRuntime.getCurrentTime()) * STEPS_PER_BEAT);
     return positionAtStep(step);
   }
 
