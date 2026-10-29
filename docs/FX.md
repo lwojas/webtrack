@@ -99,6 +99,11 @@ disambiguates stacked instances of the same kind — "Filter #1", "Filter #2" �
 entry's position among same-kind siblings already in the chain), `formatFxValue(value, param)`
 (shared formatting, same precedent as `model/notes.js`'s `toHex`/`noteNumberToName`).
 
+Glitch (`glitch`, webdsp `EffectKind.Glitch`, webdsp docs/glitch-fx.md) is a ring-buffer performance effect that always
+records: `glitch.mix` 0 is an exact bypass and the 0 → >0 edge engages it, using the `glitch.mode` (Repeat loops the last
+`glitch.division` of audio, Tape reads the signal back at `glitch.speed`, Gate chops it with `glitch.mix` as the depth) and
+division in force at that moment. Mix and speed can be cell-automated or LFO-driven, which is how a repeat or a tape stop is played.
+
 Dub Delay (`dubdelay`, webdsp `EffectKind.DubDelay`) is a tempo-synced delay: `dub.division` is a
 step index shown as a note value (`labels` on its catalog entry, rendered by `formatFxValue`), and
 the engine derives the actual time from the transport BPM, so it follows tempo changes with no

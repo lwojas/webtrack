@@ -27,6 +27,7 @@ describe("Utility FX in the catalog", () => {
     expect(store.getState().song.trackChannels[0].fx.instances[id]["utility.gain"]).toBe(0);
     expect(resolveNodeParam("utility.gain")).toBeTypeOf("number");
     expect(resolveNodeParam("dub.division")).toBeTypeOf("number"); // needs webdsp with DubDelay
+    expect(resolveNodeParam("glitch.mix")).toBeTypeOf("number"); // needs webdsp with Glitch
   });
 });
 

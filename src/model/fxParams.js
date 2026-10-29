@@ -105,6 +105,15 @@ export const FX_PARAMS = [
   { id: "dub.tone", nodeParam: "DubDelayTone", type: "dubdelay", group: "Dub Delay", label: "Tone", min: 200, max: 16000, default: 3000, step: 1, unit: "Hz" },
   { id: "dub.mix", nodeParam: "DubDelayMix", type: "dubdelay", group: "Dub Delay", label: "Mix", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
 
+  // Glitch (webdsp EffectKind.Glitch, docs/glitch-fx.md): a ring-buffer performance effect that always records. Mix 0 is an exact
+  // bypass and the 0 -> >0 edge engages it, with the mode and time in force at that moment: Repeat loops the last `division` of
+  // audio, Tape reads the signal back at `speed` (1 untouched, 0 stopped, negative backwards), Gate chops it (mix is the depth).
+  // `division` is a step index into 1/2, 1/4, 1/8, 1/16, 1/32, 1/64 of the transport beat grid.
+  { id: "glitch.mix", nodeParam: "GlitchMix", type: "glitch", group: "Glitch", label: "Mix", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
+  { id: "glitch.mode", nodeParam: "GlitchMode", type: "glitch", group: "Glitch", label: "Mode", min: 0, max: 2, default: 0, step: 1, unit: "", labels: ["Repeat", "Tape", "Gate"] },
+  { id: "glitch.division", nodeParam: "GlitchDivision", type: "glitch", group: "Glitch", label: "Time", min: 0, max: 5, default: 1, step: 1, unit: "", labels: ["1/2", "1/4", "1/8", "1/16", "1/32", "1/64"] },
+  { id: "glitch.speed", nodeParam: "GlitchSpeed", type: "glitch", group: "Glitch", label: "Speed", min: -1, max: 2, default: 1, step: 0.01, unit: "x" },
+
   // EQ (webdsp EffectKind.Eq, docs/eq.md): four serial bands. On and Slope are boolean switches, Type is a
   // stepped value shown by name (`labels`); those and the shelf slope are setup params, not cell automation
   // targets. Bands default off, so a new EQ is neutral. Gain/Freq/Q are the automatable controls.
@@ -166,6 +175,7 @@ export const FX_TYPES = [
   { id: "bitcrusher", label: "Bitcrusher" },
   { id: "utility", label: "Utility" },
   { id: "dubdelay", label: "Dub Delay" },
+  { id: "glitch", label: "Glitch" },
   { id: "eq", label: "EQ" },
 ];
 

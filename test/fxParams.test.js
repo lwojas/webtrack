@@ -86,6 +86,26 @@ describe("EQ catalog entries (webdsp's 4-band parametric EQ)", () => {
   });
 });
 
+describe("Glitch catalog entries (webdsp's ring-buffer performance effect)", () => {
+  it("is an FX type whose params map to the Glitch NodeParams, inert until mixed in", () => {
+    expect(FX_TYPES.find((t) => t.id === "glitch")).toEqual({ id: "glitch", label: "Glitch" });
+    expect(getFxParamsForType("glitch").map((p) => [p.id, p.nodeParam])).toEqual([
+      ["glitch.mix", "GlitchMix"],
+      ["glitch.mode", "GlitchMode"],
+      ["glitch.division", "GlitchDivision"],
+      ["glitch.speed", "GlitchSpeed"],
+    ]);
+    expect(getFxParam("glitch.mix").default).toBe(0);
+  });
+
+  it("formats the mode and the division as names, clamped to the table", () => {
+    expect(formatFxValue(0, getFxParam("glitch.mode"))).toBe("Repeat");
+    expect(formatFxValue(2, getFxParam("glitch.mode"))).toBe("Gate");
+    expect(formatFxValue(3, getFxParam("glitch.division"))).toBe("1/16");
+    expect(formatFxValue(9, getFxParam("glitch.division"))).toBe("1/64");
+  });
+});
+
 describe("Phaser / Bitcrusher catalog entries", () => {
   it("FX_TYPES includes phaser and bitcrusher, with no bypassValues field (real per-instance enable/disable replaced it)", () => {
     const phaser = FX_TYPES.find((t) => t.id === "phaser");
