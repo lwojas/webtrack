@@ -33,6 +33,10 @@ closing the plugin window and renders in an offline bounce. The page stays the e
 - `hostSync` (`native: true`) never calls `playAt`. While the host plays it hands the playback controller
   `attachHost(t)` (the newest mapping; the playheads read the position from it); a host stop calls `detachHost()`.
   While attached, Play/Stop do nothing (the host owns the transport), pattern switching and resample are refused.
+- Polymeter matches the browser player: a track shorter than its pattern folds into its own length from row 0 (`trackLocalStep`) and
+  restarts with every pattern pass, so the one-cycle sequence is already exact and no webdsp sequence `loops` are sent. Making short
+  tracks run on across pattern passes (true drift) would need both the player's `patternStartStep` reset and this compiler changed
+  together, with `loops` for the plugin (see webdsp `docs/native-sequence.md`).
 - Not played natively: MIDI-output instruments (the page's Web MIDI out), `bus.gain` cell automation (it has no
   scheduled form), and a track's poly voice limit (`maxVoices`; mono is kept). A queued manual pattern switch is the
   page's; in a plugin, edit the queue instead. Track LFOs are evaluated on the 120 bpm reference clock.
