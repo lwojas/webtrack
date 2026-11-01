@@ -440,7 +440,7 @@ controls (`DM_*_PARAMS`); Tune, Decay and the depth control (FM, or Chaos) come 
 ## Percussion Synth (`percsynth`)
 
 Two oscillators + noise through a resonant LP/HP and a drive stage, with one shared pitch sweep
-(`PERCSYNTH_PARAMS`, 20 controls). webdsp's `docs/percussion-synth.md` is authoritative.
+(`PERCSYNTH_PARAMS`, 21 controls). webdsp's `docs/percussion-synth.md` is authoritative.
 
 - **One-shot.** Registered like the drums (not sustained, default root, no `duration`). `sustain` and
   `release` are not exposed, so the engine keeps sustain 0 and a hit ends itself; a long `decay` (up to
