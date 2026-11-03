@@ -161,3 +161,23 @@ describe("isFxBooleanOn — generalizes beyond a 0/1 value space", () => {
     expect(isFxBooleanOn(1, param)).toBe(true);
   });
 });
+
+describe("comp.sidechain — the track a compressor's detector listens to (webdsp's CompSidechain)", () => {
+  it("is a track-kind compressor param, never a cell automation target", () => {
+    const param = getFxParam("comp.sidechain");
+    expect(param.kind).toBe("track");
+    expect(param.type).toBe("compressor");
+    expect(param.nodeParam).toBe("CompSidechain");
+    expect(NodeParam[param.nodeParam]).toBeDefined();
+    expect(param.default).toBe(0);
+    expect(param.cellAutomatable).toBe(false);
+  });
+
+  it("reads as Off, then TRK n for track n (1-based), over webdsp's 0..64 range", () => {
+    const param = getFxParam("comp.sidechain");
+    expect(param.max).toBe(64);
+    expect(formatFxValue(0, param)).toBe("Off");
+    expect(formatFxValue(1, param)).toBe("TRK 1");
+    expect(formatFxValue(64, param)).toBe("TRK 64");
+  });
+});

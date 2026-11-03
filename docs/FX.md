@@ -104,13 +104,20 @@ records: `glitch.mix` 0 is an exact bypass and the 0 → >0 edge engages it, usi
 `glitch.division` of audio, Tape reads the signal back at `glitch.speed`, Gate chops it with `glitch.mix` as the depth) and
 division in force at that moment. Mix and speed can be cell-automated or LFO-driven, which is how a repeat or a tape stop is played.
 
+Compressor sidechain (`comp.sidechain`, webdsp `NodeParam.CompSidechain`) names the track whose signal drives the detector, so
+a bass ducks to a kick: 0 is off (the compressor's own input), N is track N (`trackIndex + 1`). It is a `kind: "track"` catalog
+entry, picked from the song's tracks in the FX panel (a track cannot key itself) and shown as `TRK n` on Push; never a cell
+automation target. `audio/fx.js` turns N into that track's engine bus (`engineValue`, creating the bus first if it does not exist
+yet) and resync creates every track's bus before writing any chain. The engine runs the key track before the compressor's, and
+reads a loop, a self-key or an unknown bus as off. Needs a webdsp built from 6e519d4 or later.
+
 Dub Delay (`dubdelay`, webdsp `EffectKind.DubDelay`) is a tempo-synced delay: `dub.division` is a
 step index shown as a note value (`labels` on its catalog entry, rendered by `formatFxValue`), and
 the engine derives the actual time from the transport BPM, so it follows tempo changes with no
 client work (indices 6..9 are the triplets 1/16T, 1/8T, 1/4T, 1/2T). `dub.tone` is a low-pass inside the feedback loop (repeats darken).
 
 Currently exposed: Filter (cutoff, resonance, mode, slope), Delay (time, feedback, mix), Reverb
-(decay, damping, mix), Compressor (threshold, ratio, attack, release, knee, makeup), Saturation
+(decay, damping, mix), Compressor (threshold, ratio, attack, release, knee, makeup, sidechain), Saturation
 (drive, asymmetry, output gain, mix), Chorus/Flanger (rate, depth, delay, feedback, stereo
 phase, mix), Phaser (rate, depth, center, feedback, stages, mix), Bitcrusher (bits, downsample,
 mix), Utility (gain), Dub Delay (time as a note division, feedback, tone, mix), and bus output gain. `FilterMode` (the engine's low-pass/high-pass toggle) and

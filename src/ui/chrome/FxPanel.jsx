@@ -38,7 +38,26 @@ function FxBooleanField({ param, value, onChange }) {
   );
 }
 
-function FxParamField({ param, value, onChange, automated = false, lfos = 0 }) {
+// A `kind: "track"` param (comp.sidechain — model/fxParams.js) names one of the song's tracks, so it is a list of them rather
+// than a slider. `trackNames` is every track's name in order; the track the FX sits on (`ownerIndex`, null on master) is left
+// out because it cannot key itself. A value past the song's tracks still shows, so it can be cleared.
+function FxTrackField({ param, value, onChange, trackNames, ownerIndex }) {
+  return (
+    <label className="fx-module__field">
+      <span className="fx-module__field-label" title={param.label}>
+        {param.label}
+      </span>
+      <select value={value} onChange={(e) => onChange(Number(e.target.value))} title="The track whose signal drives this effect">
+        <option value={0}>Off (own input)</option>
+        {value > trackNames.length && <option value={value}>{formatFxValue(value, param)} (missing)</option>}
+        {trackNames.map((name, i) => (i === ownerIndex ? null : <option key={i} value={i + 1}>{`${i + 1} — ${name}`}</option>))}
+      </select>
+    </label>
+  );
+}
+
+function FxParamField({ param, value, onChange, automated = false, lfos = 0, trackNames = [], ownerIndex = null }) {
+  if (param.kind === "track") return <FxTrackField param={param} value={value} onChange={onChange} trackNames={trackNames} ownerIndex={ownerIndex} />;
   if (param.kind === "boolean") return <FxBooleanField param={param} value={value} onChange={onChange} />;
   return (
     <label className="fx-module__field">
@@ -144,6 +163,9 @@ export default function FxPanel({ store, fxController }) {
   const automatedFx = useStore(store, events.CELL_CHANGED, (s) => (target === "track" ? [...automatedKeys(s.song, trackIndex)].filter((k) => k.startsWith("fx:")).sort().join(",") : "")).split(",");
 
   const song = store.getState().song;
+  // Track names for a sidechain pick; the fingerprint re-renders the panel when a name changes.
+  useStore(store, events.TRACK_CHANNEL_CHANGED, (s) => s.song.trackChannels.map((c) => c.name).join("\u0000"));
+  const trackNames = song.trackChannels.map((c, i) => c.name || `TRK ${i + 1}`);
   const fxBag = target === "track" ? (song.trackChannels[trackIndex]?.fx ?? { instances: {} }) : song.masterFx;
   const fxChain = target === "track" ? (song.trackChannels[trackIndex]?.fxChain ?? []) : song.masterFxChain;
   const pan = target === "track" ? (song.trackChannels[trackIndex]?.pan ?? 0) : song.masterPan;
@@ -287,6 +309,8 @@ export default function FxPanel({ store, fxController }) {
                     onChange={(value) => handleInstanceChange(entry.id, param.id, value)}
                     automated={automatedFx.includes(fxKey(entry.id, param.id))}
                     lfos={(entry.lfos ?? []).filter((l) => l.target === param.id).length}
+                    trackNames={trackNames}
+                    ownerIndex={target === "track" ? trackIndex : null}
                   />
                 ))
               )}

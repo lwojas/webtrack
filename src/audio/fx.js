@@ -18,7 +18,7 @@
 // docs/fx-chain.md calls out ("BusGain / BusPan remain bus-level, not effects").
 import { MASTER_BUS, NodeParam, EffectKind } from "webdsp";
 import { initRuntime, ensureTrackBuses, peekRuntime, peekTrackBusIds } from "./runtime.js";
-import { FX_PARAMS, getFxParamsForType } from "../model/fxParams.js";
+import { FX_PARAMS, getFxParam, getFxParamsForType } from "../model/fxParams.js";
 import { planLfoUpdates } from "./instrumentLfo.js";
 
 const NODE_PARAM_BY_ID = new Map(FX_PARAMS.map((param) => [param.id, NodeParam[param.nodeParam]]));
@@ -134,11 +134,23 @@ export async function syncFxInstanceLfos(trackIndex, entry) {
   applyFxLfos(runtime, busId, effectId, entry);
 }
 
+// What the engine is told for a catalog parameter: the catalog value, except a `kind: "track"` one (the compressor's
+// sidechain), whose track number N (1-based; 0 = none) becomes that track's bus. A track whose bus has not been created
+// yet reads as none, so callers that can introduce a key ensureTrackBuses(N) first.
+function engineValue(param, value) {
+  if (param?.kind !== "track") return value;
+  return value >= 1 ? (peekTrackBusIds()[value - 1] ?? 0) : 0;
+}
+
+async function ensureKeyBus(param, value) {
+  if (param?.kind === "track" && value >= 1) await ensureTrackBuses(Math.min(value, param.max));
+}
+
 function pushInstanceValues(runtime, busId, effectId, type, values) {
   for (const param of getFxParamsForType(type)) {
     const nodeParam = resolveNodeParam(param.id);
     if (nodeParam === undefined) continue;
-    runtime.setEffectParameter(busId, effectId, nodeParam, values[param.id] ?? param.default);
+    runtime.setEffectParameter(busId, effectId, nodeParam, engineValue(param, values[param.id] ?? param.default));
   }
 }
 
@@ -173,7 +185,9 @@ export async function setTrackFxInstanceParam(trackIndex, instanceId, paramId, v
   const busId = await resolveBusId("track", trackIndex);
   const effectId = effectIdMapFor("track", trackIndex).get(instanceId);
   if (effectId === undefined) return;
-  runtime.setEffectParameter(busId, effectId, nodeParam, value);
+  const param = getFxParam(paramId);
+  await ensureKeyBus(param, value);
+  runtime.setEffectParameter(busId, effectId, nodeParam, engineValue(param, value));
 }
 
 export async function setMasterFxInstanceParam(instanceId, paramId, value) {
@@ -182,7 +196,9 @@ export async function setMasterFxInstanceParam(instanceId, paramId, value) {
   const runtime = await initRuntime();
   const effectId = effectIdMapFor("master").get(instanceId);
   if (effectId === undefined) return;
-  runtime.setEffectParameter(MASTER_BUS, effectId, nodeParam, value);
+  const param = getFxParam(paramId);
+  await ensureKeyBus(param, value);
+  runtime.setEffectParameter(MASTER_BUS, effectId, nodeParam, engineValue(param, value));
 }
 
 // Creates the new instance's real engine-side effect, appended at the end of the bus's current
@@ -308,6 +324,8 @@ async function resyncFxChain(target, trackIndex, fxChain, fxBag) {
 // be a full rebuild rather than incremental pushes, and appContext.js for the two moments this
 // is called (project load, and just before each play()).
 export async function resyncAllFxChains(trackChannels, masterFxChain, masterFx) {
+  // A sidechain names a track by number, so every track's bus must exist before any chain is written.
+  await ensureTrackBuses(trackChannels.length);
   await Promise.all(trackChannels.map((channel, trackIndex) => resyncFxChain("track", trackIndex, channel.fxChain, channel.fx)));
   await resyncFxChain("master", undefined, masterFxChain, masterFx);
 }

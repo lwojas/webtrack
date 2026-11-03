@@ -59,6 +59,11 @@ export const FX_PARAMS = [
   { id: "comp.release", nodeParam: "CompRelease", type: "compressor", group: "Compressor", label: "Release", min: 0.001, max: 3, default: 0.1, step: 0.001, unit: "s" },
   { id: "comp.knee", nodeParam: "CompKnee", type: "compressor", group: "Compressor", label: "Knee", min: 0, max: 24, default: 6, step: 0.5, unit: "dB", cellAutomatable: false },
   { id: "comp.makeup", nodeParam: "CompMakeup", type: "compressor", group: "Compressor", label: "Makeup", min: -24, max: 24, default: 0, step: 0.5, unit: "dB", cellAutomatable: false },
+  // Sidechain (webdsp NodeParam.CompSidechain, docs/compressor-node.md): the track whose signal drives the detector, so a bass
+  // ducks to a kick. `kind: "track"` is this catalog's own extension for a value that names a track: 0 = none (the compressor's
+  // own input), N = track N (1-based, so trackIndex + 1). audio/fx.js turns N into that track's engine bus; the FX panel picks
+  // it from a list of the song's tracks. A stepped selector, so it is never a cell automation target; a track cannot key itself.
+  { id: "comp.sidechain", nodeParam: "CompSidechain", type: "compressor", group: "Compressor", label: "Sidechain", kind: "track", min: 0, max: 64, default: 0, step: 1, unit: "", labels: ["Off", ...Array.from({ length: 64 }, (_, i) => `TRK ${i + 1}`)], cellAutomatable: false },
 
   { id: "sat.drive", nodeParam: "SatDrive", type: "saturation", group: "Saturation", label: "Drive", min: 0, max: 40, default: 0, step: 0.5, unit: "dB" },
   { id: "sat.asymmetry", nodeParam: "SatAsymmetry", type: "saturation", group: "Saturation", label: "Asymmetry", min: -1, max: 1, default: 0, step: 0.01, unit: "", cellAutomatable: false },
