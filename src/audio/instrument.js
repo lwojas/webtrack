@@ -23,7 +23,7 @@
 // index, not bound to one track, so routing is the slot's own explicit choice (model/
 // instrument.js) rather than inferred from whichever track happens to trigger it — that would be
 // an arbitrary, order-dependent pick if more than one track's cells ever addressed the slot.
-import { InstrumentCommonParam, InstrumentKind, KickParam, SnareParam, ClapParam, TomParam, HiHatParam, BassParam, PulseParam, PadParam, FmParam, HypersawParam, PwmBeastParam, DmThumpParam, DmMetalParam, DmToneParam, DmCrackParam, DmChaosParam, PercSynthParam, EdgeParam, MASTER_BUS } from "webdsp";
+import { InstrumentCommonParam, InstrumentKind, KickParam, SnareParam, ClapParam, TomParam, HiHatParam, BassParam, PulseParam, PadParam, FmParam, HypersawParam, PwmBeastParam, DmThumpParam, DmMetalParam, DmToneParam, DmCrackParam, DmChaosParam, PercSynthParam, EdgeParam, MatrixParam, MatrixOut, MatrixIn, MATRIX_OUTS, MATRIX_INS, matrixAmountParam, MASTER_BUS } from "webdsp";
 import { initRuntime, ensureTrackBuses } from "./runtime.js";
 import { getSynthParams } from "../model/instrumentParams.js";
 import { planLfoUpdates } from "./instrumentLfo.js";
@@ -47,7 +47,15 @@ const ENGINE_KIND_BY_NAME = {
   dm_chaos: InstrumentKind.DmChaos,
   percsynth: InstrumentKind.PercSynth,
   edge: InstrumentKind.Edge,
+  matrix: InstrumentKind.Matrix,
 };
+
+// Matrix's module knobs are MatrixParam; its 88 cables have no enum member of their own, so they are named
+// "<Out><In>" (VcoVcfIn, VcfCutoff) and resolved with webdsp's matrixAmountParam (id = 21 + out * 11 + in).
+const MATRIX_PARAM_IDS = { ...MatrixParam };
+for (const o of MATRIX_OUTS) {
+  for (const i of MATRIX_INS) MATRIX_PARAM_IDS[`${MatrixOut[o.out]}${MatrixIn[i.input]}`] = matrixAmountParam(o.out, i.input);
+}
 
 const WEBDSP_ENUM_BY_KIND = {
   kick: KickParam,
@@ -68,6 +76,7 @@ const WEBDSP_ENUM_BY_KIND = {
   dm_chaos: DmChaosParam,
   percsynth: PercSynthParam,
   edge: EdgeParam,
+  matrix: MATRIX_PARAM_IDS,
 };
 
 const PARAM_ENUM_CACHE = Object.fromEntries(

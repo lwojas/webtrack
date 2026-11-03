@@ -304,6 +304,67 @@ export const EDGE_PARAMS = [
   { id: "release", webdspParam: "Release", label: "Release", min: 0.005, max: 2, default: 0.08, step: 0.005, unit: "s" },
 ];
 
+// Matrix — mirrors webdsp's docs/matrix-instrument.md: a semi-modular voice, Mother-32 style. Fixed modules (VCO,
+// VCF, VCA, two LFOs, two envelopes, noise) joined only by cables: 8 outs and 11 ins, 88 cells. The first 21
+// controls are the modules' knobs; the other 88 are the matrix, one signed amount (-1..1, 0 = no cable) per
+// (out, in), generated below in the engine's own order (cell id = 21 + out * 11 + in). Cells are named
+// "<Out><In>" (VcoVcfIn, VcfCutoff): audio/instrument.js resolves them to ids with webdsp's matrixAmountParam.
+// The defaults are the ordinary voice, normalled: VCO > VCF in, VCF > VCA in, VCA > Out, ENV 1 > Level and
+// ENV 2 > Cutoff; every cable, the audio path included, can be removed or redirected, and the filter output can
+// go back into the filter (feedback is just another cell). `cell: { out, input }` marks a cable: the instrument
+// editor draws those in its patch matrix view (ui/chrome/PatchMatrixEditor.jsx) instead of as sliders.
+// Sustained at its own root (tune 110 Hz = A-2 = note 45): ENV 1 sets the note's life, so the default
+// (Sustain 0) ends itself inside the cell and Sustain 1 holds for the whole cell.
+export const MATRIX_WAVE_OPTIONS = ["Saw", "Pulse", "Triangle"];
+export const MATRIX_MODE_OPTIONS = ["LP 24", "LP 12", "Band-pass", "HP 12"];
+export const MATRIX_LFO_WAVE_OPTIONS = ["Sine", "Triangle", "Saw", "Square", "S&H"];
+const MATRIX_OUTS = [
+  { name: "Vco", label: "VCO" }, { name: "Noise", label: "Noise" }, { name: "Lfo1", label: "LFO 1" }, { name: "Lfo2", label: "LFO 2" },
+  { name: "Env1", label: "ENV 1" }, { name: "Env2", label: "ENV 2" }, { name: "Vcf", label: "VCF" }, { name: "Vca", label: "VCA" },
+];
+const MATRIX_INS = [
+  { name: "Pitch", label: "Pitch" }, { name: "Pwm", label: "PWM" }, { name: "VcfIn", label: "VCF in" }, { name: "Cutoff", label: "Cutoff" },
+  { name: "Resonance", label: "Reso" }, { name: "Drive", label: "Drive" }, { name: "VcaIn", label: "VCA in" }, { name: "Level", label: "Level" },
+  { name: "Lfo1Rate", label: "LFO 1 rate" }, { name: "Lfo2Rate", label: "LFO 2 rate" }, { name: "Out", label: "Out" },
+];
+// The cables of the default patch. Everything else is off.
+const MATRIX_NORMAL_CABLES = { VcoVcfIn: 1, VcfVcaIn: 1, VcaOut: 1, Env1Level: 1, Env2Cutoff: 0.4 };
+const lowerFirst = (name) => name[0].toLowerCase() + name.slice(1);
+export const MATRIX_CELL_PARAMS = MATRIX_OUTS.flatMap((out, outIndex) =>
+  MATRIX_INS.map((input, inIndex) => {
+    const webdspParam = `${out.name}${input.name}`;
+    return {
+      id: lowerFirst(webdspParam), webdspParam, label: `${out.label} > ${input.label}`,
+      min: -1, max: 1, default: MATRIX_NORMAL_CABLES[webdspParam] ?? 0, step: 0.01, unit: "",
+      cell: { out: outIndex, input: inIndex },
+    };
+  }),
+);
+export const MATRIX_PARAMS = [
+  { id: "tune", webdspParam: "Tune", label: "Tune", min: 27.5, max: 1760, default: 110, step: 0.5, unit: "Hz", scale: "note" },
+  { id: "wave", webdspParam: "Wave", label: "Wave", min: 0, max: 2, default: 0, step: 1, unit: "", options: MATRIX_WAVE_OPTIONS },
+  { id: "pwm", webdspParam: "Pwm", label: "PWM", min: 0.05, max: 0.95, default: 0.5, step: 0.01, unit: "" },
+  { id: "cutoff", webdspParam: "Cutoff", label: "Cutoff", min: 20, max: 18000, default: 1200, step: 1, unit: "Hz" },
+  { id: "resonance", webdspParam: "Resonance", label: "Resonance", min: 0, max: 1, default: 0.25, step: 0.01, unit: "" },
+  { id: "drive", webdspParam: "Drive", label: "Drive", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
+  { id: "mode", webdspParam: "Mode", label: "Filter", min: 0, max: 3, default: 0, step: 1, unit: "", options: MATRIX_MODE_OPTIONS },
+  { id: "keytrack", webdspParam: "Keytrack", label: "Keytrack", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
+  { id: "level", webdspParam: "Level", label: "Level", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
+  { id: "lfo1Rate", webdspParam: "Lfo1Rate", label: "LFO 1 Rate", min: 0.05, max: 40, default: 2, step: 0.05, unit: "Hz" },
+  { id: "lfo1Wave", webdspParam: "Lfo1Wave", label: "LFO 1 Wave", min: 0, max: 4, default: 0, step: 1, unit: "", options: MATRIX_LFO_WAVE_OPTIONS },
+  { id: "lfo2Rate", webdspParam: "Lfo2Rate", label: "LFO 2 Rate", min: 0.05, max: 40, default: 0.5, step: 0.05, unit: "Hz" },
+  { id: "lfo2Wave", webdspParam: "Lfo2Wave", label: "LFO 2 Wave", min: 0, max: 4, default: 1, step: 1, unit: "", options: MATRIX_LFO_WAVE_OPTIONS },
+  { id: "env1Attack", webdspParam: "Env1Attack", label: "ENV1 Atk", min: 0.0005, max: 4, default: 0.003, step: 0.0005, unit: "s" },
+  { id: "env1Decay", webdspParam: "Env1Decay", label: "ENV1 Dec", min: 0.01, max: 4, default: 0.4, step: 0.01, unit: "s" },
+  { id: "env1Sustain", webdspParam: "Env1Sustain", label: "ENV1 Sus", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
+  { id: "env1Release", webdspParam: "Env1Release", label: "ENV1 Rel", min: 0.005, max: 4, default: 0.12, step: 0.005, unit: "s" },
+  { id: "env2Attack", webdspParam: "Env2Attack", label: "ENV2 Atk", min: 0.0005, max: 4, default: 0.002, step: 0.0005, unit: "s" },
+  { id: "env2Decay", webdspParam: "Env2Decay", label: "ENV2 Dec", min: 0.01, max: 4, default: 0.25, step: 0.01, unit: "s" },
+  { id: "env2Sustain", webdspParam: "Env2Sustain", label: "ENV2 Sus", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
+  { id: "env2Release", webdspParam: "Env2Release", label: "ENV2 Rel", min: 0.005, max: 4, default: 0.12, step: 0.005, unit: "s" },
+  ...MATRIX_CELL_PARAMS,
+];
+
 // One entry per webdsp InstrumentKind, mirroring the `{ id, name, category, params }` shape
 // `runtime.getCapabilities().instruments` itself reports (node_modules/webdsp's
 // docs/instruments.md) — model/ stays webdsp-free (docs/EXTENDING.md's layer map) so this is a
@@ -368,6 +429,8 @@ const SYNTH_KIND_DEFS = [
   { id: "percsynth", name: "Perc Synth", category: "synth", params: PERCSYNTH_PARAMS },
   // Edge (webdsp's docs/edge-instrument.md): sustained, tunes to 220 Hz = A-3 = note 57.
   { id: "edge", name: "Edge", category: "synth", params: EDGE_PARAMS, sustained: true, rootNote: 57 },
+  // Matrix (webdsp's docs/matrix-instrument.md): sustained, tunes to 110 Hz = A-2 = note 45.
+  { id: "matrix", name: "Matrix", category: "synth", params: MATRIX_PARAMS, sustained: true, rootNote: 45 },
 ];
 
 // Registry of every synthesized-instrument kind's own param catalog, keyed by the same string

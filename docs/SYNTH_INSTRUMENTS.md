@@ -473,3 +473,37 @@ authoritative.
 - Several ids are shared with other kinds with their own ranges (`tune`, `shape`, `detune`, `cutoff`,
   `resonance`, `spread`, `attack`, `decay`, `sustain`, `release`, `pitchEnv`, `pitchDecay`, `filterEnv`).
   Constants are first-pass, not tuned by ear.
+
+## Matrix (`matrix`)
+
+A semi-modular voice in the spirit of a Moog Mother-32 (`MATRIX_PARAMS`: 21 module knobs + 88 patch cells). webdsp's
+`docs/matrix-instrument.md` and `docs/matrix-client-guide.md` are authoritative.
+
+- **Sustained, root A-2.** Tunes to 110 Hz = note 45. ENV 1 sets the note's life: a cell's length is the note's
+  `duration`, so the default (ENV 1 Sustain 0) ends itself inside the cell and Sustain 1 holds for the whole cell.
+- **Modules and cables.** A fixed set of modules (VCO, VCF, VCA, two LFOs, two envelopes, noise) joined only by cables:
+  8 outs (VCO, Noise, LFO 1, LFO 2, ENV 1, ENV 2, VCF, VCA) and 11 ins (pitch, PWM, VCF in, cutoff, reso, drive, VCA in,
+  level, LFO 1 and 2 rate, out). Each cell is one control, labelled `<Out> > <In>` (`VCF > Cutoff`), a signed mix from
+  -1 to 1; 0 is no cable. Several cables into one in add up, so an in is a small mixer. The defaults are the ordinary
+  voice, normalled: `VCO > VCF in`, `VCF > VCA in`, `VCA > Out`, `ENV 1 > Level` = 1 and `ENV 2 > Cutoff` = 0.4. Every cable,
+  the audio path included, can be removed or redirected (the oscillator straight into the amp, noise through the filter).
+  There is no noise knob: noise is a cable.
+- **Feedback.** Any cable that carries a signal back to where it came from is a loop (`VCF > Cutoff`, `VCF > Pitch`,
+  `VCF > VCF in`, `VCO > Pitch`): one sample of delay, bounded, safe at any mix.
+- **Two views.** The Instrument Editor shows a Matrix synth as **Controls** (the 21 knobs as sliders) and **Patch Matrix**
+  (`ui/chrome/PatchMatrixEditor.jsx`): outs across the top, ins down the side, one cell per cable. Click an empty cell to
+  patch it, drag a patched cell sideways to set its mix, Delete or right-click removes it. Cells are coloured by kind:
+  audio (cyan), control (amber), feedback (crimson); an empty cell that would close a loop shows a crimson dot. A small
+  editor beside the grid adjusts the selected cable (mix, invert, remove) and says what it does, where the signal goes
+  (or that it goes nowhere you can hear) and, for feedback, the loop. Nothing selected lists every cable. The A / L badge
+  marks a mix that cell automation or an LFO moves. The view logic is `ui/patchMatrixView.js` (pure, tested); the graph
+  analysis (what is feedback, where a signal ends up) is webdsp's `patchMatrix.ts`.
+- **Ids.** The knobs resolve through webdsp's `MatrixParam`. The cells have no enum member of their own: their
+  `webdspParam` is `<Out><In>` (`VcoVcfIn`, `VcfCutoff`) and `audio/instrument.js` resolves it with webdsp's
+  `matrixAmountParam(out, in)` (id = 21 + out * 11 + in). The cell ids are in the engine's order, outs outer and ins inner,
+  and each carries `cell: { out, input }` so the editor knows which ones to draw as a matrix rather than as sliders.
+- The steps (`wave`, `mode`, the LFO waves) and the cells are not LFO modulation targets in the engine. The LFO slot matches
+  targets by the engine's control name, so the single-word knobs (`tune`, `pwm`, `cutoff`, `resonance`, `drive`, `keytrack`,
+  `level`) can be modulated; camelCase ids such as `lfo1Rate` do not match the engine's `lfo1rate`, as for the other kinds.
+- Several ids are shared with other kinds with their own ranges (`tune`, `pwm`, `cutoff`, `resonance`, `drive`, `level`).
+  Constants are first-pass, not tuned by ear.

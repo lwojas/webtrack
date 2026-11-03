@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { InstrumentCommonParam } from "webdsp";
+import { InstrumentCommonParam, MatrixIn, MatrixOut, matrixAmountParam } from "webdsp";
 import { resolveInstrumentParam } from "../src/audio/instrument.js";
-import { SYNTH_KINDS, getSynthParams } from "../src/model/instrumentParams.js";
+import { MATRIX_PARAMS, SYNTH_KINDS, getSynthParams } from "../src/model/instrumentParams.js";
 
 // The Gain control has no per-kind enum member: audio/instrument.js must send it to webdsp's shared
 // instrument parameter id (1000), for every kind, and must not disturb any kind's own controls.
@@ -19,5 +19,16 @@ describe("synth source gain bridge", () => {
         expect(id).not.toBe(InstrumentCommonParam.Gain);
       }
     }
+  });
+
+  it("resolves every Matrix control to its engine id: the knobs by enum, each cable by matrixAmountParam", () => {
+    MATRIX_PARAMS.slice(0, 21).forEach((param, i) => expect(resolveInstrumentParam("matrix", param.id), param.id).toBe(i));
+    MATRIX_PARAMS.slice(21).forEach((param, i) => {
+      const out = Math.floor(i / 11);
+      const input = i % 11;
+      expect(param.webdspParam).toBe(`${MatrixOut[out]}${MatrixIn[input]}`);
+      expect(resolveInstrumentParam("matrix", param.id), param.id).toBe(matrixAmountParam(out, input));
+      expect(resolveInstrumentParam("matrix", param.id)).toBe(21 + i);
+    });
   });
 });

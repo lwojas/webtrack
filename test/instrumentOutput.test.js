@@ -137,6 +137,16 @@ describe("store.setInstrumentOutput — switching synth kind", () => {
     expect(store.getState().instruments[0].instrumentParams).toMatchObject({ shape: 0, bright: 0.55, pitchEnv: 3, routing: 1, filterA: 0, filterB: 2, sustain: 0, decay: 0.3 });
   });
 
+  it("seeds Matrix's catalog defaults at its own root (A-2), the default patch included", () => {
+    const store = createStore({ song: createSong(), instruments: [createInstrumentSlot({ id: 0 })] });
+    store.setInstrumentOutput(0, { type: "instrument", channel: null, kind: "matrix" });
+    expect(store.getState().instruments[0].rootNote).toBe(45);
+    const params = store.getState().instruments[0].instrumentParams;
+    expect(params).toMatchObject({ wave: 0, cutoff: 1200, mode: 0, env1Sustain: 0, vcoVcfIn: 1, vcfVcaIn: 1, vcaOut: 1, env1Level: 1, env2Cutoff: 0.4, vcfCutoff: 0 });
+    expect(params.lfo1Cutoff).toBe(0);
+    expect(Object.keys(params).length).toBeGreaterThanOrEqual(109);
+  });
+
   it("leaves a hand-set rootNote alone when switching between drum kinds", () => {
     const store = createStore({ song: createSong(), instruments: [createInstrumentSlot({ id: 0, rootNote: 48 })] });
 

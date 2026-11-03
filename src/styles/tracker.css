@@ -1348,6 +1348,360 @@ input[type="range"].range-lg {
   font-size: var(--text-label);
 }
 
+/* Matrix synth: Controls / Patch Matrix views, and the patch matrix itself (ui/chrome/PatchMatrixEditor.jsx).
+   Outs run across the top, ins down the side; colour is the kind of cable: audio (cyan), control (amber),
+   feedback (crimson). The panel grows for the matrix, which has far more rows than the control sliders. */
+.instrument-editor-panel--matrix {
+  max-height: 70vh;
+}
+
+.instrument-editor__views {
+  margin-bottom: var(--space-xs);
+}
+
+.matrix-audio {
+  --k: var(--cyan);
+}
+
+.matrix-control {
+  --k: var(--amber);
+}
+
+.matrix-feedback {
+  --k: var(--crimson);
+}
+
+.matrix-view {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--space-lg);
+}
+
+.matrix-main {
+  flex: 1 1 520px;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.matrix-scroll {
+  overflow-x: auto;
+}
+
+.matrix-grid {
+  display: grid;
+  grid-template-columns: 96px repeat(8, minmax(52px, 1fr));
+  gap: 2px;
+  min-width: 560px;
+}
+
+.matrix-corner {
+  display: flex;
+  align-items: flex-end;
+  padding: 0 0 var(--space-xs) var(--space-xs);
+  color: var(--text-dim);
+  font-size: var(--text-micro);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.matrix-group {
+  padding: var(--space-sm) var(--space-md);
+  background: var(--surface-2);
+  border-bottom: 2px solid var(--k);
+  color: var(--k);
+  font-size: var(--text-micro);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.matrix-out,
+.matrix-in {
+  display: flex;
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--surface-2);
+  border: 1px solid transparent;
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--text-micro);
+  letter-spacing: 0.04em;
+  text-align: left;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.matrix-out {
+  justify-content: center;
+  border-bottom: 2px solid var(--k);
+  text-align: center;
+}
+
+.matrix-in {
+  border-left: 2px solid var(--border-active);
+}
+
+.matrix-out:hover,
+.matrix-in:hover,
+.matrix-out--focus,
+.matrix-in--focus {
+  background: var(--surface-3);
+  border-color: var(--cyan);
+}
+
+.matrix-section {
+  grid-column: 1 / -1;
+  padding: var(--space-md) var(--space-xs) 0;
+  color: var(--text-dim);
+  font-size: var(--text-micro);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.matrix-cell {
+  position: relative;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.matrix-cell:hover {
+  background: var(--surface-3);
+  border-color: var(--border-active);
+}
+
+.matrix-cell--focus {
+  background: var(--surface-2);
+}
+
+.matrix-cell__dot {
+  width: 3px;
+  height: 3px;
+  background: var(--surface-empty);
+}
+
+.matrix-cell--would-feedback .matrix-cell__dot {
+  background: var(--crimson);
+  opacity: 0.6;
+}
+
+.matrix-cell--would-feedback:hover {
+  border-style: dashed;
+  border-color: var(--crimson);
+}
+
+.matrix-cell--patched {
+  background: var(--surface-2);
+  border-color: var(--k);
+  cursor: ew-resize;
+  touch-action: none;
+}
+
+.matrix-cell__amount {
+  position: relative;
+  top: -3px;
+  color: var(--k);
+  font-size: var(--text-label);
+  font-weight: 600;
+}
+
+.matrix-cell__bar {
+  position: absolute;
+  bottom: 4px;
+  height: 3px;
+  background: var(--k);
+}
+
+.matrix-cell--selected {
+  outline: 2px solid var(--text);
+  outline-offset: 1px;
+  z-index: 1;
+}
+
+.matrix-status {
+  min-height: 22px;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: var(--text-label);
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.matrix-editor {
+  flex: 0 1 280px;
+  min-width: 220px;
+}
+
+.matrix-connection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.matrix-connection__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+
+.matrix-connection__title {
+  color: var(--cyan);
+  font-size: var(--text-label);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.matrix-connection__kind {
+  margin-left: auto;
+  color: var(--k, var(--text-dim));
+  font-size: var(--text-micro);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.matrix-connection .fx-module__field {
+  grid-template-columns: 5ch 1fr 6ch;
+}
+
+.matrix-connection__actions {
+  gap: var(--space-xs);
+}
+
+.matrix-connection__remove:hover:not(:disabled) {
+  color: var(--crimson);
+  border-color: var(--crimson);
+}
+
+.matrix-connection .fx-panel__target-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.matrix-note {
+  color: var(--text-dim);
+  font-size: var(--text-label);
+}
+
+.matrix-sound {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--border);
+}
+
+.matrix-sound__name {
+  color: var(--k);
+  font-size: var(--text-body);
+}
+
+.matrix-sound__text {
+  color: var(--text-dim);
+  font-size: var(--text-label);
+}
+
+.matrix-path {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: var(--text-micro);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.matrix-path__step {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--cyan);
+}
+
+.matrix-path__step .matrix-path__patch {
+  color: var(--k);
+}
+
+.matrix-path__arrow {
+  color: var(--text-dim);
+}
+
+.matrix-loop {
+  padding: var(--space-md);
+  border: 1px solid var(--crimson);
+  color: var(--crimson);
+  font-size: var(--text-label);
+}
+
+.matrix-patch-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.matrix-patch-row {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  gap: var(--space-md);
+  align-items: center;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--text-label);
+  text-align: left;
+  cursor: pointer;
+}
+
+.matrix-patch-row:hover {
+  background: var(--surface-3);
+  border-color: var(--border-active);
+}
+
+.matrix-patch-row__kind {
+  color: var(--k);
+  font-size: var(--text-micro);
+  letter-spacing: 0.04em;
+}
+
+.matrix-patch-row__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.matrix-patch-row__amount {
+  color: var(--k);
+  font-weight: 600;
+}
+
+@media (pointer: coarse) {
+  .matrix-cell {
+    min-height: 40px;
+  }
+
+  .matrix-out,
+  .matrix-in,
+  .matrix-patch-row {
+    padding-top: var(--space-lg);
+    padding-bottom: var(--space-lg);
+  }
+}
+
 .instrument-editor__header {
   color: var(--text-dim);
   font-size: var(--text-micro);

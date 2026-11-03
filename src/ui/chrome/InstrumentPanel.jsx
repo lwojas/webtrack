@@ -1,4 +1,5 @@
 import LfoEditor from "./LfoEditor.jsx";
+import PatchMatrixEditor from "./PatchMatrixEditor.jsx";
 import ModBadge from "./ModBadge.jsx";
 import ArpModule from "./ArpControls.jsx";
 import { arpOf } from "../../model/arp.js";
@@ -13,6 +14,7 @@ import { MAX_INSTRUMENT_LFOS } from "../../model/instrumentLfos.js";
 import { toHex } from "../../model/notes.js";
 import { ENVELOPE_PARAMS, formatEnvelopeValue } from "../../model/envelopeParams.js";
 import {
+  MATRIX_PARAMS,
   SOURCE_GAIN_MAX_DB,
   SOURCE_GAIN_MIN_DB,
   SYNTH_KINDS,
@@ -178,7 +180,7 @@ function InstrumentOutputPicker({ store, instrumentController }) {
   // Switching to "midi" needs a channel right away (compileEvent treats a missing channel as
   // "nothing to send" — see audio/compile.js) — default to the last one used, or channel 1.
   // Switching to "instrument" needs a kind, one of model/instrumentParams.js#SYNTH_KINDS
-  // (kick/snare/clap/tom/hihat/bass/pulse/pad/fm/hypersaw/pwmbeast/dm_thump/dm_metal/dm_tone/dm_crack/dm_chaos/percsynth/edge); state/store.js#setInstrumentOutput (re)seeds instrumentParams
+  // (kick/snare/clap/tom/hihat/bass/pulse/pad/fm/hypersaw/pwmbeast/dm_thump/dm_metal/dm_tone/dm_crack/dm_chaos/percsynth/edge/matrix); state/store.js#setInstrumentOutput (re)seeds instrumentParams
   // with that kind's own catalog defaults, both the first time a slot becomes "instrument" and
   // whenever the kind itself changes. `track` carries over across a kind switch (KICK -> SNARE
   // keeps whatever bus routing was already chosen) but resets to null (MASTER_BUS) switching to
@@ -234,21 +236,27 @@ function InstrumentOutputPicker({ store, instrumentController }) {
 
 export function InstrumentEditorPanel({ store, instrumentController }) {
   const open = useStore(store, events.INSTRUMENT_EDITOR_CHANGED, (s) => s.instrumentEditorOpen);
+  // A synth with a patch matrix (Matrix) offers its controls and its matrix as two views; the panel is
+  // taller for the matrix, so the view lives here and is passed down.
+  const [view, setView] = useState("controls");
+  const index = useStore(store, events.CURSOR_MOVED, (s) => s.selectedInstrumentIndex);
+  const kind = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.output?.kind ?? null);
   if (!open) return null;
+  const matrixView = view === "matrix" && getSynthParams(kind).some((p) => p.cell);
   return (
-    <div className="instrument-editor-panel">
+    <div className={`instrument-editor-panel${matrixView ? " instrument-editor-panel--matrix" : ""}`}>
       <div className="chop-editor__bar">
         <span className="chop-editor__title">INSTRUMENT EDITOR</span>
         <button type="button" className="fx-panel__target-btn chop-editor__close" onClick={() => store.setInstrumentEditorOpen(false)}>
           CLOSE
         </button>
       </div>
-      <InstrumentEditor store={store} instrumentController={instrumentController} />
+      <InstrumentEditor store={store} instrumentController={instrumentController} view={view} onViewChange={setView} />
     </div>
   );
 }
 
-function InstrumentEditor({ store, instrumentController }) {
+function InstrumentEditor({ store, instrumentController, view, onViewChange }) {
   const index = useStore(store, events.CURSOR_MOVED, (s) => s.selectedInstrumentIndex);
   const name = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.name ?? "");
   const exists = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index] != null);
@@ -376,6 +384,14 @@ function InstrumentEditor({ store, instrumentController }) {
   const lfoRate = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.lfoRate ?? 5);
   const lfoPitch = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.lfoPitch ?? 0);
   const lfoFilter = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.lfoFilter ?? 0);
+  // Matrix has 64 controls (its voice plus the 42 patch cells): one selector of the joined values rather
+  // than a hook each, for the same primitive-selector reason. A value the slot has not stored yet is the
+  // catalog default. Only read when the output kind is "matrix" (below).
+  const matrixRaw = useStore(store, events.INSTRUMENTS_CHANGED, (s) => {
+    const params = s.instruments[index]?.instrumentParams;
+    return MATRIX_PARAMS.map((p) => params?.[p.id] ?? "").join(",");
+  }).split(",");
+  const matrixValues = Object.fromEntries(MATRIX_PARAMS.map((p, i) => [p.id, matrixRaw[i] === "" ? p.default : Number(matrixRaw[i])]));
   // Source gain (SOURCE_GAIN_PARAM, dB) is a synth control like any other; unity until set.
   const synthGain = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.gain ?? 0);
   const synthParamValues = {
@@ -386,9 +402,12 @@ function InstrumentEditor({ store, instrumentController }) {
     osc1Wave, osc1Level, osc2Wave, osc2Pitch, osc2Level, osc2Fm, pitchEnv, osc2Env, noiseTone, noiseDecay,
     filterType, filterEnv, filterDecay,
     bright, brightEnv, routing, filterA, filterB, toneDecay, lfoRate, lfoPitch, lfoFilter,
+    ...(outputKind === "matrix" ? matrixValues : {}),
   };
 
   if (!exists) return null;
+  const hasMatrix = getSynthParams(outputKind).some((p) => p.cell);
+  const showMatrix = hasMatrix && view === "matrix";
 
   function setChannel(displayValue) {
     const channel = Math.min(MIDI_CHANNEL_MAX, Math.max(MIDI_CHANNEL_MIN, displayValue - 1));
@@ -444,30 +463,55 @@ function InstrumentEditor({ store, instrumentController }) {
             </select>
             <span className="fx-module__value" />
           </label>
-          {getSynthParams(outputKind).map((param) => {
-            const control = synthParamControl(param);
-            const sliderValue = control.toSlider(synthParamValues[param.id]);
-            return (
-              <label className="fx-module__field" key={param.id}>
-                <span className="fx-module__field-label" title={param.label}>
-                  {param.label}
-                  <ModBadge automated={automatedParams.includes(param.id)} lfos={lfoCountFor(param.id)} />
-                </span>
-                <input
-                  type="range"
-                  min={control.min}
-                  max={control.max}
-                  step={control.step}
-                  value={sliderValue}
-                  onChange={(e) =>
-                    instrumentController.setInstrumentParam(index, param.id, control.fromSlider(Number(e.target.value)))
-                  }
-                  style={rangeFillStyle(sliderValue, control.min, control.max)}
-                />
-                <span className="fx-module__value">{formatSynthParamValue(synthParamValues[param.id], param)}</span>
-              </label>
-            );
-          })}
+          {hasMatrix && (
+            <div className="fx-panel__target instrument-editor__views" role="tablist" aria-label="Matrix view">
+              {[["controls", "CONTROLS"], ["matrix", "PATCH MATRIX"]].map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  role="tab"
+                  aria-selected={view === id}
+                  className={`fx-panel__target-btn${view === id ? " fx-panel__target-btn--active" : ""}`}
+                  onClick={() => onViewChange(id)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+          {showMatrix ? (
+            <PatchMatrixEditor
+              values={synthParamValues}
+              onSetParam={(id, value) => instrumentController.setInstrumentParam(index, id, value)}
+              automatedParams={automatedParams}
+              lfoCountFor={lfoCountFor}
+            />
+          ) : (
+            (hasMatrix ? getSynthParams(outputKind).filter((p) => !p.cell) : getSynthParams(outputKind)).map((param) => {
+              const control = synthParamControl(param);
+              const sliderValue = control.toSlider(synthParamValues[param.id]);
+              return (
+                <label className="fx-module__field" key={param.id}>
+                  <span className="fx-module__field-label" title={param.label}>
+                    {param.label}
+                    <ModBadge automated={automatedParams.includes(param.id)} lfos={lfoCountFor(param.id)} />
+                  </span>
+                  <input
+                    type="range"
+                    min={control.min}
+                    max={control.max}
+                    step={control.step}
+                    value={sliderValue}
+                    onChange={(e) =>
+                      instrumentController.setInstrumentParam(index, param.id, control.fromSlider(Number(e.target.value)))
+                    }
+                    style={rangeFillStyle(sliderValue, control.min, control.max)}
+                  />
+                  <span className="fx-module__value">{formatSynthParamValue(synthParamValues[param.id], param)}</span>
+                </label>
+              );
+            })
+          )}
           <ModulationSection store={store} instrumentController={instrumentController} index={index} kind={outputKind} />
         </>
       ) : (
