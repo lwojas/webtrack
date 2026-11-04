@@ -2,14 +2,18 @@
 // track-level LFO that modulates *event* properties, today the velocity of the notes that opt
 // in, at the moment each note is scheduled. It never touches the synth, the stored cell velocity
 // or the audio signal path; audio/trackLfo.js evaluates it and audio/compile.js applies it.
+// The "pitch" target moves a step along the notes its instrument can play (see audio/trackLfo.js).
 // webdsp-free like the rest of model/: waveform and division are webdsp's own names.
 //
 // Stored: the track's LFO config (trackChannel.eventLfo — per song, so it survives pattern
 // switches) and each step's participation (Event.lfo, 0..1 | null). Not stored: the effective
 // velocity, a runtime value of playback.
 
-export const EVENT_LFO_WAVEFORMS = ["sine", "triangle", "square", "saw"];
-export const EVENT_LFO_WAVEFORM_LABELS = { sine: "SINE", triangle: "TRI", square: "SQ", saw: "SAW" };
+export const EVENT_LFO_WAVEFORMS = ["sine", "triangle", "square", "saw", "sample & hold"];
+export const EVENT_LFO_WAVEFORM_LABELS = { sine: "SINE", triangle: "TRI", square: "SQ", saw: "SAW", "sample & hold": "S&H" };
+// What the LFO changes: the step's velocity, or its note (the slice on a chop instrument).
+export const EVENT_LFO_TARGETS = ["velocity", "pitch"];
+export const EVENT_LFO_TARGET_LABELS = { velocity: "Velocity", pitch: "Note / slice" };
 export const EVENT_LFO_MIN_RATE_HZ = 0.01;
 export const EVENT_LFO_MAX_RATE_HZ = 40;
 export const DEFAULT_EVENT_LFO_DIVISION = "1/4";
@@ -22,7 +26,8 @@ export function createEventLfo() {
     sync: true,
     rateHz: 1,
     division: DEFAULT_EVENT_LFO_DIVISION,
-    // 0..1 of the full velocity range: 1 = the LFO swings velocity by +-127 at full participation.
+    // 0..1 of the full range. Velocity: 1 = the LFO swings velocity by +-127 at full participation.
+    // Note / slice: 1 = it can reach any playable note (any slice on a chop instrument).
     depth: 0.25,
   };
 }

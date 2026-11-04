@@ -4,6 +4,8 @@ import * as events from "../../state/events.js";
 import { getSelectedPattern } from "../../model/query.js";
 import {
   EVENT_LFO_RATE_STEPS,
+  EVENT_LFO_TARGETS,
+  EVENT_LFO_TARGET_LABELS,
   EVENT_LFO_WAVEFORMS,
   EVENT_LFO_WAVEFORM_LABELS,
   eventLfoOf,
@@ -18,7 +20,7 @@ import { supportsTieKind } from "../../model/instrumentParams.js";
 // contextual home for what belongs to the track rather than to a step or the mixer. Length and
 // polyphony stay in the grid's header rows above the columns — this tab is for the deeper controls.
 // Today it holds the Track LFO (model/eventLfo.js, docs/TRACK_LFO.md): an LFO that changes the
-// velocity of the steps that opt in (the TRACK LFO slider in the Note Editor, or All steps below).
+// velocity, or the note / slice, of the steps that opt in (the TRACK LFO slider in the Note Editor, or All steps below).
 // It acts when a step is scheduled, not inside the synth. (The arpeggiator is not here: it belongs to the
 // instrument, see ui/chrome/ArpControls.jsx.) Edits go straight to the store: the config is read live
 // by the playback compile step, so there is no engine push.
@@ -43,8 +45,18 @@ export default function TrackPanel({ store }) {
         <div className="fx-module">
           <div className="fx-module__header">
             <span className="fx-module__title">Track LFO</span>
-            <span title="What the LFO changes">Velocity</span>
           </div>
+          <label className="fx-module__field">
+            <span className="fx-module__field-label">Target</span>
+            <select value={lfo.target} onChange={(e) => set({ target: e.target.value })} title="What the LFO changes">
+              {EVENT_LFO_TARGETS.map((t) => (
+                <option key={t} value={t}>
+                  {EVENT_LFO_TARGET_LABELS[t]}
+                </option>
+              ))}
+            </select>
+            <span className="fx-module__value" />
+          </label>
           <label className="fx-module__field">
             <span className="fx-module__field-label">Enabled</span>
             <button type="button" className={`fx-module__toggle${lfo.enabled ? " fx-module__toggle--on" : ""}`} onClick={() => set({ enabled: !lfo.enabled })}>

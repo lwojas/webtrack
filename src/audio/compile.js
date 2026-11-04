@@ -4,7 +4,7 @@
 import { trackLocalStep } from "../model/pattern.js";
 import { listCellEntries, nextPoint } from "../model/cellAutomation.js";
 import { isSustainedSynthKind, supportsTieKind } from "../model/instrumentParams.js";
-import { effectiveVelocity } from "./trackLfo.js";
+import { effectiveNote, effectiveVelocity } from "./trackLfo.js";
 import { effectiveChokeGroup } from "../model/trackChannel.js";
 import { ratchetOf } from "../model/event.js";
 import { arpEventsAtRow, arpOf, isArpActive } from "../model/arp.js";
@@ -57,7 +57,7 @@ export function noteDurationSteps(track, rowIndex) {
 // control for a path that doesn't fully work yet.
 //
 // `lfoClock` ({ anchorTime, bpm }, from audio/lookaheadPlayer.js) enables the track's event LFO
-// (model/eventLfo.js, audio/trackLfo.js): the velocity is modulated by the LFO value at this
+// (model/eventLfo.js, audio/trackLfo.js): the velocity (or, for the "pitch" target, the note / slice) is modulated by the LFO value at this
 // event's own scheduled `time` (swing included) before any output branch below uses it, so a
 // sample, a synth and a MIDI event all just receive the resulting velocity. Omitted = no
 // modulation. The stored event is never changed.
@@ -69,6 +69,8 @@ export function compileEvent(event, trackChannel, instruments, time, durationSec
   if (!instrument) return null;
 
   const velocity = time === undefined ? (event.velocity ?? 127) : effectiveVelocity(trackChannel, event, event.velocity ?? 127, time, lfoClock);
+  // The Track LFO's note / slice target; the stored event.note is never changed.
+  const note = time === undefined ? event.note : effectiveNote(trackChannel, event, time, lfoClock, instrument);
 
   if (instrument.output?.type === "midi") {
     if (instrument.output.channel === null || instrument.output.channel === undefined) return null;
@@ -76,7 +78,7 @@ export function compileEvent(event, trackChannel, instruments, time, durationSec
     // compensate for a *sample's* unknown natural pitch (see below); a MIDI note number is
     // already the pitch as far as whatever's on the other end of the channel is concerned, so
     // there is no transposition to apply here, and no `pitch` field in this shape at all.
-    const compiled = { kind: "midi", channel: instrument.output.channel, note: event.note, velocity };
+    const compiled = { kind: "midi", channel: instrument.output.channel, note, velocity };
     if (time !== undefined) compiled.time = time;
     if (durationSeconds !== undefined) compiled.duration = durationSeconds;
     return compiled;
@@ -103,7 +105,7 @@ export function compileEvent(event, trackChannel, instruments, time, durationSec
   if (instrument.output?.type === "instrument") {
     if (instrument.engineInstrumentId === null || instrument.engineInstrumentId === undefined) return null;
     const level = Math.max(0, Math.min(1, (velocity / 127) * trackChannel.volume));
-    const pitch = event.note - instrument.rootNote;
+    const pitch = note - instrument.rootNote;
     const compiled = { kind: "instrument", instrumentId: instrument.engineInstrumentId, velocity: level, pitch };
     // Tied in (the previous note of this track ties into this one): glide into it, no re-attack.
     if (tieIn) compiled.tie = true;
@@ -125,7 +127,7 @@ export function compileEvent(event, trackChannel, instruments, time, durationSec
   // compiling it into every triggered event's gain by hand. Folding it in here too would
   // double-count it.
   const gain = (velocity / 127) * trackChannel.volume;
-  const pitch = event.note - instrument.rootNote;
+  const pitch = note - instrument.rootNote;
 
   const compiled = { kind: "sample", sampleId: instrument.sampleId, gain };
   if (instrument.sampleMode === "chop") {

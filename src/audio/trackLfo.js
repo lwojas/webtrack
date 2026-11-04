@@ -5,12 +5,14 @@
 // anchor it gives runtime.setTempo), so the result is a pure function of (song, anchor, event
 // time): deterministic and correct for events scheduled ahead of the audio clock.
 import { LFO_DIVISIONS, LfoWaveform, lfoValueAt } from "webdsp";
+import { MAX_NOTE, noteForSlice, sliceCount } from "../model/chop.js";
 
 const WAVEFORMS = {
   sine: LfoWaveform.Sine,
   triangle: LfoWaveform.Triangle,
   square: LfoWaveform.Square,
   saw: LfoWaveform.Saw,
+  "sample & hold": LfoWaveform.SampleHold,
 };
 const QUARTER = LFO_DIVISIONS.findIndex((d) => d.name === "1/4");
 
@@ -40,4 +42,33 @@ export function effectiveVelocity(channel, event, baseVelocity, eventTime, clock
     default:
       return baseVelocity;
   }
+}
+
+// The notes `instrument` can play, ascending: every slice of a chop instrument (root note = slice 1),
+// else the whole note range.
+function playableNotes(instrument) {
+  if (instrument?.sampleMode === "chop") {
+    const notes = [];
+    for (let slice = 0, n = Math.max(1, sliceCount(instrument.cues)); slice < n; slice++) {
+      const note = noteForSlice(instrument.rootNote, slice);
+      if (note !== null) notes.push(note);
+    }
+    return notes;
+  }
+  return Array.from({ length: MAX_NOTE + 1 }, (_, i) => i);
+}
+
+// The note (the slice on a chop instrument) a cell should play when scheduled at `eventTime`. With
+// the "pitch" target the LFO moves the note along the playable notes: lfo x depth x participation x
+// (notes - 1) places from the authored one, clamped to the ends. Untouched for any other target, no
+// enabled LFO, a non-participating cell, no clock, or a note outside the list. Never stored.
+export function effectiveNote(channel, event, eventTime, clock, instrument) {
+  const lfo = channel?.eventLfo;
+  const participation = event.lfo ?? 0;
+  if (!clock || !lfo || !lfo.enabled || lfo.target !== "pitch" || !(participation > 0)) return event.note;
+  const notes = playableNotes(instrument);
+  const at = notes.indexOf(event.note);
+  if (at < 0) return event.note;
+  const places = Math.round(eventLfoValue(lfo, eventTime, clock) * lfo.depth * participation * (notes.length - 1));
+  return notes[Math.min(notes.length - 1, Math.max(0, at + places))];
 }

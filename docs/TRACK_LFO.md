@@ -1,7 +1,7 @@
 # Track LFO
 
-A track-level LFO that modulates **event** properties, today the **velocity** of the steps that opt
-in. It is a sequencer concern: it acts when a step is scheduled, never inside the synth. (The
+A track-level LFO that modulates **event** properties: the **velocity** of the steps that opt
+in, or their **note / slice** (the Target selector). It is a sequencer concern: it acts when a step is scheduled, never inside the synth. (The
 synth's own continuous LFOs are the Modulation section of the instrument editor; see webdsp's
 `docs/lfo-modulation.md`.) Same behaviour as webseq's Track LFO (`webseq/docs/track-lfo.md`).
 
@@ -16,12 +16,25 @@ effective velocity --> compileEvent --> sample / synth / (MIDI) event --> engine
 
 | Where | Field | Meaning |
 |---|---|---|
-| `trackChannel.eventLfo` | `enabled, target ("velocity"), waveform, sync, rateHz, division, depth` | the LFO. Per song, like mute/solo/volume, so it survives pattern switches. |
+| `trackChannel.eventLfo` | `enabled, target ("velocity" \| "pitch"), waveform, sync, rateHz, division, depth` | the LFO. Per song, like mute/solo/volume, so it survives pattern switches. |
 | `Event.lfo` | 0..1 or `null` | the step's participation. `null` = plays at its own velocity. |
 
 Effective velocity is never stored. `effective = clamp(round(velocity + lfo * depth * Event.lfo *
 127), 0, 127)`, `lfo` in -1..1, `depth` 0..1 of the full range (shown as %). Rounded so a MIDI
 consumer of the same event stays valid. Projects without these fields play exactly as before (tested).
+
+### Note / slice target
+
+With target `pitch` the velocity is left alone and the LFO moves each participating step along the
+notes its instrument can play: every slice of a chop instrument (root note = slice 1), otherwise
+notes 0-127. The authored note is the centre; it moves `lfo x depth x Event.lfo x (notes - 1)`
+places, rounded and clamped to the ends (depth 100% can reach any note). `audio/trackLfo.js#effectiveNote`;
+the stored note is never changed, and the project scale is not consulted. Same behaviour as webseq.
+
+### Waveforms
+
+Waveform is webdsp's, including **sample & hold** (a new random value each cycle, held flat; a hash of
+the cycle number, so it replays identically). It is also available on the instrument and FX LFOs.
 
 ## Timing and phase
 
@@ -46,4 +59,4 @@ engine's LFO, parity-tested in webdsp). No second clock: `audio/lookaheadPlayer.
 * **Per step**: the Note Editor's TRACK LFO slider, and an amber underline on the velocity of steps that
   take part (no extra number in the grid).
 
-A further target later = one more case in `effectiveVelocity` and one more `target` value.
+A further target later = one more `target` value and one more case in `audio/trackLfo.js`.

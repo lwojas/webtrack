@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { compileEvent, compileRow } from "../src/audio/compile.js";
 import { createLookaheadPlayer } from "../src/audio/lookaheadPlayer.js";
-import { effectiveVelocity } from "../src/audio/trackLfo.js";
+import { effectiveNote, effectiveVelocity } from "../src/audio/trackLfo.js";
 import { createEmptyEvent, isEmptyEvent } from "../src/model/event.js";
 import { createEventLfo, normalizeParticipation } from "../src/model/eventLfo.js";
 import { createInstrumentSlot } from "../src/model/instrument.js";
@@ -173,5 +173,47 @@ describe("persistence", () => {
     expect(restored.song.trackChannels[0].eventLfo).toEqual(song.trackChannels[0].eventLfo);
     const events = restored.song.patterns[0].tracks[0].events;
     expect([events[0].lfo, events[4].lfo, events[0].velocity, events[4].velocity]).toEqual([0.5, null, 90, 90]);
+  });
+});
+
+describe("effectiveNote (note / slice target)", () => {
+  const pitchLfo = (patch = {}) => lfo({ target: "pitch", ...patch });
+  const synth = createInstrumentSlot({ id: 0, rootNote: 60 });
+  const chop = createInstrumentSlot({ id: 0, sampleId: 1, rootNote: 60, sampleMode: "chop", cues: [0.2, 0.4, 0.6, 0.8] }); // 5 slices: notes 60-64
+
+  it("leaves the note alone for the velocity target, off, a non-participating cell or no clock", () => {
+    expect(effectiveNote(channel(lfo()), event(), HIGH, clock, synth)).toBe(60);
+    expect(effectiveNote(channel(pitchLfo({ enabled: false })), event(), HIGH, clock, synth)).toBe(60);
+    expect(effectiveNote(channel(pitchLfo()), event({ lfo: null }), HIGH, clock, synth)).toBe(60);
+    expect(effectiveNote(channel(pitchLfo()), event(), HIGH, undefined, synth)).toBe(60);
+  });
+
+  it("moves along the playable notes", () => {
+    expect(effectiveNote(channel(pitchLfo({ depth: 0.1 })), event(), HIGH, clock, synth)).toBe(73); // 0.1 x 127 places = 12.7
+    expect(effectiveNote(channel(pitchLfo({ depth: 0.1 })), event(), LOW, clock, synth)).toBe(47);
+    expect(effectiveNote(channel(pitchLfo({ depth: 1 })), event(), HIGH, clock, synth)).toBe(127);
+    expect(effectiveNote(channel(pitchLfo({ depth: 1 })), event(), LOW, clock, synth)).toBe(0);
+  });
+
+  it("stays on the slices of a chop instrument", () => {
+    expect(effectiveNote(channel(pitchLfo({ depth: 0.5 })), event({ note: 62 }), HIGH, clock, chop)).toBe(64); // 0.5 x 4 = 2
+    expect(effectiveNote(channel(pitchLfo({ depth: 1 })), event({ note: 62 }), LOW, clock, chop)).toBe(60);
+    expect(effectiveNote(channel(pitchLfo({ depth: 1 })), event({ note: 62 }), HIGH, clock, chop)).toBe(64);
+  });
+
+  it("compileEvent plays the modulated slice and leaves velocity alone", () => {
+    const e = compileEvent(event({ note: 62 }), channel(pitchLfo({ depth: 1 })), [chop], HIGH, 0.1, undefined, clock);
+    expect(e.region).toBe(4);
+    expect(e.gain).toBeCloseTo(100 / 127);
+  });
+});
+
+describe("sample & hold waveform", () => {
+  it("holds one value per cycle and changes between cycles", () => {
+    const ch = channel(lfo({ waveform: "sample & hold", depth: 1 }));
+    const a = effectiveVelocity(ch, event(), 64, 10.1, clock);
+    expect(effectiveVelocity(ch, event(), 64, 10.4, clock)).toBe(a);
+    const values = new Set(Array.from({ length: 12 }, (_, i) => effectiveVelocity(ch, event(), 64, 10 + i * 0.5 + 0.1, clock)));
+    expect(values.size).toBeGreaterThan(4);
   });
 });

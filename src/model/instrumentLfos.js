@@ -8,8 +8,8 @@
 
 // Mirrors webdsp's per-instrument LFO slot count (the engine reports the real limit).
 export const MAX_INSTRUMENT_LFOS = 4;
-export const LFO_WAVEFORMS = ["sine", "triangle", "square", "saw"];
-export const LFO_WAVEFORM_LABELS = { sine: "SINE", triangle: "TRI", square: "SQ", saw: "SAW" };
+export const LFO_WAVEFORMS = ["sine", "triangle", "square", "saw", "sample & hold"];
+export const LFO_WAVEFORM_LABELS = { sine: "SINE", triangle: "TRI", square: "SQ", saw: "SAW", "sample & hold": "S&H" };
 export const LFO_MIN_RATE_HZ = 0.01;
 export const LFO_MAX_RATE_HZ = 40;
 export const DEFAULT_LFO_DIVISION = "1/4";
