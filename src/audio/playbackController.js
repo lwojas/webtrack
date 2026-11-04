@@ -178,6 +178,7 @@ export function createPlaybackController({
         trackBusIds,
         getStepDurationSeconds,
         getSwing,
+        getScale: () => getSong().scale,
         onPatternSwitched: () => onPatternSwitchPending?.(false),
         getNextQueueEntry: (currentIndex) => resolveQueueEntry(currentIndex + 1),
         // bus.gain is the one cell FX entry with no scheduled form (webdsp's scheduleParams does

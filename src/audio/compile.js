@@ -61,7 +61,7 @@ export function noteDurationSteps(track, rowIndex) {
 // event's own scheduled `time` (swing included) before any output branch below uses it, so a
 // sample, a synth and a MIDI event all just receive the resulting velocity. Omitted = no
 // modulation. The stored event is never changed.
-export function compileEvent(event, trackChannel, instruments, time, durationSeconds, bus, lfoClock, tieIn = false) {
+export function compileEvent(event, trackChannel, instruments, time, durationSeconds, bus, lfoClock, tieIn = false, scale = null) {
   if (event.note === null || event.instrument === null) return null;
   if (trackChannel.muted) return null;
 
@@ -70,7 +70,7 @@ export function compileEvent(event, trackChannel, instruments, time, durationSec
 
   const velocity = time === undefined ? (event.velocity ?? 127) : effectiveVelocity(trackChannel, event, event.velocity ?? 127, time, lfoClock);
   // The Track LFO's note / slice target; the stored event.note is never changed.
-  const note = time === undefined ? event.note : effectiveNote(trackChannel, event, time, lfoClock, instrument);
+  const note = time === undefined ? event.note : effectiveNote(trackChannel, event, time, lfoClock, instrument, scale);
 
   if (instrument.output?.type === "midi") {
     if (instrument.output.channel === null || instrument.output.channel === undefined) return null;
@@ -188,7 +188,7 @@ export function dropSimultaneousChokeLosers(events) {
 // Each returned event carries compileEvent's own `kind` tag unchanged — this function doesn't
 // filter or partition by it; whichever caller eventually routes "midi"-kind events to a real
 // MIDI output (rather than runtime.schedule(), as today) does that downstream, not here.
-export function compileRow(pattern, trackChannels, instruments, transportStep, time, stepDurationSeconds, trackBusIds, lfoClock) {
+export function compileRow(pattern, trackChannels, instruments, transportStep, time, stepDurationSeconds, trackBusIds, lfoClock, scale = null) {
   const soloActive = trackChannels.some((channel) => channel.solo);
   const events = [];
   const arpInstruments = [];
@@ -220,6 +220,8 @@ export function compileRow(pattern, trackChannels, instruments, transportStep, t
           item.durationSteps * stepDurationSeconds,
           bus,
           lfoClock,
+          false,
+          scale,
         );
         if (compiled) events.push({ ...compiled, trackIndex });
       }
@@ -245,7 +247,7 @@ export function compileRow(pattern, trackChannels, instruments, transportStep, t
     for (let hit = 0; hit < hits; hit++) {
       // A note that ties into the next holds its gate to just past that note's start, on its last hit.
       const hold = hit === hits - 1 && holdSteps !== null ? Math.max(slotSeconds, (holdSteps + 0.5) * stepDurationSeconds - hit * slotSeconds) : slotSeconds;
-      const compiled = compileEvent(event, trackChannel, instruments, time + hit * slotSeconds, hold, bus, lfoClock, tieIn && hit === 0);
+      const compiled = compileEvent(event, trackChannel, instruments, time + hit * slotSeconds, hold, bus, lfoClock, tieIn && hit === 0, scale);
       if (compiled) events.push({ ...compiled, trackIndex });
     }
   });

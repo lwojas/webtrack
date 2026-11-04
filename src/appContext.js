@@ -400,6 +400,8 @@ export function createAppContext() {
   // the DAW's transport, with this window open or closed and in an offline bounce; re-sent whenever the project changes.
   const nativeSequenceSync = createNativeSequenceSync({ getRuntime: peekRuntime, getState: () => store.getState(), getTrackBusIds: peekTrackBusIds });
   RECOVERY_TRACKED_EVENTS.forEach((event) => store.subscribe(event, nativeSequenceSync.schedule));
+  // The Track LFO's note target follows the scale's Snap, so a scale edit changes the sequence.
+  store.subscribe(events.SCALE_CHANGED, nativeSequenceSync.schedule);
 
   // Selecting a pattern always repaints the grid (the edit view) immediately — see
   // state/store.js's selectPattern. Whether that's also what plays next depends on whether

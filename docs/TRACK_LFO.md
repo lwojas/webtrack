@@ -27,9 +27,9 @@ consumer of the same event stays valid. Projects without these fields play exact
 
 With target `pitch` the velocity is left alone and the LFO moves each participating step along the
 notes its instrument can play: every slice of a chop instrument (root note = slice 1), otherwise
-notes 0-127. The authored note is the centre; it moves `lfo x depth x Event.lfo x (notes - 1)`
+notes 0-127 (trimmed by Snap, below). The authored note is the centre; it moves `lfo x depth x Event.lfo x (notes - 1)`
 places, rounded and clamped to the ends (depth 100% can reach any note). `audio/trackLfo.js#effectiveNote`;
-the stored note is never changed, and the project scale is not consulted. Same behaviour as webseq.
+the stored note is never changed. With the project scale's **Snap** on, only notes of the scale are visited (the authored note always stays, even if off-scale); chop slices are never trimmed. Same behaviour as webseq.
 
 ### Waveforms
 

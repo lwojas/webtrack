@@ -17,9 +17,10 @@ const STEP_SECONDS = 60 / REFERENCE_BPM / STEPS_PER_BEAT;
 //   entries        [{ pattern }] in queue order (model/query.js#getPatternQueueEntries)
 //   trackChannels, instruments, trackBusIds  as the player gets them
 //   swing          the song's swing amount
+//   scale          the song's scale (the Track LFO's note target honours Snap)
 //   hasSample(id)  is this sample loaded in the engine? (events for one it lacks are left out; the sequence is sent again when it has it)
 //   paramContext   automation.js#toScheduledParam's context (effect/instrument/sample parameter resolvers)
-export function compileNativeSequence({ entries, trackChannels, instruments, trackBusIds, swing, hasSample, paramContext }) {
+export function compileNativeSequence({ entries, trackChannels, instruments, trackBusIds, swing, scale, hasSample, paramContext }) {
   const events = [];
   let cycleSteps = 0;
   const lfoClock = { anchorTime: 0, bpm: REFERENCE_BPM };
@@ -29,7 +30,7 @@ export function compileNativeSequence({ entries, trackChannels, instruments, tra
     for (let row = 0; row < pattern.rowCount; row++) {
       const step = cycleSteps + row;
       const time = step * STEP_SECONDS + swingDelaySeconds(step, STEP_SECONDS, swing);
-      for (const e of compileRow(pattern, trackChannels, instruments, row, time, STEP_SECONDS, trackBusIds, lfoClock)) {
+      for (const e of compileRow(pattern, trackChannels, instruments, row, time, STEP_SECONDS, trackBusIds, lfoClock, scale)) {
         if (e.kind === "sample") {
           if (!hasSample(e.sampleId)) continue;
           const mono = trackChannels[e.trackIndex]?.voiceMode === "mono";

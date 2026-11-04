@@ -32,6 +32,7 @@ export function createNativeSequenceSync({ getRuntime, getState, getTrackBusIds 
       instruments: state.instruments,
       trackBusIds: getTrackBusIds(),
       swing: state.song.swing,
+      scale: state.song.scale,
       hasSample: (id) => runtime.getSample(id) !== undefined,
       paramContext: {
         trackBusIds: getTrackBusIds(),

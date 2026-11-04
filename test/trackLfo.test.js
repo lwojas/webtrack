@@ -217,3 +217,22 @@ describe("sample & hold waveform", () => {
     expect(values.size).toBeGreaterThan(4);
   });
 });
+
+describe("effectiveNote with scale Snap", () => {
+  const synth = createInstrumentSlot({ id: 0, rootNote: 60 });
+  const cMajor = { root: 0, scale: "major", snap: true, preset: null };
+  const pl = (patch = {}) => channel(lfo({ target: "pitch", ...patch }));
+
+  it("visits only scale notes when Snap is on", () => {
+    // C major above 60: 62, 64, 65, 67 ... one place up from 60 is 62.
+    const small = pl({ depth: 1 / 127 }); // 1 place of 75 scale notes... rounds to 1
+    expect(effectiveNote(small, event({ note: 60 }), HIGH, clock, synth, cMajor)).toBe(62);
+    expect(effectiveNote(small, event({ note: 60 }), LOW, clock, synth, cMajor)).toBe(59);
+  });
+
+  it("ignores the scale when Snap is off, and keeps an off-scale authored note", () => {
+    const off = { ...cMajor, snap: false };
+    expect(effectiveNote(pl({ depth: 1 / 127 }), event({ note: 60 }), HIGH, clock, synth, off)).toBe(61);
+    expect(effectiveNote(pl({ depth: 1 / 127 }), event({ note: 61 }), HIGH, clock, synth, cMajor)).toBe(62);
+  });
+});

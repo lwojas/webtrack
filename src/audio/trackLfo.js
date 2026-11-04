@@ -6,6 +6,7 @@
 // time): deterministic and correct for events scheduled ahead of the audio clock.
 import { LFO_DIVISIONS, LfoWaveform, lfoValueAt } from "webdsp";
 import { MAX_NOTE, noteForSlice, sliceCount } from "../model/chop.js";
+import { isNoteInScale, normalizeScale } from "../model/scale.js";
 
 const WAVEFORMS = {
   sine: LfoWaveform.Sine,
@@ -45,8 +46,9 @@ export function effectiveVelocity(channel, event, baseVelocity, eventTime, clock
 }
 
 // The notes `instrument` can play, ascending: every slice of a chop instrument (root note = slice 1),
-// else the whole note range.
-function playableNotes(instrument) {
+// else the whole note range, trimmed to the project scale when Snap is on (`keep`, the authored note,
+// always stays so an existing off-scale note is never lost).
+function playableNotes(instrument, scale, keep) {
   if (instrument?.sampleMode === "chop") {
     const notes = [];
     for (let slice = 0, n = Math.max(1, sliceCount(instrument.cues)); slice < n; slice++) {
@@ -55,18 +57,21 @@ function playableNotes(instrument) {
     }
     return notes;
   }
-  return Array.from({ length: MAX_NOTE + 1 }, (_, i) => i);
+  const ctx = normalizeScale(scale);
+  const all = Array.from({ length: MAX_NOTE + 1 }, (_, i) => i);
+  return ctx.snap ? all.filter((n) => n === keep || isNoteInScale(ctx, n)) : all;
 }
 
 // The note (the slice on a chop instrument) a cell should play when scheduled at `eventTime`. With
 // the "pitch" target the LFO moves the note along the playable notes: lfo x depth x participation x
 // (notes - 1) places from the authored one, clamped to the ends. Untouched for any other target, no
 // enabled LFO, a non-participating cell, no clock, or a note outside the list. Never stored.
-export function effectiveNote(channel, event, eventTime, clock, instrument) {
+// `scale` is the song's scale ({ root, scale, snap }): with Snap on only its notes are visited.
+export function effectiveNote(channel, event, eventTime, clock, instrument, scale) {
   const lfo = channel?.eventLfo;
   const participation = event.lfo ?? 0;
   if (!clock || !lfo || !lfo.enabled || lfo.target !== "pitch" || !(participation > 0)) return event.note;
-  const notes = playableNotes(instrument);
+  const notes = playableNotes(instrument, scale, event.note);
   const at = notes.indexOf(event.note);
   if (at < 0) return event.note;
   const places = Math.round(eventLfoValue(lfo, eventTime, clock) * lfo.depth * participation * (notes.length - 1));

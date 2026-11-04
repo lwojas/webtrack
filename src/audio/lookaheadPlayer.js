@@ -42,6 +42,9 @@ export function createLookaheadPlayer({
   // rescheduling. Deliberately optional/defaulted: tests and other callers that don't care
   // about swing never need to know it exists.
   getSwing = () => 0,
+  // The song's scale (model/scale.js), read fresh each step: the Track LFO's note target stays on the
+  // scale's notes when Snap is on. Optional: null = every note.
+  getScale = () => null,
   onPatternSwitched,
   getNextQueueEntry,
   onTrackFxChange,
@@ -146,7 +149,7 @@ export function createLookaheadPlayer({
       // got above, so event LFOs and synth LFOs/Pulse share one timebase. Not reset by pattern
       // switches (the LFO belongs to the track).
       const lfoClock = { anchorTime: startTime, bpm: 60 / (duration * STEPS_PER_BEAT) };
-      const events = compileRow(pattern, trackChannels, instruments, patternRelativeStep, scheduledTime, duration, trackBusIds, lfoClock);
+      const events = compileRow(pattern, trackChannels, instruments, patternRelativeStep, scheduledTime, duration, trackBusIds, lfoClock, getScale());
       // compileEvent's own `kind` tag (audio/compile.js) splits this row's events three ways:
       // webdsp sample voices (with all the voice-limit bookkeeping below), MIDI output
       // (self-contained — see audio/midiOutput.js's doc comment on why it needs none of that),
