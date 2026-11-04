@@ -104,6 +104,12 @@ records: `glitch.mix` 0 is an exact bypass and the 0 → >0 edge engages it, usi
 `glitch.division` of audio, Tape reads the signal back at `glitch.speed`, Gate chops it with `glitch.mix` as the depth) and
 division in force at that moment. Mix and speed can be cell-automated or LFO-driven, which is how a repeat or a tape stop is played.
 
+Dub Space (`dubspace`, webdsp `EffectKind.DubSpace`, webdsp docs/dub-space.md) is a tape dub echo plus a deep synthetic space, each with
+its own switch (`dspace.echoOn`, `dspace.spaceOn`, setup params, not cell automation targets). With both on, the space sits in the echo's
+feedback loop: every repeat is smeared and darkened a little more until the echo turns into a cloud. `dspace.time` is a note division like
+Dub Delay's; `dspace.character` is tape drift, saturation, loop darkness and movement in one control; `dspace.mix` 0 is a bypass. `dspace.decay` is the space's decay time (about 0.8 s to 15 min, exponential), `dspace.size` the room.
+Needs a webdsp built from the Decay commit or later.
+
 Compressor sidechain (`comp.sidechain`, webdsp `NodeParam.CompSidechain`) names the track whose signal drives the detector, so
 a bass ducks to a kick: 0 is off (the compressor's own input), N is track N (`trackIndex + 1`). It is a `kind: "track"` catalog
 entry, picked from the song's tracks in the FX panel (a track cannot key itself) and shown as `TRK n` on Push; never a cell

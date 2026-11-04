@@ -28,6 +28,7 @@ describe("Utility FX in the catalog", () => {
     expect(resolveNodeParam("utility.gain")).toBeTypeOf("number");
     expect(resolveNodeParam("dub.division")).toBeTypeOf("number"); // needs webdsp with DubDelay
     expect(resolveNodeParam("glitch.mix")).toBeTypeOf("number"); // needs webdsp with Glitch
+    expect(resolveNodeParam("dspace.mix")).toBeTypeOf("number"); // needs webdsp with Dub Space
   });
 });
 

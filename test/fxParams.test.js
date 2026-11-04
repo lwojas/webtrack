@@ -181,3 +181,22 @@ describe("comp.sidechain — the track a compressor's detector listens to (webds
     expect(formatFxValue(64, param)).toBe("TRK 64");
   });
 });
+
+describe("Dub Space catalog entries (webdsp's dub echo with a space in its loop)", () => {
+  it("is an FX type whose params map to the DubSpace NodeParams", () => {
+    expect(FX_TYPES.find((t) => t.id === "dubspace")).toEqual({ id: "dubspace", label: "Dub Space" });
+    expect(getFxParamsForType("dubspace").map((p) => [p.id, p.nodeParam])).toEqual([
+      ["dspace.echoOn", "DubSpaceEchoOn"],
+      ["dspace.time", "DubSpaceTime"],
+      ["dspace.feedback", "DubSpaceFeedback"],
+      ["dspace.tone", "DubSpaceTone"],
+      ["dspace.spaceOn", "DubSpaceSpaceOn"],
+      ["dspace.size", "DubSpaceSize"],
+      ["dspace.decay", "DubSpaceDecay"],
+      ["dspace.depth", "DubSpaceDepth"],
+      ["dspace.damping", "DubSpaceDamping"],
+      ["dspace.character", "DubSpaceCharacter"],
+      ["dspace.mix", "DubSpaceMix"],
+    ]);
+  });
+});

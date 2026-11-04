@@ -119,6 +119,21 @@ export const FX_PARAMS = [
   { id: "glitch.division", nodeParam: "GlitchDivision", type: "glitch", group: "Glitch", label: "Time", min: 0, max: 5, default: 1, step: 1, unit: "", labels: ["1/2", "1/4", "1/8", "1/16", "1/32", "1/64"] },
   { id: "glitch.speed", nodeParam: "GlitchSpeed", type: "glitch", group: "Glitch", label: "Speed", min: -1, max: 2, default: 1, step: 0.01, unit: "x" },
 
+  // Dub Space (webdsp EffectKind.DubSpace, docs/dub-space.md): a tape dub echo and a deep synthetic space, each its own switch. With
+  // both on, the space sits in the echo's feedback loop and every repeat is smeared a little further. `time` is a DubDelayDivision
+  // step index like Dub Delay's. Character is tape drift, saturation, loop darkness and movement in one. Mix 0 is a bypass.
+  { id: "dspace.echoOn", nodeParam: "DubSpaceEchoOn", type: "dubspace", group: "Dub Space", label: "Echo", kind: "boolean", min: 0, max: 1, default: 1, step: 1, unit: "", onLabel: "ON", offLabel: "OFF", cellAutomatable: false },
+  { id: "dspace.time", nodeParam: "DubSpaceTime", type: "dubspace", group: "Dub Space", label: "Time", min: 0, max: 9, default: 2, step: 1, unit: "", labels: ["1/16", "1/8", "1/8.", "1/4", "1/4.", "1/2", "1/16T", "1/8T", "1/4T", "1/2T"] },
+  { id: "dspace.feedback", nodeParam: "DubSpaceFeedback", type: "dubspace", group: "Dub Space", label: "Feedback", min: 0, max: 0.92, default: 0.55, step: 0.01, unit: "" },
+  { id: "dspace.tone", nodeParam: "DubSpaceTone", type: "dubspace", group: "Dub Space", label: "Tone", min: 200, max: 16000, default: 4000, step: 1, unit: "Hz" },
+  { id: "dspace.spaceOn", nodeParam: "DubSpaceSpaceOn", type: "dubspace", group: "Dub Space", label: "Space", kind: "boolean", min: 0, max: 1, default: 1, step: 1, unit: "", onLabel: "ON", offLabel: "OFF", cellAutomatable: false },
+  { id: "dspace.size", nodeParam: "DubSpaceSize", type: "dubspace", group: "Dub Space", label: "Size", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
+  { id: "dspace.decay", nodeParam: "DubSpaceDecay", type: "dubspace", group: "Dub Space", label: "Decay", min: 0, max: 1, default: 0.35, step: 0.01, unit: "" },
+  { id: "dspace.depth", nodeParam: "DubSpaceDepth", type: "dubspace", group: "Dub Space", label: "Depth", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
+  { id: "dspace.damping", nodeParam: "DubSpaceDamping", type: "dubspace", group: "Dub Space", label: "Damping", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
+  { id: "dspace.character", nodeParam: "DubSpaceCharacter", type: "dubspace", group: "Dub Space", label: "Character", min: 0, max: 1, default: 0.3, step: 0.01, unit: "" },
+  { id: "dspace.mix", nodeParam: "DubSpaceMix", type: "dubspace", group: "Dub Space", label: "Mix", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
+
   // EQ (webdsp EffectKind.Eq, docs/eq.md): four serial bands. On and Slope are boolean switches, Type is a
   // stepped value shown by name (`labels`); those and the shelf slope are setup params, not cell automation
   // targets. Bands default off, so a new EQ is neutral. Gain/Freq/Q are the automatable controls.
@@ -181,6 +196,7 @@ export const FX_TYPES = [
   { id: "utility", label: "Utility" },
   { id: "dubdelay", label: "Dub Delay" },
   { id: "glitch", label: "Glitch" },
+  { id: "dubspace", label: "Dub Space" },
   { id: "eq", label: "EQ" },
 ];
 

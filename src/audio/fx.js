@@ -57,6 +57,7 @@ const EFFECT_KIND_BY_TYPE = {
   dubdelay: EffectKind.DubDelay,
   eq: EffectKind.Eq,
   glitch: EffectKind.Glitch,
+  dubspace: EffectKind.DubSpace,
 };
 
 // This session's own instanceId -> webdsp EffectId mapping, one Map per bus — never persisted
