@@ -180,7 +180,7 @@ function InstrumentOutputPicker({ store, instrumentController }) {
   // Switching to "midi" needs a channel right away (compileEvent treats a missing channel as
   // "nothing to send" — see audio/compile.js) — default to the last one used, or channel 1.
   // Switching to "instrument" needs a kind, one of model/instrumentParams.js#SYNTH_KINDS
-  // (kick/snare/clap/tom/hihat/bass/pulse/pad/fm/hypersaw/pwmbeast/dm_thump/dm_metal/dm_tone/dm_crack/dm_chaos/percsynth/edge/matrix); state/store.js#setInstrumentOutput (re)seeds instrumentParams
+  // (kick/snare/clap/tom/hihat/bass/pulse/pad/fm/hypersaw/pwmbeast/dm_thump/dm_metal/dm_tone/dm_crack/dm_chaos/percsynth/edge/matrix/noise); state/store.js#setInstrumentOutput (re)seeds instrumentParams
   // with that kind's own catalog defaults, both the first time a slot becomes "instrument" and
   // whenever the kind itself changes. `track` carries over across a kind switch (KICK -> SNARE
   // keeps whatever bus routing was already chosen) but resets to null (MASTER_BUS) switching to
@@ -384,6 +384,12 @@ function InstrumentEditor({ store, instrumentController, view, onViewChange }) {
   const lfoRate = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.lfoRate ?? 5);
   const lfoPitch = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.lfoPitch ?? 0);
   const lfoFilter = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.lfoFilter ?? 0);
+  // Noise ids not used by any kind above (tune, spread, density, sweep, drive, tone, resonance, attack, decay,
+  // sustain and release are shared by id; their ranges differ per kind).
+  const source = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.source ?? 0);
+  const color = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.color ?? 0.6);
+  const texture = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.texture ?? 0);
+  const mix = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.mix ?? 0.5);
   // Matrix has 64 controls (its voice plus the 42 patch cells): one selector of the joined values rather
   // than a hook each, for the same primitive-selector reason. A value the slot has not stored yet is the
   // catalog default. Only read when the output kind is "matrix" (below).
@@ -402,6 +408,7 @@ function InstrumentEditor({ store, instrumentController, view, onViewChange }) {
     osc1Wave, osc1Level, osc2Wave, osc2Pitch, osc2Level, osc2Fm, pitchEnv, osc2Env, noiseTone, noiseDecay,
     filterType, filterEnv, filterDecay,
     bright, brightEnv, routing, filterA, filterB, toneDecay, lfoRate, lfoPitch, lfoFilter,
+    source, color, texture, mix,
     ...(outputKind === "matrix" ? matrixValues : {}),
   };
 

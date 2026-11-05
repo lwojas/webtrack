@@ -365,6 +365,33 @@ export const MATRIX_PARAMS = [
   ...MATRIX_CELL_PARAMS,
 ];
 
+// Noise — mirrors webdsp's docs/noise-instrument.md: noise as the primary source. Six sources, a one-knob
+// spectral tilt (Color), a grain gate (Texture, rate = Density), a six-band resonator bank (Tune, Resonance,
+// Spread, Sweep), a bounded drive with regenerative feedback and an output tilt (Tone). Sustained: a cell's
+// length is the note's `duration`, so a hit (sustain 0, the default) ends itself inside the cell and a drone or
+// riser (sustain 1, long attack) holds for the whole cell. Tune is the resonator root, not a played pitch; a
+// note's pitch is semitones on top of it, with C-4 (note 60) as the "as set" note.
+// Ids shared with other kinds (tune, spread, density, sweep, drive, tone, resonance, attack, decay, sustain,
+// release) have their own ranges here.
+export const NOISE_SOURCE_OPTIONS = ["White", "Pink", "Brown", "Metal", "Crackle", "Burst"];
+export const NOISE_PARAMS = [
+  { id: "source", webdspParam: "Source", label: "Source", min: 0, max: 5, default: 0, step: 1, unit: "", options: NOISE_SOURCE_OPTIONS },
+  { id: "color", webdspParam: "Color", label: "Color", min: 0, max: 1, default: 0.6, step: 0.01, unit: "" },
+  { id: "texture", webdspParam: "Texture", label: "Texture", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
+  { id: "density", webdspParam: "Density", label: "Density", min: 2, max: 4000, default: 40, step: 1, unit: "Hz" },
+  { id: "tune", webdspParam: "Tune", label: "Tune", min: 40, max: 12000, default: 900, step: 1, unit: "Hz" },
+  { id: "resonance", webdspParam: "Resonance", label: "Resonance", min: 0, max: 1, default: 0.4, step: 0.01, unit: "" },
+  { id: "spread", webdspParam: "Spread", label: "Spread", min: 0, max: 1, default: 0.45, step: 0.01, unit: "" },
+  { id: "sweep", webdspParam: "Sweep", label: "Sweep", min: -4, max: 4, default: 0, step: 0.05, unit: "oct" },
+  { id: "attack", webdspParam: "Attack", label: "Attack", min: 0.0005, max: 8, default: 0.001, step: 0.0005, unit: "s" },
+  { id: "decay", webdspParam: "Decay", label: "Decay", min: 0.02, max: 8, default: 0.25, step: 0.01, unit: "s" },
+  { id: "sustain", webdspParam: "Sustain", label: "Sustain", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
+  { id: "release", webdspParam: "Release", label: "Release", min: 0.005, max: 8, default: 0.2, step: 0.005, unit: "s" },
+  { id: "drive", webdspParam: "Drive", label: "Drive", min: 0, max: 1, default: 0.15, step: 0.01, unit: "" },
+  { id: "tone", webdspParam: "Tone", label: "Tone", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
+  { id: "mix", webdspParam: "Mix", label: "Mix", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
+];
+
 // One entry per webdsp InstrumentKind, mirroring the `{ id, name, category, params }` shape
 // `runtime.getCapabilities().instruments` itself reports (node_modules/webdsp's
 // docs/instruments.md) — model/ stays webdsp-free (docs/EXTENDING.md's layer map) so this is a
@@ -431,6 +458,8 @@ const SYNTH_KIND_DEFS = [
   { id: "edge", name: "Edge", category: "synth", params: EDGE_PARAMS, sustained: true, rootNote: 57 },
   // Matrix (webdsp's docs/matrix-instrument.md): sustained, tunes to 110 Hz = A-2 = note 45.
   { id: "matrix", name: "Matrix", category: "synth", params: MATRIX_PARAMS, sustained: true, rootNote: 45 },
+  // Noise (webdsp's docs/noise-instrument.md): sustained, C-4 (note 60) plays Tune as set.
+  { id: "noise", name: "Noise", category: "synth", params: NOISE_PARAMS, sustained: true, rootNote: 60 },
 ];
 
 // Registry of every synthesized-instrument kind's own param catalog, keyed by the same string

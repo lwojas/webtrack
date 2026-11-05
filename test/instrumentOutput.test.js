@@ -147,6 +147,13 @@ describe("store.setInstrumentOutput — switching synth kind", () => {
     expect(Object.keys(params).length).toBeGreaterThanOrEqual(109);
   });
 
+  it("seeds Noise's catalog defaults at its own root (C-4)", () => {
+    const store = createStore({ song: createSong(), instruments: [createInstrumentSlot({ id: 0 })] });
+    store.setInstrumentOutput(0, { type: "instrument", channel: null, kind: "noise" });
+    expect(store.getState().instruments[0].rootNote).toBe(60);
+    expect(store.getState().instruments[0].instrumentParams).toMatchObject({ source: 0, color: 0.6, texture: 0, density: 40, tune: 900, sustain: 0, mix: 0.5 });
+  });
+
   it("leaves a hand-set rootNote alone when switching between drum kinds", () => {
     const store = createStore({ song: createSong(), instruments: [createInstrumentSlot({ id: 0, rootNote: 48 })] });
 

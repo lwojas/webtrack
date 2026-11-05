@@ -18,6 +18,7 @@ import {
   DM_CHAOS_PARAMS,
   PERCSYNTH_PARAMS,
   EDGE_PARAMS,
+  NOISE_PARAMS,
   MATRIX_CELL_PARAMS,
   MATRIX_PARAMS,
   SYNTH_KINDS,
@@ -66,10 +67,10 @@ describe("model/instrumentParams.js", () => {
   });
 
   it("SYNTH_KINDS lists every webdsp instrument kind with a stable id, a display name, and a category", () => {
-    expect(SYNTH_KINDS.map((k) => k.id)).toEqual(["kick", "snare", "clap", "tom", "hihat", "bass", "pulse", "pad", "fm", "hypersaw", "pwmbeast", "dm_thump", "dm_metal", "dm_tone", "dm_crack", "dm_chaos", "percsynth", "edge", "matrix"]);
-    expect(SYNTH_KINDS.map((k) => k.name)).toEqual(["Kick", "Snare", "Clap", "Tom", "Hi-Hat", "Bass", "Pulse", "Pad", "FM", "Hypersaw", "PWM Beast", "FM Thump", "FM Metal", "FM Tone", "FM Crack", "FM Chaos", "Perc Synth", "Edge", "Matrix"]);
+    expect(SYNTH_KINDS.map((k) => k.id)).toEqual(["kick", "snare", "clap", "tom", "hihat", "bass", "pulse", "pad", "fm", "hypersaw", "pwmbeast", "dm_thump", "dm_metal", "dm_tone", "dm_crack", "dm_chaos", "percsynth", "edge", "matrix", "noise"]);
+    expect(SYNTH_KINDS.map((k) => k.name)).toEqual(["Kick", "Snare", "Clap", "Tom", "Hi-Hat", "Bass", "Pulse", "Pad", "FM", "Hypersaw", "PWM Beast", "FM Thump", "FM Metal", "FM Tone", "FM Crack", "FM Chaos", "Perc Synth", "Edge", "Matrix", "Noise"]);
     for (const kind of SYNTH_KINDS) {
-      expect(kind.category).toBe({ bass: "bass", pulse: "synth", pad: "synth", fm: "synth", hypersaw: "synth", pwmbeast: "synth", dm_thump: "digital", dm_metal: "digital", dm_tone: "digital", dm_crack: "digital", dm_chaos: "digital", percsynth: "synth", edge: "synth", matrix: "synth" }[kind.id] ?? "drum");
+      expect(kind.category).toBe({ bass: "bass", pulse: "synth", pad: "synth", fm: "synth", hypersaw: "synth", pwmbeast: "synth", dm_thump: "digital", dm_metal: "digital", dm_tone: "digital", dm_crack: "digital", dm_chaos: "digital", percsynth: "synth", edge: "synth", matrix: "synth", noise: "synth" }[kind.id] ?? "drum");
       expect(getSynthParams(kind.id)).toBe(kind.params);
     }
   });
@@ -208,6 +209,24 @@ describe("model/instrumentParams.js", () => {
     }
   });
 
+  it("mirrors webdsp's noise-instrument.md table — engine enum member names, a stepped source, sustained at C-4", () => {
+    expect(NOISE_PARAMS.map((p) => p.webdspParam)).toEqual([
+      "Source", "Color", "Texture", "Density", "Tune", "Resonance", "Spread", "Sweep", "Attack", "Decay",
+      "Sustain", "Release", "Drive", "Tone", "Mix",
+    ]);
+    expect(new Set(NOISE_PARAMS.map((p) => p.id)).size).toBe(NOISE_PARAMS.length);
+    expect(NOISE_PARAMS.find((p) => p.id === "source").options).toEqual(["White", "Pink", "Brown", "Metal", "Crackle", "Burst"]);
+    expect(NOISE_PARAMS.find((p) => p.id === "sweep").min).toBeLessThan(0);   // signed
+    expect(NOISE_PARAMS.find((p) => p.id === "sustain").default).toBe(0);     // a one-shot hit out of the box
+    expect(NOISE_PARAMS.find((p) => p.id === "attack").max).toBeGreaterThanOrEqual(8);   // risers
+    expect(isSustainedSynthKind("noise")).toBe(true);
+    expect(synthKindRootNote("noise")).toBe(60);
+    for (const param of NOISE_PARAMS) {
+      expect(param.default).toBeGreaterThanOrEqual(param.min);
+      expect(param.default).toBeLessThanOrEqual(param.max);
+    }
+  });
+
   it("mirrors webdsp's matrix-instrument.md table — 21 module knobs, then 88 signed cables in engine order", () => {
     expect(MATRIX_PARAMS).toHaveLength(21 + 88);
     expect(MATRIX_PARAMS.slice(0, 21).map((p) => p.webdspParam)).toEqual([
@@ -242,7 +261,7 @@ describe("model/instrumentParams.js", () => {
   });
 
   it("only the Bass, Pulse, Pad and FM are sustained and bring their own root note (A-1 = 33, A-2 = 45)", () => {
-    expect(SYNTH_KINDS.filter((k) => isSustainedSynthKind(k.id)).map((k) => k.id)).toEqual(["bass", "pulse", "pad", "fm", "hypersaw", "pwmbeast", "dm_tone", "dm_chaos", "edge", "matrix"]);
+    expect(SYNTH_KINDS.filter((k) => isSustainedSynthKind(k.id)).map((k) => k.id)).toEqual(["bass", "pulse", "pad", "fm", "hypersaw", "pwmbeast", "dm_tone", "dm_chaos", "edge", "matrix", "noise"]);
     expect(synthKindRootNote("pad")).toBe(45);
     expect(synthKindRootNote("fm")).toBe(45);
     expect(synthKindRootNote("hypersaw")).toBe(45);

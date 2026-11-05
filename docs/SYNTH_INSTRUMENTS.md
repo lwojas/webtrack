@@ -507,3 +507,24 @@ A semi-modular voice in the spirit of a Moog Mother-32 (`MATRIX_PARAMS`: 21 modu
   `level`) can be modulated; camelCase ids such as `lfo1Rate` do not match the engine's `lfo1rate`, as for the other kinds.
 - Several ids are shared with other kinds with their own ranges (`tune`, `pwm`, `cutoff`, `resonance`, `drive`, `level`).
   Constants are first-pass, not tuned by ear.
+
+## Noise (`noise`)
+
+Noise as the primary sound source (`NOISE_PARAMS`, 15 controls). webdsp's `docs/noise-instrument.md` is
+authoritative.
+
+- **Sustained, root C-4.** A cell's length is the note's `duration`, so a hit (Sustain 0, the default) ends
+  itself inside the cell and a drone or riser (Sustain 1, long Attack) holds for the whole cell. Tune is the
+  resonator root, not a played pitch; a note's pitch is semitones on top of it (C-4 plays Tune as set).
+- **Source** (stepped): White, Pink, Brown, Metal, Crackle, Burst: different behaviour, not different colours.
+  **Color** is a one-knob spectral tilt (dark rumble, flat at 0.5, bright hat), level-normalised. **Texture** moves
+  smooth, grainy, granular, crackling; **Density** is the event rate (grains, crackle pops, bursts) and does
+  nothing for smooth sources at Texture 0.
+- **Resonance group.** Tune, Resonance (ring), Spread (unison, harmonic, bell, metallic cluster) drive a six-band
+  resonator bank that turns noise metallic, tuned or bell-like; **Sweep** moves the bank with the amplitude
+  envelope (positive rises with a swell, falls with a hit).
+- **Character.** Drive (bounded; above ~0.25 it adds regenerative ring), Tone (output tilt), Mix (raw noise to
+  resonators, equal power).
+- `source` is stepped (not an LFO/automation-smoothed target).
+- Several ids are shared with other kinds with their own ranges (`tune`, `spread`, `density`, `sweep`, `drive`,
+  `tone`, `resonance`, `attack`, `decay`, `sustain`, `release`). Constants are first-pass, not tuned by ear.
