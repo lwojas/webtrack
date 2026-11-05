@@ -24,8 +24,11 @@ export default function SelectionToolbar({ store }) {
   useStore(
     store,
     events.CURSOR_MOVED,
-    (s) => `${s.cursor.trackIndex}.${s.cursor.rowIndex}.${s.selectionAnchor.trackIndex}.${s.selectionAnchor.rowIndex}`,
+    (s) => `${s.cursor.trackIndex}.${s.cursor.rowIndex}.${s.selectionAnchor.trackIndex}.${s.selectionAnchor.rowIndex}.${s.selectedInstrumentIndex}`,
   );
+  // The chop tools work with the selected instrument being a chop-mode sample; its mode and cues change on INSTRUMENTS_CHANGED,
+  // picking another instrument moves CURSOR_MOVED (above). A boolean keeps the snapshot stable.
+  const chopReady = useStore(store, events.INSTRUMENTS_CHANGED, (s) => store.getChopInstrument() !== null && s.instruments.length > 0);
   const hasClipboard = useStore(store, events.CLIPBOARD_CHANGED, (s) => s.clipboard !== null);
   const rect = store.getSelectionRect();
 
@@ -56,6 +59,21 @@ export default function SelectionToolbar({ store }) {
   function handleFillDown() {
     store.fillSelection();
   }
+
+  function handleChopFill() {
+    store.chopSelection();
+  }
+
+  function handleChopRandomise() {
+    store.chopSelection({ random: true });
+  }
+
+  // A single cell stands for the cursor's whole track; anything bigger is exactly the selection.
+  const chopTitle = chopReady
+    ? spansMultipleCells
+      ? "Applies to the selection"
+      : "Applies to the whole track"
+    : "Select an instrument in chop mode";
 
   return (
     <div className="selection-toolbar">
@@ -93,6 +111,15 @@ export default function SelectionToolbar({ store }) {
           disabled={!hasClipboard || !spansRows}
         >
           Fill Down
+        </button>
+      </div>
+      <span className="selection-toolbar__label selection-toolbar__label--sub">CHOP TOOLS</span>
+      <div className="selection-toolbar__actions">
+        <button type="button" className="selection-toolbar__button" onClick={handleChopFill} disabled={!chopReady} title={chopTitle}>
+          Fill with Chops
+        </button>
+        <button type="button" className="selection-toolbar__button" onClick={handleChopRandomise} disabled={!chopReady} title={chopTitle}>
+          Randomise Chops
         </button>
       </div>
     </div>

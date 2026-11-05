@@ -4,6 +4,7 @@
 // caller derives from the cursor + its anchor (store.js#getSelectionRect), never a second
 // selection representation of its own.
 import { createEmptyEvent, cloneEvent } from "./event.js";
+import { noteForSlice } from "./chop.js";
 
 // Clears every event in rect back to empty, in place — the same per-cell reset
 // Backspace/Delete already did for a single cell, just over a whole rect (1x1 for the
@@ -52,6 +53,28 @@ export function tileBlockIntoRect(pattern, rect, block) {
     const column = block[(t - rect.trackStart) % blockWidth];
     for (let r = rect.rowStart; r <= rect.rowEnd && r < track.events.length; r++) {
       track.events[r] = cloneEvent(column[(r - rect.rowStart) % blockHeight]);
+    }
+  }
+}
+
+// Replaces every cell in rect with a note that plays one chop slice of `instrument` (a chop-mode
+// slot, played as note = rootNote + slice — model/chop.js). In order, each track counts slices up
+// from slice 1 at the rect's first row and wraps at `slices`; with `random` (a () => 0..1) each
+// cell gets a random slice instead. Cells whose slice falls past the note range are left empty.
+export function fillRectWithChops(pattern, rect, instrumentIndex, instrument, slices, random = null) {
+  const n = Math.max(1, slices);
+  for (let t = rect.trackStart; t <= rect.trackEnd; t++) {
+    const track = pattern.tracks[t];
+    if (!track) continue;
+    for (let r = rect.rowStart; r <= rect.rowEnd && r < track.events.length; r++) {
+      const slice = random ? Math.min(n - 1, Math.floor(random() * n)) : (r - rect.rowStart) % n;
+      const note = noteForSlice(instrument.rootNote, slice);
+      const event = createEmptyEvent();
+      if (note !== null) {
+        event.note = note;
+        event.instrument = instrumentIndex;
+      }
+      track.events[r] = event;
     }
   }
 }

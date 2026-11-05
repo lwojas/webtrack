@@ -1,4 +1,4 @@
-import { MAX_NOTE, SAMPLE_MODES, normalizeChopStart, normalizeCues } from "../model/chop.js";
+import { MAX_NOTE, SAMPLE_MODES, normalizeChopStart, normalizeCues, sliceCount } from "../model/chop.js";
 import {
   selectPattern as selectPatternModel,
   setEventField,
@@ -50,7 +50,7 @@ import { MAX_INSTRUMENT_LFOS, createLfo, patchLfo } from "../model/instrumentLfo
 import { DEFAULT_ROOT_NOTE, defaultSynthParamValues, supportsTieKind, synthKindRootNote } from "../model/instrumentParams.js";
 import { rowCountForBars, SWING_MIN, SWING_MAX } from "../model/timing.js";
 import { getSelectedPattern } from "../model/query.js";
-import { clearRect, captureBlock, tileBlockIntoRect } from "../model/selectionOps.js";
+import { clearRect, captureBlock, fillRectWithChops, tileBlockIntoRect } from "../model/selectionOps.js";
 import * as events from "./events.js";
 import { SCALE_PRESETS } from "../model/scale.js";
 
@@ -317,6 +317,27 @@ export function createStore({ song, instruments }) {
     const pattern = getSelectedPattern(state.song);
     const rect = getSelectionRect();
     tileBlockIntoRect(pattern, rect, state.clipboard.block);
+    emitCellChangedInRect(rect);
+  }
+
+  // The slot the chop tools write: the selected instrument when it is a sample slot in chop mode, else null.
+  function getChopInstrument() {
+    const instrument = state.instruments[state.selectedInstrumentIndex];
+    return instrument && instrument.sampleMode === "chop" && (instrument.output?.type ?? "sample") === "sample" ? instrument : null;
+  }
+
+  // Fill / Randomise with Chops (ui/chrome/SelectionToolbar.jsx): writes the selected chop instrument's slices into the
+  // selection. A single-cell selection (nothing extended) means the cursor's whole track, top to bottom. `random` picks
+  // random slices instead of counting up from slice 1. A no-op without a chop instrument.
+  function chopSelection({ random = false } = {}) {
+    const instrument = getChopInstrument();
+    if (!instrument) return;
+    const pattern = getSelectedPattern(state.song);
+    let rect = getSelectionRect();
+    if (rect.trackStart === rect.trackEnd && rect.rowStart === rect.rowEnd) {
+      rect = { trackStart: rect.trackStart, trackEnd: rect.trackEnd, rowStart: 0, rowEnd: pattern.rowCount - 1 };
+    }
+    fillRectWithChops(pattern, rect, state.selectedInstrumentIndex, instrument, sliceCount(instrument.cues), random ? Math.random : null);
     emitCellChangedInRect(rect);
   }
 
@@ -913,6 +934,8 @@ export function createStore({ song, instruments }) {
     setSwing,
     setCell,
     getSelectionRect,
+    getChopInstrument,
+    chopSelection,
     clearSelection,
     copySelection,
     pasteSelection,

@@ -4,6 +4,7 @@ import { computePeaks } from "webdsp";
 import { addCue, cueRegions, evenCues, MIN_SLICE, moveCue, normalizeChopStart, normalizeCues, removeCue } from "../src/model/chop.js";
 import { createInstrumentSlot } from "../src/model/instrument.js";
 import { createSong } from "../src/model/song.js";
+import { getSelectedPattern } from "../src/model/query.js";
 import { deserializeProject, serializeProject } from "../src/persistence/projectFile.js";
 import { createStore } from "../src/state/store.js";
 
@@ -130,5 +131,46 @@ describe("chop start marker", () => {
     expect(store.getState().instruments[0].chopStart).toBeCloseTo(0.5 - MIN_SLICE, 6);
     store.setInstrumentCues(0, [0.05, 0.5]);
     expect(store.getState().instruments[0].cues).toEqual([0.5]);
+  });
+});
+
+describe("chop tools", () => {
+  function setup() {
+    const store = createStore({
+      song: createSong(),
+      instruments: [createInstrumentSlot({ id: 0, sampleId: 1, rootNote: 60, sampleMode: "chop", cues: [0.25, 0.5, 0.75] })],
+    });
+    const events = () => getSelectedPattern(store.getState().song).tracks[0].events;
+    return { store, events };
+  }
+
+  it("is a no-op unless the selected instrument is in chop mode", () => {
+    const { store, events } = setup();
+    store.setInstrumentSampleMode(0, "chromatic");
+    expect(store.getChopInstrument()).toBeNull();
+    store.chopSelection();
+    expect(events()[0].note).toBeNull();
+  });
+
+  it("fills a single-cell selection's whole track, counting slices up and wrapping", () => {
+    const { store, events } = setup();
+    store.chopSelection();
+    const notes = events().slice(0, 6).map((e) => e.note);
+    expect(notes).toEqual([60, 61, 62, 63, 60, 61]);
+    expect(events().every((e) => e.instrument === 0 && e.note !== null)).toBe(true);
+  });
+
+  it("fills only the selected rows, starting from slice 1 at the selection's top", () => {
+    const { store, events } = setup();
+    store.selectCell(0, 2, "note");
+    store.extendSelectionTo(0, 4);
+    store.chopSelection();
+    expect(events().map((e) => e.note).slice(0, 6)).toEqual([null, null, 60, 61, 62, null]);
+  });
+
+  it("randomises with slices inside the sample's chop range", () => {
+    const { store, events } = setup();
+    store.chopSelection({ random: true });
+    expect(events().every((e) => e.note >= 60 && e.note <= 63)).toBe(true);
   });
 });

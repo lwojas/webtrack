@@ -1847,6 +1847,10 @@ input[type="range"].range-lg {
   margin-bottom: var(--space-sm);
 }
 
+.selection-toolbar__label--sub {
+  margin-top: var(--space-sm);
+}
+
 .selection-toolbar__actions {
   display: flex;
   flex-wrap: wrap;
