@@ -392,6 +392,46 @@ export const NOISE_PARAMS = [
   { id: "mix", webdspParam: "Mix", label: "Mix", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
 ];
 
+// Wobble — mirrors webdsp's docs/wobble-instrument.md: an opinionated bass-music bass. Eight macros over one
+// fixed signal path; a single tempo-locked wobble moves filter, FM growl, resonance and formants together over
+// an unfiltered sub. Sustained (hold a note with its `duration`); Tune is the root (A-1 = 55 Hz = note 33), a
+// note's pitch is semitones on top. `rate` is synced to the transport (freerate > 0 switches to Hz).
+export const WOBBLE_RATE_OPTIONS = ["1/1", "1/2", "1/4.", "1/4", "1/8.", "1/4T", "1/8", "1/16.", "1/8T", "1/16", "1/16T", "1/32"];
+export const WOBBLE_SHAPE_OPTIONS = ["Smooth", "Square", "Ramp", "Random"];
+export const WOBBLE_PARAMS = [
+  { id: "wobble", webdspParam: "Wobble", label: "Wobble", min: 0, max: 1, default: 0.6, step: 0.01, unit: "" },
+  { id: "rate", webdspParam: "Rate", label: "Rate", min: 0, max: 11, default: 6, step: 1, unit: "", options: WOBBLE_RATE_OPTIONS },
+  { id: "shape", webdspParam: "Shape", label: "Shape", min: 0, max: 3, default: 0, step: 1, unit: "", options: WOBBLE_SHAPE_OPTIONS },
+  { id: "growl", webdspParam: "Growl", label: "Growl", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
+  { id: "bite", webdspParam: "Bite", label: "Bite", min: 0, max: 1, default: 0.45, step: 0.01, unit: "" },
+  { id: "weight", webdspParam: "Weight", label: "Weight", min: 0, max: 1, default: 0.6, step: 0.01, unit: "" },
+  { id: "drive", webdspParam: "Drive", label: "Drive", min: 0, max: 1, default: 0.4, step: 0.01, unit: "" },
+  { id: "cutoff", webdspParam: "Cutoff", label: "Cutoff", min: 80, max: 8000, default: 650, step: 1, unit: "Hz" },
+  { id: "resonance", webdspParam: "Resonance", label: "Resonance", min: 0, max: 1, default: 0.4, step: 0.01, unit: "" },
+  { id: "tune", webdspParam: "Tune", label: "Tune", min: 27.5, max: 110, default: 55, step: 0.5, unit: "Hz", scale: "note" },
+  { id: "release", webdspParam: "Release", label: "Release", min: 0.01, max: 1.5, default: 0.12, step: 0.005, unit: "s" },
+  { id: "freerate", webdspParam: "FreeRate", label: "Free Rate", min: 0, max: 20, default: 0, step: 0.1, unit: "Hz" },
+  { id: "glide", webdspParam: "Glide", label: "Glide", min: 0, max: 0.5, default: 0.06, step: 0.005, unit: "s" },
+];
+
+// Electric — mirrors webdsp's docs/electric-instrument.md: a digital electric-keyboard voice (struck tine, inharmonic
+// bell, warmth, in-voice crush). Eight macros plus Decay over one fixed path; sustained, overlapping tails. Tune is
+// the root (C4 = 261.63 Hz = note 60), a note's pitch is semitones on top. One instance is one voice.
+export const ELECTRIC_PARAMS = [
+  { id: "body", webdspParam: "Body", label: "Body", min: 0, max: 1, default: 0.55, step: 0.01, unit: "" },
+  { id: "strike", webdspParam: "Strike", label: "Strike", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
+  { id: "bell", webdspParam: "Bell", label: "Bell", min: 0, max: 1, default: 0.4, step: 0.01, unit: "" },
+  { id: "warmth", webdspParam: "Warmth", label: "Warmth", min: 0, max: 1, default: 0.4, step: 0.01, unit: "" },
+  { id: "age", webdspParam: "Age", label: "Age", min: 0, max: 1, default: 0.25, step: 0.01, unit: "" },
+  { id: "crush", webdspParam: "Crush", label: "Crush", min: 0, max: 1, default: 0.1, step: 0.01, unit: "" },
+  { id: "cutoff", webdspParam: "Cutoff", label: "Cutoff", min: 80, max: 18000, default: 7000, step: 1, unit: "Hz" },
+  { id: "resonance", webdspParam: "Resonance", label: "Resonance", min: 0, max: 1, default: 0.15, step: 0.01, unit: "" },
+  { id: "decay", webdspParam: "Decay", label: "Decay", min: 0, max: 1, default: 0.5, step: 0.01, unit: "" },
+  { id: "tune", webdspParam: "Tune", label: "Tune", min: 32.7, max: 1046.5, default: 261.63, step: 0.1, unit: "Hz", scale: "note" },
+  { id: "release", webdspParam: "Release", label: "Release", min: 0.02, max: 4, default: 0.35, step: 0.01, unit: "s" },
+  { id: "width", webdspParam: "Width", label: "Width", min: 0, max: 1, default: 0.6, step: 0.01, unit: "" },
+];
+
 // One entry per webdsp InstrumentKind, mirroring the `{ id, name, category, params }` shape
 // `runtime.getCapabilities().instruments` itself reports (node_modules/webdsp's
 // docs/instruments.md) — model/ stays webdsp-free (docs/EXTENDING.md's layer map) so this is a
@@ -460,6 +500,10 @@ const SYNTH_KIND_DEFS = [
   { id: "matrix", name: "Matrix", category: "synth", params: MATRIX_PARAMS, sustained: true, rootNote: 45 },
   // Noise (webdsp's docs/noise-instrument.md): sustained, C-4 (note 60) plays Tune as set.
   { id: "noise", name: "Noise", category: "synth", params: NOISE_PARAMS, sustained: true, rootNote: 60 },
+  // Wobble (webdsp's docs/wobble-instrument.md): sustained, Tune 55 Hz = A-1 = note 33.
+  { id: "wobble", name: "Wobble", category: "bass", params: WOBBLE_PARAMS, sustained: true, rootNote: 33 },
+  // Electric (webdsp's docs/electric-instrument.md): sustained, Tune C4 = note 60.
+  { id: "electric", name: "Electric", category: "synth", params: ELECTRIC_PARAMS, sustained: true, rootNote: 60 },
 ];
 
 // Registry of every synthesized-instrument kind's own param catalog, keyed by the same string

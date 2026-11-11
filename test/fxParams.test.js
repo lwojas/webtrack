@@ -200,3 +200,19 @@ describe("Dub Space catalog entries (webdsp's dub echo with a space in its loop)
     ]);
   });
 });
+
+describe("Character Filter catalog entries (webdsp's ladder-family filter with character)", () => {
+  it("lists the FX type and its six params in engine order, mode as a stepped selector", () => {
+    expect(FX_TYPES.find((t) => t.id === "charfilter")).toEqual({ id: "charfilter", label: "Character Filter" });
+    expect(getFxParamsForType("charfilter").map((p) => [p.id, p.nodeParam])).toEqual([
+      ["cfilter.mode", "CharFilterMode"],
+      ["cfilter.cutoff", "CharFilterCutoff"],
+      ["cfilter.resonance", "CharFilterResonance"],
+      ["cfilter.drive", "CharFilterDrive"],
+      ["cfilter.character", "CharFilterCharacter"],
+      ["cfilter.envamt", "CharFilterEnvAmount"],
+    ]);
+    expect(getFxParam("cfilter.mode").labels).toHaveLength(4);
+    expect(getFxParam("cfilter.mode").cellAutomatable).toBe(false);
+  });
+});

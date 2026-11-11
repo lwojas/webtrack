@@ -10,6 +10,7 @@ import * as events from "../../state/events.js";
 import { loadSample } from "../../audio/instrumentLoader.js";
 import { initRuntime } from "../../audio/runtime.js";
 import { getModulationOptions } from "../../audio/instrument.js";
+import { electricPresets } from "../../audio/presets.js";
 import { MAX_INSTRUMENT_LFOS } from "../../model/instrumentLfos.js";
 import { toHex } from "../../model/notes.js";
 import { ENVELOPE_PARAMS, formatEnvelopeValue } from "../../model/envelopeParams.js";
@@ -180,7 +181,7 @@ function InstrumentOutputPicker({ store, instrumentController }) {
   // Switching to "midi" needs a channel right away (compileEvent treats a missing channel as
   // "nothing to send" — see audio/compile.js) — default to the last one used, or channel 1.
   // Switching to "instrument" needs a kind, one of model/instrumentParams.js#SYNTH_KINDS
-  // (kick/snare/clap/tom/hihat/bass/pulse/pad/fm/hypersaw/pwmbeast/dm_thump/dm_metal/dm_tone/dm_crack/dm_chaos/percsynth/edge/matrix/noise); state/store.js#setInstrumentOutput (re)seeds instrumentParams
+  // (kick/snare/clap/tom/hihat/bass/pulse/pad/fm/hypersaw/pwmbeast/dm_thump/dm_metal/dm_tone/dm_crack/dm_chaos/percsynth/edge/matrix/noise/wobble/electric); state/store.js#setInstrumentOutput (re)seeds instrumentParams
   // with that kind's own catalog defaults, both the first time a slot becomes "instrument" and
   // whenever the kind itself changes. `track` carries over across a kind switch (KICK -> SNARE
   // keeps whatever bus routing was already chosen) but resets to null (MASTER_BUS) switching to
@@ -390,6 +391,17 @@ function InstrumentEditor({ store, instrumentController, view, onViewChange }) {
   const color = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.color ?? 0.6);
   const texture = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.texture ?? 0);
   const mix = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.mix ?? 0.5);
+  // Wobble / Electric ids not used by any kind above.
+  const wobble = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.wobble ?? 0.6);
+  const growl = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.growl ?? 0.5);
+  const weight = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.weight ?? 0.6);
+  const freerate = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.freerate ?? 0);
+  const glide = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.glide ?? 0.06);
+  const strike = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.strike ?? 0.5);
+  const bell = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.bell ?? 0.4);
+  const warmth = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.warmth ?? 0.4);
+  const age = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.age ?? 0.25);
+  const crush = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.crush ?? 0.1);
   // Matrix has 64 controls (its voice plus the 42 patch cells): one selector of the joined values rather
   // than a hook each, for the same primitive-selector reason. A value the slot has not stored yet is the
   // catalog default. Only read when the output kind is "matrix" (below).
@@ -409,6 +421,7 @@ function InstrumentEditor({ store, instrumentController, view, onViewChange }) {
     filterType, filterEnv, filterDecay,
     bright, brightEnv, routing, filterA, filterB, toneDecay, lfoRate, lfoPitch, lfoFilter,
     source, color, texture, mix,
+    wobble, growl, weight, freerate, glide, strike, bell, warmth, age, crush,
     ...(outputKind === "matrix" ? matrixValues : {}),
   };
 
@@ -485,6 +498,28 @@ function InstrumentEditor({ store, instrumentController, view, onViewChange }) {
                 </button>
               ))}
             </div>
+          )}
+          {outputKind === "electric" && (
+            <label className="fx-module__field">
+              <span className="fx-module__field-label" title="webdsp's starting sounds: sets every Electric control (a preset leaves the rest at their defaults)">
+                Preset
+              </span>
+              <select
+                value=""
+                onChange={(e) => {
+                  const values = electricPresets()[e.target.value];
+                  if (values) for (const [id, value] of Object.entries(values)) instrumentController.setInstrumentParam(index, id, value);
+                }}
+              >
+                <option value="">(select)</option>
+                {Object.keys(electricPresets()).map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+              <span className="fx-module__value" />
+            </label>
           )}
           {showMatrix ? (
             <PatchMatrixEditor

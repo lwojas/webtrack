@@ -528,3 +528,26 @@ authoritative.
 - `source` is stepped (not an LFO/automation-smoothed target).
 - Several ids are shared with other kinds with their own ranges (`tune`, `spread`, `density`, `sweep`, `drive`,
   `tone`, `resonance`, `attack`, `decay`, `sustain`, `release`). Constants are first-pass, not tuned by ear.
+
+## Wobble (`wobble`)
+
+An opinionated bass-music bass (`WOBBLE_PARAMS`, 13 controls). webdsp's `docs/wobble-instrument.md` is authoritative.
+
+- **Sustained, root A-1 (note 33 = 55 Hz).** Hold a note with its `duration`; attack is fixed at 2 ms. Tune is the root and a
+  note's pitch is semitones on top; a tied note glides (`glide`).
+- **One tempo-locked wobble** moves the filter cutoff, FM growl, resonance and a formant vowel together (`wobble` depth,
+  `rate` as a note division, `shape` smooth/square/ramp/random). The sub never wobbles. `freerate` > 0 switches to a
+  free-running Hz wobble that restarts at each note.
+- **Macros** `growl`, `bite`, `weight`, `drive`, `cutoff`, `resonance`; every macro stays within about 1 dB of the default's loudness.
+- `rate`, `shape` and `freerate` are stepped/non-smoothed (not LFO targets). Several ids are shared with other kinds with their own
+  ranges (`rate`, `shape`, `bite`, `drive`, `cutoff`, `resonance`, `tune`, `release`).
+
+## Electric (`electric`)
+
+A digital electric-keyboard voice (`ELECTRIC_PARAMS`, 12 controls). webdsp's `docs/electric-instrument.md` is authoritative.
+
+- **Sustained, root C-4 (note 60 = 261.63 Hz).** A new note lets the previous one ring out (three overlapping tails per
+  instance); play chords with one instrument slot per note.
+- **Macros** `body`, `strike` (soft to struck), `bell` (inharmonic upper partials), `warmth`, `age` (per-note imperfection; 0 repeats
+  exactly), `crush` (in-voice sample-rate/bit reduction), `cutoff`, `resonance`, `decay`; long-form `tune`, `release`, `width`.
+- webdsp ships `ELECTRIC_PRESETS` (electric, bright, warm, digital, keys, glass); the Instrument Editor's Preset picker applies one (audio/presets.js), resetting the rest to their defaults.

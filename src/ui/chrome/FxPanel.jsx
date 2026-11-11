@@ -1,4 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { MASTER_BUS, compressorMeter, reductionCharacter } from "webdsp";
+import { peekRuntime, peekTrackBusIds } from "../../audio/runtime.js";
+import { compressorPresets } from "../../audio/presets.js";
 import EqCurveEditor from "./EqCurveEditor.jsx";
 import LfoEditor from "./LfoEditor.jsx";
 import ModBadge from "./ModBadge.jsx";
@@ -52,6 +55,76 @@ function FxTrackField({ param, value, onChange, trackNames, ownerIndex }) {
         {value > trackNames.length && <option value={value}>{formatFxValue(value, param)} (missing)</option>}
         {trackNames.map((name, i) => (i === ownerIndex ? null : <option key={i} value={i + 1}>{`${i + 1} — ${name}`}</option>))}
       </select>
+    </label>
+  );
+}
+
+// Gain-reduction readout for a compressor: the bus's compressor as reported by the engine's meter feed (webdsp compressorMeter).
+// One compressor per bus is metered, so with several on one bus this shows the bus's. Updates the DOM directly from the meter
+// callback (no React state), attaching as soon as the runtime exists. `trackIndex` null is the master bus.
+function CompressorMeterBar({ trackIndex }) {
+  const fillRef = useRef(null);
+  const textRef = useRef(null);
+  useEffect(() => {
+    let unsubscribe = null;
+    let attachedTo = null;
+    let shown = 0;
+    let frame = 0;
+    const attach = () => {
+      const runtime = peekRuntime();
+      if (runtime && runtime !== attachedTo) {
+        unsubscribe?.();
+        attachedTo = runtime;
+        unsubscribe = runtime.onMeters((snapshot) => {
+          const bus = trackIndex === null ? MASTER_BUS : peekTrackBusIds()[trackIndex];
+          if (bus === undefined) return;
+          const gr = compressorMeter(snapshot, bus).gainReductionDb;
+          shown = gr < shown ? gr : shown + (gr - shown) * 0.25; // instant attack, smoothed release
+          if (fillRef.current) fillRef.current.style.width = `${Math.min(100, (-shown / 24) * 100)}%`;
+          if (textRef.current) textRef.current.textContent = shown > -0.1 ? "0.0 dB" : `${shown.toFixed(1)} dB · ${reductionCharacter(shown)}`;
+        });
+      }
+      frame = requestAnimationFrame(attach);
+    };
+    frame = requestAnimationFrame(attach);
+    return () => {
+      unsubscribe?.();
+      cancelAnimationFrame(frame);
+    };
+  }, [trackIndex]);
+  return (
+    <div className="fx-module__field" title="Gain reduction">
+      <span className="fx-module__field-label">GR</span>
+      <div style={{ height: 8, background: "rgba(128,128,128,0.25)", borderRadius: 2, overflow: "hidden" }}>
+        <div ref={fillRef} style={{ height: "100%", width: "0%", background: "#e8743b" }} />
+      </div>
+      <span className="fx-module__value" ref={textRef}>0.0 dB</span>
+    </div>
+  );
+}
+
+function CompressorPresetField({ onApply }) {
+  const presets = compressorPresets();
+  return (
+    <label className="fx-module__field">
+      <span className="fx-module__field-label" title="webdsp's drum-bus presets: sets threshold, ratio, attack, release, knee and makeup (threshold assumes drums peaking near -3 dBFS)">
+        Preset
+      </span>
+      <select
+        value=""
+        onChange={(e) => {
+          const preset = presets.find((p) => p.name === e.target.value);
+          if (preset) for (const [id, value] of Object.entries(preset.values)) onApply(id, value);
+        }}
+      >
+        <option value="">(select)</option>
+        {presets.map((p) => (
+          <option key={p.name} value={p.name} title={p.purpose}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+      <span className="fx-module__value" />
     </label>
   );
 }
@@ -301,7 +374,12 @@ export default function FxPanel({ store, fxController }) {
                   }}
                 />
               ) : (
-                getFxParamsForType(entry.type).map((param) => (
+                [
+                  entry.type === "compressor" && (
+                    <CompressorPresetField key="preset" onApply={(paramId, value) => handleInstanceChange(entry.id, paramId, value)} />
+                  ),
+                  entry.type === "compressor" && <CompressorMeterBar key="meter" trackIndex={target === "track" ? trackIndex : null} />,
+                  ...getFxParamsForType(entry.type).map((param) => (
                   <FxParamField
                     key={param.id}
                     param={param}
@@ -312,7 +390,8 @@ export default function FxPanel({ store, fxController }) {
                     trackNames={trackNames}
                     ownerIndex={target === "track" ? trackIndex : null}
                   />
-                ))
+                )),
+                ]
               )}
               <FxModulation entry={entry} lfoTrackIndex={target === "track" ? trackIndex : null} fxController={fxController} />
             </div>

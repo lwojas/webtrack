@@ -389,3 +389,13 @@ the catalog yet):
   "Explicitly out of scope"). The bypass flag is a plain boolean per instance id, the same shape
   `trackChannel.muted`/`solo` already have — deliberately easy to wire into `contract.js` later,
   even though this plan doesn't add an entry for it yet.
+
+Character Filter (`charfilter`, webdsp `EffectKind.CharacterFilter`, webdsp docs/character-filter.md) is a ladder-family resonant filter with
+saturation inside the loop and compressive resonance that self-oscillates in the top ~12 %. `cfilter.mode` is LP 24 / LP 12 / BP / HP 24 (a
+stepped setup param, not a cell automation target); `cfilter.character` voices it from Clean through Warm and Punchy to Aggressive;
+`cfilter.envamt` lets the input level move the cutoff by up to 4 octaves. Defaults are a light colouring, not a bypass: there is no mix, so
+disable the instance to bypass it.
+
+The Compressor module has a Preset picker (webdsp's drum-bus presets: threshold, ratio, attack, release, knee, makeup; the threshold assumes
+drums peaking near -3 dBFS) and a gain-reduction bar fed by the engine's per-bus compressor meter. One compressor per bus is metered, so with
+several on a bus the bar shows the bus's.

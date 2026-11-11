@@ -134,6 +134,17 @@ export const FX_PARAMS = [
   { id: "dspace.character", nodeParam: "DubSpaceCharacter", type: "dubspace", group: "Dub Space", label: "Character", min: 0, max: 1, default: 0.3, step: 0.01, unit: "" },
   { id: "dspace.mix", nodeParam: "DubSpaceMix", type: "dubspace", group: "Dub Space", label: "Mix", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
 
+  // Character Filter (webdsp EffectKind.CharacterFilter, docs/character-filter.md): a ladder-family resonant filter with saturation
+  // inside the loop, compressive self-oscillating resonance and a Clean-to-Aggressive voicing. Defaults are a light colouring, not a
+  // bypass (no dry/wet mix: disable the instance to bypass). Mode is a stepped selector (crossfaded, not modulatable); `character`
+  // is a continuous voicing 0 Clean, 1/3 Warm, 2/3 Punchy, 1 Aggressive. `envamt` follows the input level (up to 4 octaves).
+  { id: "cfilter.mode", nodeParam: "CharFilterMode", type: "charfilter", group: "Character Filter", label: "Mode", min: 0, max: 3, default: 0, step: 1, unit: "", labels: ["LP 24", "LP 12", "BP", "HP 24"], cellAutomatable: false },
+  { id: "cfilter.cutoff", nodeParam: "CharFilterCutoff", type: "charfilter", group: "Character Filter", label: "Cutoff", min: 30, max: 18000, default: 18000, step: 1, unit: "Hz" },
+  { id: "cfilter.resonance", nodeParam: "CharFilterResonance", type: "charfilter", group: "Character Filter", label: "Resonance", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
+  { id: "cfilter.drive", nodeParam: "CharFilterDrive", type: "charfilter", group: "Character Filter", label: "Drive", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
+  { id: "cfilter.character", nodeParam: "CharFilterCharacter", type: "charfilter", group: "Character Filter", label: "Character", min: 0, max: 1, default: 0.4, step: 0.01, unit: "" },
+  { id: "cfilter.envamt", nodeParam: "CharFilterEnvAmount", type: "charfilter", group: "Character Filter", label: "Env Amount", min: -1, max: 1, default: 0, step: 0.01, unit: "" },
+
   // EQ (webdsp EffectKind.Eq, docs/eq.md): four serial bands. On and Slope are boolean switches, Type is a
   // stepped value shown by name (`labels`); those and the shelf slope are setup params, not cell automation
   // targets. Bands default off, so a new EQ is neutral. Gain/Freq/Q are the automatable controls.
@@ -197,6 +208,7 @@ export const FX_TYPES = [
   { id: "dubdelay", label: "Dub Delay" },
   { id: "glitch", label: "Glitch" },
   { id: "dubspace", label: "Dub Space" },
+  { id: "charfilter", label: "Character Filter" },
   { id: "eq", label: "EQ" },
 ];
 
