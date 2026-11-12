@@ -475,7 +475,7 @@ function InstrumentEditor({ store, instrumentController, view, onViewChange }) {
         <>
           <div className="note-editor__section">{(outputKind ?? "").toUpperCase()}</div>
           <label className="fx-module__field">
-            <span className="fx-module__field-label" title="Which bus this instrument's output renders into">
+            <span className="fx-module__field-label" title="Which track this instrument feeds, before that track's FX. To route a track on to another one after its FX, use the Track tab's Output.">
               Output Bus
             </span>
             <select value={outputTrack ?? ""} onChange={(e) => setOutputTrack(e.target.value)}>
@@ -565,7 +565,7 @@ function InstrumentEditor({ store, instrumentController, view, onViewChange }) {
         hasSample && (
           <>
             <label className="fx-module__field">
-              <span className="fx-module__field-label" title="Which track's FX bus this sample plays through">
+              <span className="fx-module__field-label" title="Which track this sample feeds, before that track's FX. To route a track on to another one after its FX, use the Track tab's Output.">
                 Output Bus
               </span>
               <select value={outputTrack ?? ""} onChange={(e) => setSampleTrack(e.target.value)}>

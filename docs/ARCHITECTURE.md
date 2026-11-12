@@ -130,6 +130,13 @@ Three things worth noting:
   cell FX automation, pan/volume and routing (an instrument's `output.track` can target it) work as
   usual. Locking is refused while the track holds notes in any pattern. Grid columns, header and mixer
   strip use the `--send` accent.
+  **Output routing is two separate things.** An instrument's *Output Bus* (`Instrument.output.track`)
+  feeds a track's bus *before* that track's FX. A track's own **Output** (`TrackChannel.outputTrack`,
+  Track tab; `store.setTrackChannelOutput`, `audio/fx.js#setTrackOutput`, webdsp `NodeParam.BusOutput`)
+  sums the track *after* its FX, gain and pan into another track (or MASTER, the default), so a snare
+  track with its own filter can still feed a drum-bus track holding a compressor. Self-routes and
+  loops are refused (`outputTargets`); projects drop invalid routes on load and a shrunk track count
+  sends orphaned routes to MASTER.
 - **`Instrument` is not part of `Song`.** Instrument slots (and the samples loaded into them)
   are store-level (`store.instruments`), not musical data — an `Event.instrument` is just an
   index into that array. This keeps instrument/sample assignment independent of which pattern

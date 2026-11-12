@@ -15,7 +15,7 @@ import {
   sliderToRate,
 } from "../../model/eventLfo.js";
 import { rangeFillStyle } from "../rangeFill.js";
-import { isFxSend } from "../../model/trackChannel.js";
+import { effectiveOutputTrack, isFxSend, outputTargets } from "../../model/trackChannel.js";
 import { supportsTieKind } from "../../model/instrumentParams.js";
 
 // Track-level properties for the selected track (the grid cursor's track, as in FxPanel): the
@@ -26,7 +26,7 @@ import { supportsTieKind } from "../../model/instrumentParams.js";
 // It acts when a step is scheduled, not inside the synth. (The arpeggiator is not here: it belongs to the
 // instrument, see ui/chrome/ArpControls.jsx.) Edits go straight to the store: the config is read live
 // by the playback compile step, so there is no engine push.
-export default function TrackPanel({ store }) {
+export default function TrackPanel({ store, fxController }) {
   const trackIndex = useStore(store, events.CURSOR_MOVED, (s) => s.cursor.trackIndex);
   const trackName = store.getState().song.trackChannels[trackIndex]?.name ?? `TRK ${trackIndex + 1}`;
   // Fingerprints, not the mutable objects (ARCHITECTURE.md's in-place-mutation gotcha).
@@ -36,6 +36,15 @@ export default function TrackPanel({ store }) {
   useStore(store, events.PATTERN_LENGTH_CHANGED, (s) => stepCounts(s, s.cursor.trackIndex).join("/"));
   const notesOn = useStore(store, events.PATTERN_LENGTH_CHANGED, (s) => !getSelectedPattern(s.song)?.tracks[s.cursor.trackIndex]?.notesOff);
   const fxSend = useStore(store, events.TRACK_CHANNEL_CHANGED, (s) => isFxSend(s.song.trackChannels[s.cursor.trackIndex]));
+  // Where this track's bus goes after its own FX: "" = MASTER, else a track index. The key lists the
+  // legal targets too, since routing another track can add or remove loops.
+  const outputKey = useStore(store, events.TRACK_CHANNEL_CHANGED, (s) => {
+    const channels = s.song.trackChannels.slice(0, s.song.trackCount);
+    return `${effectiveOutputTrack(channels[s.cursor.trackIndex]) ?? ""}|${outputTargets(channels, s.cursor.trackIndex).join(",")}`;
+  });
+  useStore(store, events.TRACK_COUNT_CHANGED, (s) => s.song.trackCount);
+  const [outputValue, outputTargetList] = outputKey.split("|");
+  const outputTargetIds = outputTargetList === "" ? [] : outputTargetList.split(",").map(Number);
   // Locking is refused while the track holds notes (any pattern); the button reports why instead of failing silently.
   const [refusedTrack, setRefusedTrack] = useState(null);
   const lfo = JSON.parse(lfoJson);
@@ -63,6 +72,30 @@ export default function TrackPanel({ store }) {
           </button>
           {refusedTrack === trackIndex && !fxSend ? <span className="fx-panel__empty">Clear this track's notes (all patterns) first</span> : null}
           <span className="fx-panel__empty">{fxSend ? "Notes are blocked; FX and routing stay editable" : "A normal note track"}</span>
+        </div>
+
+        <div className="fx-module">
+          <div className="fx-module__header">
+            <span className="fx-module__title">Output</span>
+          </div>
+          <label className="fx-module__field">
+            <span
+              className="fx-module__field-label"
+              title="Where this track goes after its own FX, volume and pan. Pick another track to sum into its FX chain (e.g. a snare with its own filter into a drum-bus compressor). An instrument's Output Bus works the other way: it feeds a track before that track's FX."
+            >
+              Output
+            </span>
+            <select value={outputValue} onChange={(e) => fxController.setTrackOutput(trackIndex, e.target.value === "" ? null : Number(e.target.value))}>
+              <option value="">MASTER</option>
+              {outputTargetIds.map((i) => (
+                <option key={i} value={i}>
+                  TRK {i + 1}
+                </option>
+              ))}
+            </select>
+            <span className="fx-module__value" />
+          </label>
+          <span className="fx-panel__empty">After this track's FX, gain and pan</span>
         </div>
 
         <div className="fx-module">

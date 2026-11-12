@@ -32,9 +32,8 @@
 // audio/fx.js#resolveBusId already does for FX). This is orthogonal to any instrument kind's own
 // *internal* DSP (e.g. Tom's damp low-pass, a future bass synth's own filter) — that's webdsp's
 // sound design, not a webtrack routing concern; `track` only decides which bus the kind's
-// already-finished output sums into. webdsp has no bus-of-a-bus chaining (every bus — track or
-// instrument-routed — sums directly into MASTER_BUS, never into another non-master bus), so this
-// is a single either/or choice, not a chain of its own.
+// already-finished output sums into. This is the *pre-FX* feed of a track; chaining a track on into
+// another one after its FX is the track's own outputTrack (model/trackChannel.js).
 //
 // origin: "import" (a file the user picked) or "resample" (captured from the tracker's own
 // playback via audio/resampleController.js) — purely provenance/display (the Instrument Panel's

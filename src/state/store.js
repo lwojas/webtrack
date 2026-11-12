@@ -39,6 +39,8 @@ import {
   setTrackLength as setTrackLengthModel,
   setTrackCount as setTrackCountModel,
   setTrackChannelFxSend as setTrackChannelFxSendModel,
+  setTrackChannelOutput as setTrackChannelOutputModel,
+  sanitizeOutputTracks,
   stripSendTrackNotes,
   setSongName,
   addPattern as addPatternModel,
@@ -230,6 +232,8 @@ export function createStore({ song, instruments }) {
         rerouted = true;
       }
     });
+    // A track whose output went to a track that no longer exists falls back to MASTER.
+    if (sanitizeOutputTracks(state.song.trackChannels.slice(0, state.song.trackCount))) rerouted = true;
     emitter.emit(events.TRACK_COUNT_CHANGED, { trackCount: state.song.trackCount });
     if (rerouted) emitter.emit(events.INSTRUMENTS_CHANGED, {});
     emitter.emit(events.CURSOR_MOVED, {});
@@ -548,6 +552,14 @@ export function createStore({ song, instruments }) {
   // FX chain and routing are the same either way, only note triggering and note entry change.
   function setTrackChannelFxSend(trackIndex, on) {
     if (!setTrackChannelFxSendModel(state.song, trackIndex, on)) return false;
+    emitter.emit(events.TRACK_CHANNEL_CHANGED, { trackIndex });
+    return true;
+  }
+
+  // Post-FX output of a track (model/trackChannel.js#outputTrack): another track's index or null =
+  // MASTER. Returns false when refused (self, loop, unknown track). The engine push is appContext's.
+  function setTrackChannelOutput(trackIndex, target) {
+    if (!setTrackChannelOutputModel(state.song, trackIndex, target)) return false;
     emitter.emit(events.TRACK_CHANNEL_CHANGED, { trackIndex });
     return true;
   }
@@ -1035,6 +1047,7 @@ export function createStore({ song, instruments }) {
     setTrackChannelSolo,
     setTrackChannelEventLfo,
     setTrackChannelFxSend,
+    setTrackChannelOutput,
     setInstrumentArp,
     setScale,
     setTrackStepsLfo,

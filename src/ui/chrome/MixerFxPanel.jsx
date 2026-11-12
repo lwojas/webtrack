@@ -32,7 +32,7 @@ export default function MixerFxPanel({ store, fxController }) {
       </div>
       {view === "mixer" && <Mixer store={store} fxController={fxController} />}
       {view === "fx" && <FxPanel store={store} fxController={fxController} />}
-      {view === "track" && <TrackPanel store={store} />}
+      {view === "track" && <TrackPanel store={store} fxController={fxController} />}
     </div>
   );
 }

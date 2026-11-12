@@ -37,6 +37,46 @@ export function isFxSend(channel) {
   return channel?.fxSend === true;
 }
 //
+// outputTrack: where this track's bus sums into after its own FX chain, gain and pan — null/absent =
+// MASTER (the default), or another track's index (webdsp NodeParam.BusOutput). This is the post-FX
+// route: an instrument's own Output Bus (model/instrument.js#output.track) feeds a track's *input*,
+// before its FX, so e.g. a snare track can carry its own filter and still be summed into a drum-bus
+// track with a compressor. Never self, and never a loop (outputTargets below).
+export function effectiveOutputTrack(channel) {
+  const t = channel?.outputTrack;
+  return Number.isInteger(t) && t >= 0 ? t : null;
+}
+
+// Would routing `from` into `to` close a loop (to's own output chain leads back to from)?
+export function wouldCycle(trackChannels, from, to) {
+  const seen = new Set();
+  for (let t = to; t !== null && !seen.has(t); t = effectiveOutputTrack(trackChannels[t])) {
+    if (t === from) return true;
+    seen.add(t);
+  }
+  return false;
+}
+
+// The track indices `from` may output into (everything but itself and anything that would loop).
+export function outputTargets(trackChannels, from) {
+  return trackChannels.map((_, i) => i).filter((i) => i !== from && !wouldCycle(trackChannels, from, i));
+}
+
+// Drops any outputTrack that is out of range, a self-route or part of a loop (older/hand-edited
+// projects, a shrunk track count). Returns whether anything changed.
+export function sanitizeOutputTracks(trackChannels) {
+  let changed = false;
+  trackChannels.forEach((channel, i) => {
+    if (channel.outputTrack === undefined) return;
+    const t = effectiveOutputTrack(channel);
+    if (t === null || t >= trackChannels.length || t === i || wouldCycle(trackChannels, i, t)) {
+      delete channel.outputTrack;
+      changed = true;
+    }
+  });
+  return changed;
+}
+//
 // FX is a three-layer model (model/fxParams.js has the full doc comment on the catalog side),
 // built on webdsp's own ordered-FX-chain-of-*instances* primitive (node_modules/webdsp's
 // docs/fx-chain.md) rather than "one of each type":
@@ -92,6 +132,7 @@ export function createTrackChannel({
   maxVoices = DEFAULT_MAX_VOICES,
   chokeGroup = null,
   fxSend = false,
+  outputTrack = null,
 } = {}) {
   return {
     index,
@@ -107,5 +148,7 @@ export function createTrackChannel({
     chokeGroup,
     // Only written when on, so projects saved before send tracks existed stay byte-identical.
     ...(fxSend ? { fxSend: true } : {}),
+    // Likewise only written when routed to another track (absent = MASTER).
+    ...(outputTrack !== null ? { outputTrack } : {}),
   };
 }

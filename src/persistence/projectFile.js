@@ -9,7 +9,7 @@ import { createInstrumentSlot } from "../model/instrument.js";
 import { normalizeCues } from "../model/chop.js";
 import { arrayBufferToBase64, base64ToArrayBuffer } from "./base64.js";
 import { FX_TYPES, getFxParam } from "../model/fxParams.js";
-import { DEFAULT_MAX_VOICES, effectiveChokeGroup } from "../model/trackChannel.js";
+import { DEFAULT_MAX_VOICES, effectiveChokeGroup, sanitizeOutputTracks } from "../model/trackChannel.js";
 import { normalizeScale } from "../model/scale.js";
 import { normalizeArp } from "../model/arp.js";
 
@@ -167,6 +167,12 @@ function migrateTrackArps(song, instrumentDefs) {
       });
     });
   });
+}
+
+// trackChannel.outputTrack (post-FX routing into another track) is additive: absent = MASTER. Anything
+// invalid, self-referencing or looping in a hand-edited file is dropped to MASTER.
+function ensureOutputTrackDefaults(song) {
+  sanitizeOutputTracks(song.trackChannels);
 }
 
 function ensureVoiceDefaults(song) {
@@ -376,6 +382,7 @@ export async function deserializeProject(parsed, { loadSampleBytes, loadLocalAss
   migrateTrackArps(parsed.song, parsed.instruments);
   ensureVoiceDefaults(parsed.song);
   ensurePanDefaults(parsed.song);
+  ensureOutputTrackDefaults(parsed.song);
   ensureFxDefaults(parsed.song);
 
   const instruments = await Promise.all(

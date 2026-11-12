@@ -19,6 +19,7 @@
 import { MASTER_BUS, NodeParam, EffectKind } from "webdsp";
 import { initRuntime, ensureTrackBuses, peekRuntime, peekTrackBusIds } from "./runtime.js";
 import { FX_PARAMS, getFxParam, getFxParamsForType } from "../model/fxParams.js";
+import { effectiveOutputTrack } from "../model/trackChannel.js";
 import { planLfoUpdates } from "./instrumentLfo.js";
 
 const NODE_PARAM_BY_ID = new Map(FX_PARAMS.map((param) => [param.id, NodeParam[param.nodeParam]]));
@@ -285,6 +286,28 @@ export async function setTrackPan(trackIndex, pan) {
   runtime.setNodeParameter(busIds[trackIndex], NodeParam.BusPan, pan);
 }
 
+// A track bus's post-FX destination (model/trackChannel.js#outputTrack): NodeParam.BusOutput sums the
+// bus, after its FX chain, gain and pan, into another track's bus (target = its index) or MASTER_BUS
+// (target null). The engine ignores a self-route or loop; the model never produces one.
+export async function setTrackOutput(trackIndex, target) {
+  const runtime = await initRuntime();
+  const busIds = await ensureTrackBuses(Math.max(trackIndex, target ?? 0) + 1);
+  runtime.setNodeParameter(busIds[trackIndex], NodeParam.BusOutput, target === null || target === undefined ? MASTER_BUS : busIds[target]);
+}
+
+// Replays every track's output route (used after a project load and a track-count change; the buses
+// outlive a project, so a previous project's route would otherwise linger). Un-routing everything to
+// MASTER first keeps the engine from ever seeing a transient loop between the old and new routes.
+export async function resyncTrackOutputs(trackChannels, outputOf) {
+  const runtime = await initRuntime();
+  const busIds = await ensureTrackBuses(trackChannels.length);
+  for (const id of busIds) runtime.setNodeParameter(id, NodeParam.BusOutput, MASTER_BUS);
+  trackChannels.forEach((channel, i) => {
+    const target = outputOf(channel);
+    if (target !== null && busIds[target] !== undefined) runtime.setNodeParameter(busIds[i], NodeParam.BusOutput, busIds[target]);
+  });
+}
+
 export async function setMasterPan(pan) {
   const runtime = await initRuntime();
   runtime.setNodeParameter(MASTER_BUS, NodeParam.BusPan, pan);
@@ -329,6 +352,7 @@ export async function resyncAllFxChains(trackChannels, masterFxChain, masterFx) 
   // A sidechain names a track by number, so every track's bus must exist before any chain is written.
   await ensureTrackBuses(trackChannels.length);
   await Promise.all(trackChannels.map((channel, trackIndex) => resyncFxChain("track", trackIndex, channel.fxChain, channel.fx)));
+  await resyncTrackOutputs(trackChannels, effectiveOutputTrack);
   await resyncFxChain("master", undefined, masterFxChain, masterFx);
 }
 

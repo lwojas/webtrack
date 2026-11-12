@@ -18,8 +18,8 @@
 // FX chain instance's moveEffect), so a track-routing change (same as a kind change) means
 // tearing down and recreating the live instance — createSynthInstrument below already does an
 // unconditional teardown-then-create every call, so this falls out for free. `output.track` is a
-// single either/or choice, not a chain: webdsp has no bus-of-a-bus summing (every bus sums
-// straight into MASTER_BUS, never into another non-master bus), and Event.instrument is a plain
+// single either/or choice (which bus the voice feeds, before that bus's FX; passing on to another
+// track afterwards is the track's own outputTrack, audio/fx.js#setTrackOutput), and Event.instrument is a plain
 // index, not bound to one track, so routing is the slot's own explicit choice (model/
 // instrument.js) rather than inferred from whichever track happens to trigger it — that would be
 // an arbitrary, order-dependent pick if more than one track's cells ever addressed the slot.

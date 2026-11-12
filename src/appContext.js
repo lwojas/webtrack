@@ -7,6 +7,7 @@
 import { createStore } from "./state/store.js";
 import { createPlaybackController } from "./audio/playbackController.js";
 import { initRuntime, peekRuntime, peekTrackBusIds } from "./audio/runtime.js";
+import { effectiveOutputTrack } from "./model/trackChannel.js";
 import { createMidiRouteSync } from "./audio/midiRoute.js";
 import { createHostSync } from "./audio/hostSync.js";
 import { createNativeSequenceSync } from "./audio/nativeSequenceSync.js";
@@ -26,6 +27,8 @@ import {
   moveTrackFxInstance,
   moveMasterFxInstance,
   setTrackPan,
+  setTrackOutput,
+  resyncTrackOutputs,
   setMasterPan,
   resyncAllFxChains,
   syncFxInstanceLfos,
@@ -208,6 +211,14 @@ export function createAppContext() {
     setTrackPan(trackIndex, pan);
   }
 
+  // The Track tab's post-FX output route (model/trackChannel.js#outputTrack). Refused routes (self,
+  // loop) change nothing and report false, so the engine is only touched for a model-valid change.
+  function applyTrackOutput(trackIndex, target) {
+    if (!store.setTrackChannelOutput(trackIndex, target)) return false;
+    setTrackOutput(trackIndex, target);
+    return true;
+  }
+
   function applyMasterPan(pan) {
     store.setMasterPan(pan);
     setMasterPan(pan);
@@ -234,6 +245,7 @@ export function createAppContext() {
     setMasterFxBypass: applyMasterFxBypass,
     moveMasterFx: applyMoveMasterFx,
     setTrackPan: applyTrackPan,
+    setTrackOutput: applyTrackOutput,
     setMasterPan: applyMasterPan,
     // trackIndex null = the master chain.
     addFxLfo: (trackIndex, instanceId, paramId) => applyFxLfoChange(trackIndex, instanceId, () => store.addFxLfo(trackIndex, instanceId, paramId)),
@@ -419,6 +431,10 @@ export function createAppContext() {
   // comment) — every mute/solo/volume/voiceMode edit fires this same event, so this just
   // recomputes and is a no-op unless mute/solo actually changed what's audible.
   store.subscribe(events.TRACK_CHANNEL_CHANGED, () => playbackController.syncTrackMuting());
+  // A shrunk track count can drop the target of a route (the store sends that track to MASTER).
+  store.subscribe(events.TRACK_COUNT_CHANGED, () => {
+    if (peekRuntime()) resyncTrackOutputs(store.getState().song.trackChannels, effectiveOutputTrack);
+  });
 
   // Local project recovery (persistence/recovery.js) — a debounced, asset-free snapshot after
   // every meaningful edit, so an accidental reload/close can offer to restore the latest local

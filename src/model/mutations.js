@@ -7,7 +7,7 @@ import { getEvent, getPattern, getTrackChannel } from "./query.js";
 import { getFxParamsForType } from "./fxParams.js";
 import { MAX_INSTRUMENT_LFOS, createLfo, patchLfo } from "./instrumentLfos.js";
 import { BUS_GAIN_KEY, fxKey, getAutomationParam, parseKey } from "./cellAutomation.js";
-import { VOICE_MODES, createTrackChannel, isFxSend } from "./trackChannel.js";
+import { VOICE_MODES, createTrackChannel, isFxSend, outputTargets, sanitizeOutputTracks } from "./trackChannel.js";
 import { eventLfoOf, normalizeParticipation, patchEventLfo } from "./eventLfo.js";
 import { patchScale, scaleOf } from "./scale.js";
 
@@ -50,6 +50,22 @@ export function setTrackChannelFxSend(song, trackIndex, on) {
   }
   return true;
 }
+
+// Routes a track's bus (after its FX) into another track, or to MASTER (target null). Refused (false)
+// for a missing track, a self-route or a target that would form a loop.
+export function setTrackChannelOutput(song, trackIndex, target) {
+  const channel = getTrackChannel(song, trackIndex);
+  if (!channel) return false;
+  if (target === null || target === undefined) {
+    delete channel.outputTrack;
+    return true;
+  }
+  if (!outputTargets(song.trackChannels, trackIndex).includes(target)) return false;
+  channel.outputTrack = target;
+  return true;
+}
+
+export { sanitizeOutputTracks };
 
 export function clearEvent(song, { patternId, trackIndex, rowIndex }) {
   const track = getPattern(song, patternId)?.tracks[trackIndex];
