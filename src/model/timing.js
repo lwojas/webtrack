@@ -5,6 +5,15 @@ export const STEPS_PER_BEAT = 4; // one tracker row = a 16th note at 4/4
 export const BEATS_PER_BAR = 4;
 export const STEPS_PER_BAR = STEPS_PER_BEAT * BEATS_PER_BAR; // 16
 
+// Note spacing choices in rows (one row = a 16th), shared by the chop tools and keyboard/MIDI note entry's cursor advance.
+export const NOTE_SPACINGS = [
+  { label: "16th", rows: 1 },
+  { label: "8th", rows: STEPS_PER_BEAT / 2 },
+  { label: "1/4", rows: STEPS_PER_BEAT },
+  { label: "1/2", rows: STEPS_PER_BEAT * 2 },
+  { label: "1 bar", rows: STEPS_PER_BAR },
+];
+
 export const MAX_BARS = 8;
 
 // ui/chrome/TransportBar.jsx's resample length dropdown (audio/resampleController.js) — tracker-

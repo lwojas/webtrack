@@ -96,9 +96,9 @@ position (`1.1`, `1.2`, ...) rather than a raw row number — labeled on each be
 |---|---|
 | `↑ / ↓` | Move cursor by row (wraps within the pattern) |
 | `← / →` | Move cursor between note/instrument/velocity fields (wraps into the neighboring track) |
-| `Esc` | Toggle edit mode (starts **on**) |
-| Piano keys, edit mode on, cursor on **note** field | Write a note at the cursor, auto-advance down by the edit step |
-| Piano keys, any other time | Audition the note through the currently-selected instrument — doesn't write anything |
+| `Esc` | Toggle record (the **● REC** button next to Play; starts **on**) |
+| Piano keys / MIDI notes, record on, cursor on **note** field | Write a note at the cursor, then advance down by the **NOTE SPACING** (16th, 8th, 1/4, 1/2, 1 bar — right of the Tracker/Patterns tabs) |
+| Piano keys / MIDI notes, any other time | Audition the note through the currently-selected instrument — doesn't write anything |
 | `0-9`, `a-f`, cursor on **instrument**/**velocity** field | Set that field's hex value, 2 digits (`0` then `5` → `05`) |
 | `Backspace` / `Delete` | Clear the whole cell under the cursor |
 

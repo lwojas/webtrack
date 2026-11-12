@@ -477,6 +477,16 @@ input[type="range"]:disabled {
   gap: var(--space-xs);
 }
 
+.app__tab-controls {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  color: var(--text-dim);
+  font-size: var(--text-label);
+  letter-spacing: 0.04em;
+}
+
 .app__tab {
   padding: var(--space-xs) var(--space-lg);
   background: var(--surface-2);
@@ -539,6 +549,29 @@ input[type="range"]:disabled {
 .transport-bar__play--active:hover {
   background: var(--emerald);
   color: var(--surface);
+}
+
+.transport-bar__record {
+  padding: var(--space-xs) var(--space-lg);
+  background: var(--surface-1);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition:
+    background var(--transition-fast),
+    color var(--transition-fast);
+}
+
+.transport-bar__record:hover {
+  background: var(--surface-3);
+  color: var(--crimson);
+}
+
+.transport-bar__record--active,
+.transport-bar__record--active:hover {
+  background: var(--crimson);
+  color: var(--surface);
+  border-color: var(--crimson);
 }
 
 .transport-bar__pending {

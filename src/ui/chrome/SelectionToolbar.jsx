@@ -1,16 +1,7 @@
 import { useState } from "react";
 import { useStore } from "../../state/useStore.js";
 import * as events from "../../state/events.js";
-import { STEPS_PER_BAR, STEPS_PER_BEAT } from "../../model/timing.js";
-
-// Note spacing for the chop tools, in rows (one row = a 16th).
-const CHOP_SPACINGS = [
-  { label: "16th", rows: 1 },
-  { label: "8th", rows: STEPS_PER_BEAT / 2 },
-  { label: "1/4", rows: STEPS_PER_BEAT },
-  { label: "1/2", rows: STEPS_PER_BEAT * 2 },
-  { label: "1 bar", rows: STEPS_PER_BAR },
-];
+import { NOTE_SPACINGS } from "../../model/timing.js";
 
 // Discoverability for the selection-editing operations store.js already exposes (copySelection/
 // pasteSelection/clearSelection/fillSelection) — Ctrl/Cmd+C/V and Backspace/Delete
@@ -135,7 +126,7 @@ export default function SelectionToolbar({ store }) {
             onChange={(e) => setChopSpacing(Number(e.target.value))}
             disabled={!chopReady}
           >
-            {CHOP_SPACINGS.map(({ label, rows }) => (
+            {NOTE_SPACINGS.map(({ label, rows }) => (
               <option key={rows} value={rows}>
                 {label}
               </option>

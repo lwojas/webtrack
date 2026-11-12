@@ -80,3 +80,28 @@ describe("createEditController — multiple note sources", () => {
     expect(event.note).toBe(null);
   });
 });
+
+describe("createEditController — record arm and note spacing", () => {
+  it("auditions without writing while record (editMode) is off", () => {
+    const { store, noteSourceA, editController } = createTestContext();
+    editController.attach(createFakeTarget());
+    store.toggleEditMode();
+
+    noteSourceA.emitNoteOn({ note: 60, velocity: 100 });
+    expect(getSelectedPattern(store.getState().song).tracks[0].events[0].note).toBeNull();
+    expect(store.getState().cursor.rowIndex).toBe(0);
+  });
+
+  it("advances the cursor by the note spacing after each written note", () => {
+    const { store, noteSourceA, editController } = createTestContext();
+    editController.attach(createFakeTarget());
+    store.setEditStep(4);
+
+    noteSourceA.emitNoteOn({ note: 60, velocity: 100 });
+    noteSourceA.emitNoteOn({ note: 62, velocity: 100 });
+    const events = getSelectedPattern(store.getState().song).tracks[0].events;
+    expect(events[0].note).toBe(60);
+    expect(events[4].note).toBe(62);
+    expect(store.getState().cursor.rowIndex).toBe(8);
+  });
+});

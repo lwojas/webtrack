@@ -19,6 +19,8 @@ export default function TransportBar({ store, playbackController, onSaveProject,
   // The host tempo while following an external clock (audio/hostSync.js); the tempo then belongs to the host.
   const hostBpm = useStore(store, events.TRANSPORT_CHANGED, (s) => s.hostBpm);
   const bpm = hostBpm ?? songBpm;
+  // Record arm (store.editMode): MIDI/keyboard notes are written into the grid only while on; off, they just audition.
+  const recording = useStore(store, events.CURSOR_MOVED, (s) => s.editMode);
   const swing = useStore(store, events.TRANSPORT_CHANGED, (s) => s.song.swing);
   const switchPending = useStore(store, events.PATTERN_SWITCH_PENDING, (s) => s.patternSwitchPending);
   const selectedPatternName = useStore(store, events.PATTERN_SELECTED, (s) => getSelectedPattern(s.song).name);
@@ -58,6 +60,15 @@ export default function TransportBar({ store, playbackController, onSaveProject,
         onClick={togglePlay}
       >
         {playing ? "■ STOP" : "▶ PLAY"}
+      </button>
+
+      <button
+        className={`transport-bar__record${recording ? " transport-bar__record--active" : ""}`}
+        onClick={() => store.toggleEditMode()}
+        aria-pressed={recording}
+        title="Record: write played notes (MIDI or keyboard) into the grid at the cursor. Off, they only audition. (Esc)"
+      >
+        ● REC
       </button>
 
       {switchPending && <span className="transport-bar__pending">SWITCH QUEUED</span>}

@@ -11,6 +11,7 @@ import { InstrumentEditorPanel } from "./ui/chrome/InstrumentPanel.jsx";
 import SelectionToolbar from "./ui/chrome/SelectionToolbar.jsx";
 import PatternManager from "./ui/chrome/PatternManager.jsx";
 import SettingsModal from "./ui/chrome/SettingsModal.jsx";
+import NoteSpacingControl from "./ui/chrome/NoteSpacingControl.jsx";
 import PerfPanel from "./ui/debug/PerfPanel.jsx";
 import { createAppContext } from "./appContext.js";
 import { attachTransportKeys } from "./input/transportKeys.js";
@@ -171,6 +172,7 @@ export default function App() {
             {tab.label}
           </button>
         ))}
+        <NoteSpacingControl store={store} />
       </div>
 
       {activeTab === "tracker" ? (
