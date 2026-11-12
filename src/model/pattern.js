@@ -6,7 +6,7 @@ import { createEmptyEvent } from "./event.js";
 // as it always has (every track looping over the whole grid); a track only becomes
 // polymetric once something explicitly shortens its `length` below that (see
 // model/mutations.js#setTrackLength).
-function createPatternTrack(rowCount, length = rowCount) {
+export function createPatternTrack(rowCount, length = rowCount) {
   return { events: Array.from({ length: rowCount }, () => createEmptyEvent()), length };
 }
 

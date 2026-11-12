@@ -36,6 +36,7 @@ import {
   removeFxLfo as removeFxLfoModel,
   setPatternRowCount,
   setTrackLength as setTrackLengthModel,
+  setTrackCount as setTrackCountModel,
   setSongName,
   addPattern as addPatternModel,
   appendPatternToQueue as appendPatternToQueueModel,
@@ -206,6 +207,29 @@ export function createStore({ song, instruments }) {
     const { selectedPatternId } = state.song;
     setTrackLengthModel(state.song, selectedPatternId, trackIndex, length);
     emitter.emit(events.TRACK_LENGTH_CHANGED, { trackIndex });
+  }
+
+  // Resizes the project's track count (model/mutations.js#setTrackCount). Refused while playing
+  // (the lookahead player and its per-track buses are fixed at transport start) and when a shrink
+  // would drop tracks that still hold notes. Keeps the cursor and selection inside the new width.
+  function setTrackCount(count) {
+    if (state.playing) return false;
+    if (!setTrackCountModel(state.song, count)) return false;
+    const last = state.song.trackCount - 1;
+    state.cursor.trackIndex = Math.min(state.cursor.trackIndex, last);
+    state.selectionAnchor.trackIndex = Math.min(state.selectionAnchor.trackIndex, last);
+    // A sample/synth slot routed into a track that no longer exists falls back to the master bus.
+    let rerouted = false;
+    state.instruments.forEach((slot) => {
+      if (slot.output?.track != null && slot.output.track > last) {
+        slot.output.track = null;
+        rerouted = true;
+      }
+    });
+    emitter.emit(events.TRACK_COUNT_CHANGED, { trackCount: state.song.trackCount });
+    if (rerouted) emitter.emit(events.INSTRUMENTS_CHANGED, {});
+    emitter.emit(events.CURSOR_MOVED, {});
+    return true;
   }
 
   // Used by audio/playbackController.js's onTransportChange callback (wired in appContext.js).
@@ -906,6 +930,7 @@ export function createStore({ song, instruments }) {
     state.resampleStatus = "idle";
     state.resampleError = null;
 
+    emitter.emit(events.TRACK_COUNT_CHANGED, { trackCount: state.song.trackCount });
     emitter.emit(events.PATTERN_QUEUE_CHANGED, {});
     emitter.emit(events.PATTERN_SELECTED, { patternId: state.song.selectedPatternId });
     emitter.emit(events.TRANSPORT_CHANGED, { playing: false, bpm: state.song.bpm, swing: state.song.swing });
@@ -969,6 +994,7 @@ export function createStore({ song, instruments }) {
     selectCell,
     extendSelectionTo,
     setSequenceLength,
+    setTrackCount,
     setTrackLength,
     toggleEditMode,
     setEditStep,

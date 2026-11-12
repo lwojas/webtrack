@@ -45,3 +45,6 @@ export const AUTOMATION_EDITOR_CHANGED = "AUTOMATION_EDITOR_CHANGED";
 // The project's key (song.scale — model/scale.js) changed. Note entry and the grid's out-of-scale
 // emphasis read it; nothing in the song's notes changes.
 export const SCALE_CHANGED = "SCALE_CHANGED";
+// The project's track count changed (model/mutations.js#setTrackCount): the tracker grid, mixer and
+// per-track instrument routing all rebuild to the new width.
+export const TRACK_COUNT_CHANGED = "TRACK_COUNT_CHANGED";

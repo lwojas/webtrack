@@ -278,9 +278,7 @@ function InstrumentEditor({ store, instrumentController, view, onViewChange }) {
   // that track's own insert bus instead, so it passes through that track's FX chain — see
   // model/instrument.js#output's own doc comment and audio/instrument.js#resolveSynthBus.
   const outputTrack = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.output?.track ?? null);
-  // Not INSTRUMENTS_CHANGED-reactive — trackCount has no live resize UI today (same read-once
-  // pattern ui/chrome/Mixer.jsx's own trackCount already uses).
-  const { trackCount } = store.getState().song;
+  const trackCount = useStore(store, events.TRACK_COUNT_CHANGED, (s) => s.song.trackCount);
   // One primitive selector per field (not `s.instruments[index]?.envelope` itself) — the same
   // in-place-mutation gotcha every other mutable-object field on this page already works around
   // (see this file's own module doc comment / ARCHITECTURE.md's Gotcha #1).

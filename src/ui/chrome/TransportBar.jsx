@@ -5,6 +5,7 @@ import { getSelectedPattern } from "../../model/query.js";
 import ScaleControl from "./ScaleControl.jsx";
 import { getHostFiles } from "webdsp";
 import { pickProjectFileFromHost } from "../../persistence/projectIO.js";
+import { MAX_TRACKS } from "../../model/mutations.js";
 import { barsForRowCount, MAX_BARS, RESAMPLE_STEP_OPTIONS } from "../../model/timing.js";
 
 // Ordinary stateful forms-and-buttons UI with no rendering-performance requirement — exactly
@@ -24,6 +25,7 @@ export default function TransportBar({ store, playbackController, onSaveProject,
   const sequenceBars = useStore(store, events.PATTERN_LENGTH_CHANGED, (s) =>
     barsForRowCount(getSelectedPattern(s.song).rowCount),
   );
+  const trackCount = useStore(store, events.TRACK_COUNT_CHANGED, (s) => s.song.trackCount);
   const projectName = useStore(store, events.PROJECT_NAME_CHANGED, (s) => s.song.name ?? "");
   const resampleStatus = useStore(store, events.RESAMPLE_STATUS_CHANGED, (s) => s.resampleStatus);
   const resampleError = useStore(store, events.RESAMPLE_STATUS_CHANGED, (s) => s.resampleError);
@@ -95,6 +97,17 @@ export default function TransportBar({ store, playbackController, onSaveProject,
           {Array.from({ length: MAX_BARS }, (_, i) => i + 1).map((bars) => (
             <option key={bars} value={bars}>
               {bars} {bars === 1 ? "BAR" : "BARS"}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="transport-bar__bpm" title="Number of tracks (locked while playing; shrinking needs the removed tracks empty)">
+        TRACKS
+        <select value={trackCount} disabled={playing} onChange={(e) => store.setTrackCount(Number(e.target.value))}>
+          {Array.from({ length: MAX_TRACKS }, (_, i) => i + 1).map((n) => (
+            <option key={n} value={n}>
+              {n}
             </option>
           ))}
         </select>

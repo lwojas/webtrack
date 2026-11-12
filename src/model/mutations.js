@@ -1,13 +1,13 @@
 // Direct, in-place mutation of the plain object tree, not copy-on-write — MVP has no
 // undo/history requirement, so structural sharing would be pure overhead (see ECS-156 plan
 // §5). Callers (state/store.js) are responsible for emitting the matching change event.
-import { createEmptyEvent, cloneEvent } from "./event.js";
-import { createPattern } from "./pattern.js";
+import { createEmptyEvent, cloneEvent, isEmptyEvent } from "./event.js";
+import { createPattern, createPatternTrack } from "./pattern.js";
 import { getEvent, getPattern, getTrackChannel } from "./query.js";
 import { getFxParamsForType } from "./fxParams.js";
 import { MAX_INSTRUMENT_LFOS, createLfo, patchLfo } from "./instrumentLfos.js";
 import { BUS_GAIN_KEY, fxKey, getAutomationParam, parseKey } from "./cellAutomation.js";
-import { VOICE_MODES } from "./trackChannel.js";
+import { VOICE_MODES, createTrackChannel } from "./trackChannel.js";
 import { eventLfoOf, normalizeParticipation, patchEventLfo } from "./eventLfo.js";
 import { patchScale, scaleOf } from "./scale.js";
 
@@ -535,6 +535,34 @@ export function setTrackLength(song, patternId, trackIndex, length) {
   const track = getPattern(song, patternId)?.tracks[trackIndex];
   if (!track) return;
   track.length = Math.max(1, Math.min(Math.round(length), track.events.length));
+}
+
+export const MIN_TRACKS = 1;
+export const MAX_TRACKS = 32;
+
+// Grows or shrinks the project's track count in place: every pattern and trackChannels gain/lose
+// trailing entries together so the two stay index-aligned (model/pattern.js's doc comment).
+// Growing is always safe. Shrinking never destroys work: it is refused (returns false) if any
+// trailing track to be removed holds a note or other data in any pattern, or an FX chain. Returns true when the
+// count changed.
+export function setTrackCount(song, count) {
+  const next = Math.max(MIN_TRACKS, Math.min(MAX_TRACKS, Math.round(count)));
+  if (!Number.isFinite(next) || next === song.trackCount) return false;
+  if (next < song.trackCount) {
+    const hasData = song.patterns.some((pattern) =>
+      pattern.tracks.slice(next).some((track) => track.events.some((event) => !isEmptyEvent(event))),
+    );
+    if (hasData || song.trackChannels.slice(next).some((channel) => channel.fxChain?.length)) return false;
+    song.patterns.forEach((pattern) => pattern.tracks.splice(next));
+    song.trackChannels.splice(next);
+  } else {
+    song.patterns.forEach((pattern) => {
+      while (pattern.tracks.length < next) pattern.tracks.push(createPatternTrack(pattern.rowCount));
+    });
+    for (let i = song.trackChannels.length; i < next; i++) song.trackChannels.push(createTrackChannel({ index: i }));
+  }
+  song.trackCount = next;
+  return true;
 }
 
 // Creates a brand-new pattern, adds it to the pool, appends it to the end of the queue, and

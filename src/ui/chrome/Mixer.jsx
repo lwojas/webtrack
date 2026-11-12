@@ -114,7 +114,7 @@ function MasterStrip() {
 // App.jsx), ending in the Master strip. Same store wiring as the old TrackHeaders — only the
 // layout/markup changed.
 export default function Mixer({ store, fxController }) {
-  const { trackCount } = store.getState().song;
+  const trackCount = useStore(store, events.TRACK_COUNT_CHANGED, (s) => s.song.trackCount);
   const rootRef = useRef(null);
   useMixerMeters(rootRef);
 

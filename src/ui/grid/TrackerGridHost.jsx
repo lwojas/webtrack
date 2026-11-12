@@ -203,6 +203,7 @@ export default function TrackerGridHost({ store, playbackController, renderStats
       store.subscribe(events.CELL_CHANGED, patchOneCell),
       store.subscribe(events.PATTERN_SELECTED, handlePossibleResize),
       store.subscribe(events.PATTERN_LENGTH_CHANGED, handlePossibleResize),
+      store.subscribe(events.TRACK_COUNT_CHANGED, handlePossibleResize),
       store.subscribe(events.TRACK_LENGTH_CHANGED, patchHeaderLength),
       store.subscribe(events.TRACK_CHANNEL_CHANGED, syncVoiceHeaders),
       store.subscribe(events.SCALE_CHANGED, repaintActivePattern),
