@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useStore } from "../../state/useStore.js";
 import * as events from "../../state/events.js";
 import { NOTE_SPACINGS } from "../../model/timing.js";
+import { SectionHeader, useCollapsed } from "./collapse.jsx";
 
 // Discoverability for the selection-editing operations store.js already exposes (copySelection/
 // pasteSelection/clearSelection/fillSelection) — Ctrl/Cmd+C/V and Backspace/Delete
@@ -17,6 +18,7 @@ import { NOTE_SPACINGS } from "../../model/timing.js";
 // existing clipboard shortcuts too. They differ only in which axis makes them worth enabling:
 // Fill Right wants more than one track selected, Fill Down more than one row, Repeat either.
 export default function SelectionToolbar({ store }) {
+  const [collapsed, toggleCollapsed] = useCollapsed("selection");
   const [chopSpacing, setChopSpacing] = useState(1);
   // getSelectionRect() builds a fresh object every call — selecting it directly would hand
   // useSyncExternalStore a snapshot that's never equal to its own last return, which is an
@@ -80,7 +82,11 @@ export default function SelectionToolbar({ store }) {
 
   return (
     <div className="selection-toolbar">
-      <span className="selection-toolbar__label">SELECTION</span>
+      <SectionHeader className="selection-toolbar__label" collapsed={collapsed} onToggle={toggleCollapsed}>
+        SELECTION
+      </SectionHeader>
+      {!collapsed && (
+        <>
       <div className="selection-toolbar__actions">
         <button type="button" className="selection-toolbar__button" onClick={handleCopy}>
           Copy
@@ -140,6 +146,8 @@ export default function SelectionToolbar({ store }) {
           Randomise Chops
         </button>
       </div>
+        </>
+      )}
     </div>
   );
 }

@@ -102,16 +102,28 @@ position (`1.1`, `1.2`, ...) rather than a raw row number — labeled on each be
 | `0-9`, `a-f`, cursor on **instrument**/**velocity** field | Set that field's hex value, 2 digits (`0` then `5` → `05`) |
 | `Backspace` / `Delete` | Clear the whole cell under the cursor |
 
+The **selection**, **instruments** and **note editor** sections of the right column each collapse by clicking their header (remembered across reloads).
+
 ### Note editor (right column, below instruments)
 
-Shows the properties of whichever note is currently selected that don't fit in the compact
-grid: **length** (steps the note holds for — blank/"auto" means hold until the next note),
-**pan**, the **effect** command + parameter, and **CELL AUTOMATION** — sparse parameter automation
+The selected cell's fields as **two rows of draggable bars** (`ui/chrome/NoteGraph.jsx`,
+`model/noteGraph.js`). Press and drag vertically on a bar to set it; the grid follows the drag.
+An **instrument** dropdown (slot id + name) sits above the graph. Top row: **note** (or **slice** on a chop slot), **velocity**, per-note **pitch** (chop slots),
+**length**, **ratchet**, **tie** (synths with a legato mode). Bottom row: **pan**, **track LFO**
+amount, **fx** command and **param**.
+
+The bars are contextual: a chop slot's slice bar has exactly one step per slice; with a key set in the
+transport bar the note bar offers only that key's notes (over a four-octave window centred on the slot's root, so notes below it are reachable; the window is locked while you
+drag); length stops at the pattern's rows. Few-step bars
+show their step marks. Drag to the bottom, double-click, or press `Delete` to clear a field that can be
+empty; a focused bar also takes `Up`/`Down` (Shift = bigger jumps).
+
+Below the graph, **CELL AUTOMATION** is unchanged: sparse parameter automation
 for the track's bus gain, its FX instances and the instrument slots (see
 [`docs/AUTOMATION.md`](docs/AUTOMATION.md)): pick a parameter from the "+ ADD" dropdown to set its
 value at this cell; it holds from here until the next cell that sets the same parameter, or ramps to
-it with glide. The automation editor draws a whole lane across the track's loop. Shows a placeholder when the selected cell has no note, since editing those
-properties on an empty cell is meaningless.
+it with glide. The automation editor draws a whole lane across the track's loop. Shows a placeholder
+when no cell is selected.
 
 **Piano key layout** (mirrors a keyboard's black/white keys, two octaves):
 ```

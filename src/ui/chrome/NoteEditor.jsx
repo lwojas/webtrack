@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import { useStore } from "../../state/useStore.js";
 import * as events from "../../state/events.js";
 import { getSelectedPattern } from "../../model/query.js";
-import { EFFECT_COMMANDS } from "../../model/effects.js";
 import { FX_PARAMS, getFxInstanceLabel, formatFxValue } from "../../model/fxParams.js";
 import {
   BUS_GAIN_KEY,
@@ -14,78 +13,12 @@ import {
   listCellEntries,
 } from "../../model/cellAutomation.js";
 import { formatBarBeat } from "../../model/timing.js";
-import { noteNumberToName, parseNoteName, toHex } from "../../model/notes.js";
+import { parseNoteName, toHex } from "../../model/notes.js";
+import { scaleOf } from "../../model/scale.js";
+import { buildNoteGraph, fieldValue } from "../../model/noteGraph.js";
+import NoteGraph from "./NoteGraph.jsx";
+import { SectionHeader, useCollapsed } from "./collapse.jsx";
 import { rangeFillStyle } from "../rangeFill.js";
-import { supportsTieKind } from "../../model/instrumentParams.js";
-import { normalizeParticipation } from "../../model/eventLfo.js";
-import { RATCHET_VALUES, normalizeRatchet, ratchetOf } from "../../model/event.js";
-
-// Mirrors the local-draft-state + commit-on-blur/Enter, revert-on-Escape pattern
-// ui/chrome/PatternManager.jsx's pattern-rename field already uses: typing updates only this
-// local state, so the field never fights the user by snapping back to a reformatted value
-// (noteNumberToName's "---"/toHex's zero-padding) mid-keystroke the way a fully store-value
-// -controlled input did. `parse` returns:
-//   - a value (including null, for "clear this field") to commit, or
-//   - `undefined` to mean "not parseable yet" — left uncommitted so a still-incomplete edit
-//     (e.g. "D" on the way to "D#4") never overwrites the model, and gets reverted on blur.
-// Returns spreadable <input> props rather than JSX so NoteField/HexField below only need to
-// supply their field-specific format/parse and tag on the right `type`/`maxLength`.
-function useDraftField({ value, format, parse, onCommit }) {
-  const [draft, setDraft] = useState(() => format(value));
-  const focusedRef = useRef(false);
-  // Enter/Escape both call the DOM input's .blur() to leave the field once they've already
-  // decided what the draft should be — but blur() dispatches its event synchronously, before
-  // React has flushed the setDraft() call just above it, so the resulting onBlur would
-  // otherwise read the *pre-revert* `draft` from its still-stale closure and re-commit it,
-  // undoing the Escape. This flag tells that blur to no-op instead, since Enter/Escape already
-  // did the one commit-or-revert this blur would have done.
-  const suppressBlurRef = useRef(false);
-
-  // Keeps the field in sync with cursor moves and with edits landing on this same cell from
-  // elsewhere (the grid's own keyboard entry) — but only while this input isn't the thing the
-  // user is actively typing into, so an in-progress edit is never clobbered by its own commit
-  // echoing back through `value`, or by an unrelated external change.
-  useEffect(() => {
-    if (!focusedRef.current) setDraft(format(value));
-  }, [value]); // eslint-disable-line react-hooks/exhaustive-deps -- format/parse are stable per field
-
-  function commit(text) {
-    const parsed = parse(text);
-    if (parsed === undefined) return false;
-    onCommit(parsed);
-    setDraft(format(parsed));
-    return true;
-  }
-
-  return {
-    value: draft,
-    onChange: (e) => setDraft(e.target.value),
-    onFocus: () => {
-      focusedRef.current = true;
-    },
-    onBlur: () => {
-      focusedRef.current = false;
-      if (suppressBlurRef.current) {
-        suppressBlurRef.current = false;
-        return;
-      }
-      if (!commit(draft)) setDraft(format(value));
-    },
-    onKeyDown: (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        if (!commit(draft)) setDraft(format(value));
-        suppressBlurRef.current = true;
-        e.currentTarget.blur();
-      } else if (e.key === "Escape") {
-        e.preventDefault();
-        setDraft(format(value));
-        suppressBlurRef.current = true;
-        e.currentTarget.blur();
-      }
-    },
-  };
-}
 
 // A draft field's `parse` contract (see useDraftField above), applied to model/notes.js's
 // existing parseNoteName rather than a second note parser: "" / "---" explicitly clears the
@@ -98,28 +31,12 @@ export function parseNoteDraft(text) {
   return parseNoteName(trimmed) ?? undefined;
 }
 
-function NoteField({ value, onCommit }) {
-  const inputProps = useDraftField({ value, format: noteNumberToName, parse: parseNoteDraft, onCommit });
-  return <input type="text" placeholder="---" {...inputProps} />;
-}
-
-// Shared by every hex-typed field (instrument/velocity/FX param) — same draft/commit mechanics
-// as NoteField, just with toHex's formatting and a clamped hex parse instead of note parsing.
+// Parsers for typed note/hex entry (the contract: a value or null to commit, undefined = not parseable yet).
 export function parseHexInput(text, max) {
   const trimmed = text.trim();
   if (trimmed === "") return null;
   if (!/^[0-9a-f]+$/i.test(trimmed)) return undefined;
   return Math.max(0, Math.min(max, Number.parseInt(trimmed, 16)));
-}
-
-function HexField({ value, max, onCommit }) {
-  const inputProps = useDraftField({
-    value,
-    format: (v) => toHex(v, 2),
-    parse: (text) => parseHexInput(text, max),
-    onCommit,
-  });
-  return <input type="text" maxLength={2} placeholder="--" {...inputProps} />;
 }
 
 // The complete editing surface for the event under the grid's cursor — every field
@@ -131,6 +48,8 @@ function HexField({ value, max, onCommit }) {
 // reflects whichever cell the grid's cursor currently points at, mouse- or keyboard-selected
 // alike, since both write the same store.cursor shape.
 export default function NoteEditor({ store }) {
+  const noteWindowRef = useRef(null);
+  const [collapsed, toggleCollapsed] = useCollapsed("note-editor");
   const cursor = useStore(store, events.CURSOR_MOVED, (s) => s.cursor);
   // CELL_CHANGED covers edits landing on the selected cell from elsewhere (e.g. typing a new
   // note), so the panel can't show stale length/pan/fx values for a cell that just got a note.
@@ -154,6 +73,7 @@ export default function NoteEditor({ store }) {
       selected.lfo,
       selected.ratchet,
       selected.tie,
+      selected.chopTranspose,
       JSON.stringify(selected.fx),
     ].join("|");
   });
@@ -161,8 +81,10 @@ export default function NoteEditor({ store }) {
   // Keeps CELL FX's "+ ADD FX" list in sync if the current track's enabled FX change (the FX
   // panel) while this cell is open, not just on a cursor/cell-content change.
   useStore(store, events.TRACK_FX_CHANGED, (s) => JSON.stringify(s.song.trackChannels[cursor.trackIndex]?.fxChain ?? []));
+  // ...and the project key, which decides which notes the NOTE bar offers.
+  useStore(store, events.SCALE_CHANGED, (s) => `${s.song.scale?.root}|${s.song.scale?.scale}`);
   // ...and the instrument list (names, kinds, which slots make sound) feeds the instrument entries.
-  useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments.map((i) => `${i.name}|${i.output?.type}|${i.output?.kind}|${i.sampleId != null}|${i.sampleMode}`).join(";"));
+  useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments.map((i) => `${i.name}|${i.output?.type}|${i.output?.kind}|${i.sampleId != null}|${i.sampleMode}|${i.rootNote}|${i.cues?.length}`).join(";"));
 
   const state = store.getState();
   const pattern = getSelectedPattern(state.song);
@@ -171,36 +93,29 @@ export default function NoteEditor({ store }) {
   if (!event) {
     return (
       <div className="note-editor">
-        <div className="note-editor__header">NOTE EDITOR</div>
-        <div className="note-editor__empty">No cell selected</div>
+        <SectionHeader className="note-editor__header" collapsed={collapsed} onToggle={toggleCollapsed}>
+          NOTE EDITOR
+        </SectionHeader>
+        {!collapsed && <div className="note-editor__empty">No cell selected</div>}
       </div>
     );
   }
 
-  const tieInstrument = state.instruments[event.instrument];
-  const tieOutput = tieInstrument?.output;
-  const canChopPitch = event.note !== null && tieInstrument?.sampleMode === "chop" && tieInstrument?.output?.type === "sample";
-  const canTie = event.note !== null && tieOutput?.type === "instrument" && supportsTieKind(tieOutput.kind);
+  // The graph's bars follow the cell's context (chop slices, the project key, existing instruments).
+  // The NOTE bar's window is locked for the length of a drag so it does not slide under the pointer.
+  const bars = buildNoteGraph(event, {
+    instruments: state.instruments,
+    scale: scaleOf(state.song),
+    octave: state.octave,
+    rowCount: pattern.rowCount,
+    defaultInstrument: state.selectedInstrumentIndex,
+    noteWindowStart: noteWindowRef.current,
+  });
 
-  function setField(field, value) {
-    store.setCell(cursor.trackIndex, cursor.rowIndex, field, value);
-  }
-
-  function handleLengthChange(text) {
-    if (text.trim() === "") {
-      setField("length", null);
-      return;
-    }
-    const value = Math.max(1, Math.min(pattern.rowCount, Number.parseInt(text, 10) || 1));
-    setField("length", value);
-  }
-
-  function handlePanChange(text) {
-    setField("pan", Number(text));
-  }
-
-  function handleEffectCommandChange(id) {
-    setField("effectCommand", id === "" ? null : id);
+  function setBar(bar, value) {
+    // A note typed into an instrument-less cell gets the selected instrument, as grid entry does.
+    if (bar.id === "note" && value !== null && event.instrument === null) store.setCell(cursor.trackIndex, cursor.rowIndex, "instrument", state.selectedInstrumentIndex);
+    store.setCell(cursor.trackIndex, cursor.rowIndex, bar.field, fieldValue(bar, value));
   }
 
   // Cell automation (model/event.js#fx, read uniformly by model/cellAutomation.js): the sparse
@@ -259,116 +174,34 @@ export default function NoteEditor({ store }) {
 
   return (
     <div className="note-editor">
-      <div className="note-editor__header">NOTE EDITOR</div>
-
+      <SectionHeader className="note-editor__header" collapsed={collapsed} onToggle={toggleCollapsed}>
+        NOTE EDITOR
+      </SectionHeader>
+      {!collapsed && (
+        <>
       <div className="note-editor__context">
         <span>TRK {cursor.trackIndex + 1}</span>
         <span>{formatBarBeat(cursor.rowIndex)}</span>
       </div>
 
       <label className="note-editor__field">
-        NOTE
-        <NoteField value={event.note} onCommit={(value) => setField("note", value)} />
-      </label>
-
-      <label className="note-editor__field">
         INSTRUMENT
-        <HexField value={event.instrument} max={255} onCommit={(value) => setField("instrument", value)} />
-      </label>
-
-      <label className="note-editor__field">
-        VELOCITY
-        <HexField value={event.velocity} max={127} onCommit={(value) => setField("velocity", value)} />
-      </label>
-
-      <label className="note-editor__field">
-        LENGTH
-        <input
-          type="number"
-          min={1}
-          max={pattern.rowCount}
-          placeholder="auto"
-          value={event.length ?? ""}
-          onChange={(e) => handleLengthChange(e.target.value)}
-        />
-      </label>
-
-      <label className="note-editor__field" title="Retrigger this note evenly this many times within its length">
-        RATCHET
-        <select value={ratchetOf(event)} onChange={(e) => setField("ratchet", normalizeRatchet(e.target.value))}>
-          {RATCHET_VALUES.map((r) => (
-            <option key={r} value={r}>
-              {r === 1 ? "off" : `×${r}`}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      {canChopPitch && (
-        <label className="note-editor__field" title="Semitones added to this instrument's chop pitch for this note only">
-          PITCH (st)
-          <input
-            type="number"
-            min={-24}
-            max={24}
-            step={1}
-            placeholder="0"
-            value={event.chopTranspose ?? ""}
-            onChange={(e) => {
-              const n = Math.round(Number(e.target.value));
-              setField("chopTranspose", e.target.value.trim() === "" || !Number.isFinite(n) || n === 0 ? null : Math.max(-24, Math.min(24, n)));
-            }}
-          />
-        </label>
-      )}
-
-      {canTie && (
-        <label className="note-editor__field" title="Hold this note through the next one, which glides in with no re-attack (303-style slide)">
-          TIE
-          <input type="checkbox" checked={!!event.tie} onChange={(e) => setField("tie", e.target.checked ? true : null)} />
-        </label>
-      )}
-
-      <label className="note-editor__field">
-        PAN
-        <input
-          type="range"
-          min={-1}
-          max={1}
-          step={0.05}
-          value={event.pan ?? 0}
-          onChange={(e) => handlePanChange(e.target.value)}
-        />
-      </label>
-
-      <label className="note-editor__field" title="How much this step follows the track's Track LFO (Track tab). 0 = plays at its own velocity.">
-        TRACK LFO
-        <input
-          type="range"
-          min={0}
-          max={1}
-          step={0.05}
-          value={event.lfo ?? 0}
-          onChange={(e) => setField("lfo", normalizeParticipation(Number(e.target.value)))}
-        />
-      </label>
-
-      <label className="note-editor__field">
-        FX
-        <select value={event.effectCommand ?? ""} onChange={(e) => handleEffectCommandChange(e.target.value)}>
+        <select
+          className="note-editor__instrument"
+          value={event.instrument ?? ""}
+          onChange={(e) => setBar({ field: "instrument" }, e.target.value === "" ? null : Number(e.target.value))}
+        >
           <option value="">(none)</option>
-          {EFFECT_COMMANDS.map((command) => (
-            <option key={command.id} value={command.id}>
-              {command.code} — {command.label}
+          {state.instruments.map((instrument, slot) => (
+            <option key={slot} value={slot}>
+              {toHex(slot)} {instrument.name}
             </option>
           ))}
+          {event.instrument !== null && !state.instruments[event.instrument] && <option value={event.instrument}>{toHex(event.instrument)} (missing)</option>}
         </select>
       </label>
 
-      <label className="note-editor__field">
-        FX PARAM
-        <HexField value={event.effectParam} max={255} onCommit={(value) => setField("effectParam", value)} />
-      </label>
+      <NoteGraph bars={bars} onSet={setBar} onDrag={(bar, on) => { noteWindowRef.current = on && bar.id === "note" ? (bar.window ?? null) : null; }} />
 
       <div className="note-editor__section">CELL AUTOMATION</div>
 
@@ -422,6 +255,8 @@ export default function NoteEditor({ store }) {
         <button type="button" className="fx-panel__target-btn" onClick={() => store.setAutomationEditor(true, cellEntries[0]?.key ?? null)} title="Draw this track's automation across its loop">
           AUTOMATION EDITOR
         </button>
+      )}
+        </>
       )}
     </div>
   );

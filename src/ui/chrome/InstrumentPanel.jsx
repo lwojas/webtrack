@@ -1,4 +1,5 @@
 import LfoEditor from "./LfoEditor.jsx";
+import { SectionHeader, useCollapsed } from "./collapse.jsx";
 import PatchMatrixEditor from "./PatchMatrixEditor.jsx";
 import ModBadge from "./ModBadge.jsx";
 import ArpModule from "./ArpControls.jsx";
@@ -668,12 +669,17 @@ function InstrumentArp({ store }) {
 }
 
 export default function InstrumentPanel({ store, instrumentController }) {
+  const [collapsed, toggleCollapsed] = useCollapsed("instruments");
   const instrumentCount = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments.length);
   const editorOpen = useStore(store, events.INSTRUMENT_EDITOR_CHANGED, (s) => s.instrumentEditorOpen);
 
   return (
     <div className="instrument-panel">
-      <div className="instrument-panel__header">INSTRUMENTS</div>
+      <SectionHeader className="instrument-panel__header" collapsed={collapsed} onToggle={toggleCollapsed}>
+        INSTRUMENTS
+      </SectionHeader>
+      {!collapsed && (
+        <>
       {Array.from({ length: instrumentCount }, (_, i) => (
         <InstrumentSlotRow key={i} store={store} instrumentController={instrumentController} index={i} />
       ))}
@@ -689,6 +695,8 @@ export default function InstrumentPanel({ store, instrumentController }) {
       >
         {editorOpen ? "CLOSE EDITOR" : "EDIT INSTRUMENT"}
       </button>
+        </>
+      )}
       <InstrumentArp store={store} />
     </div>
   );

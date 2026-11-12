@@ -1826,6 +1826,14 @@ input[type="range"].range-lg {
   border-color: var(--border-active);
 }
 
+.note-editor__field select {
+  width: 50%; /* about 20% narrower than filling the row */
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  text-overflow: ellipsis;
+}
+
 .note-editor__field input[type="range"] {
   width: 7ch;
 }
@@ -1838,6 +1846,88 @@ input[type="range"].range-lg {
   padding-top: var(--space-sm);
   padding-bottom: var(--space-xs);
   border-top: 1px solid var(--border);
+}
+
+/* --- note editor graph: two rows of draggable value bars (ui/chrome/NoteGraph.jsx) --- */
+
+.note-graph {
+  margin-top: var(--space-sm);
+  padding-top: var(--space-sm);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.note-graph__row {
+  display: flex;
+  gap: 4px;
+}
+
+.note-graph__col {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2px;
+}
+
+.note-graph__value {
+  color: var(--cyan);
+  font-size: var(--text-micro);
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+  min-height: 1.2em;
+}
+
+.note-graph__value--empty {
+  color: var(--text-dim);
+}
+
+.note-graph__bar {
+  position: relative;
+  height: 96px; /* 50% taller than the first version, for finer drags */
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  touch-action: none;
+  user-select: none;
+  cursor: ns-resize;
+  transition: border-color var(--transition-fast);
+}
+
+.note-graph__bar:hover,
+.note-graph__bar:focus-visible,
+.note-graph__col--hot .note-graph__bar {
+  border-color: var(--border-active);
+}
+
+.note-graph__fill {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--cyan);
+  opacity: 0.75;
+}
+
+/* Step marks: one line per selectable value, so a bar with 8 slices visibly has 8 steps. */
+.note-graph__bar[data-stepped]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(to top, transparent 0, transparent calc(100% / var(--steps) - 1px), var(--surface-1) calc(100% / var(--steps) - 1px), var(--surface-1) calc(100% / var(--steps)));
+}
+
+.note-graph__label {
+  color: var(--text-dim);
+  font-size: var(--text-micro);
+  letter-spacing: 0.02em;
+  text-align: center;
 }
 
 /* One row per sparse Event.fx entry (ui/chrome/NoteEditor.jsx) — needs its own slider + value
@@ -3137,4 +3227,27 @@ input[type="range"].range-lg {
   color: var(--send);
   border-color: var(--send);
   background: var(--send-dim);
+}
+
+/* Collapsible right-column sections (ui/chrome/collapse.jsx): the header is a full-width button. */
+.section-toggle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  width: 100%;
+  background: none;
+  border: 0;
+  padding: 0;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.section-toggle:hover,
+.section-toggle:focus-visible {
+  color: var(--text);
+}
+
+.section-toggle__chevron {
+  width: 1ch;
 }
