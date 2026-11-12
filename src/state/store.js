@@ -804,6 +804,14 @@ export function createStore({ song, instruments }) {
     emitter.emit(events.INSTRUMENTS_CHANGED, { index });
   }
 
+  // Whole-sample chop transpose in semitones (model/instrument.js#chopPitch).
+  function setInstrumentChopPitch(index, semitones) {
+    const instrument = state.instruments[index];
+    if (!instrument || !Number.isFinite(semitones)) return;
+    instrument.chopPitch = Math.min(24, Math.max(-24, Math.round(semitones)));
+    emitter.emit(events.INSTRUMENTS_CHANGED, { index });
+  }
+
   // The note that plays the sample unpitched (chromatic) / slice 1 (chop) — model/instrument.js.
   function setInstrumentRootNote(index, note) {
     const instrument = state.instruments[index];
@@ -1041,6 +1049,7 @@ export function createStore({ song, instruments }) {
     setInstrumentSampleMode,
     setInstrumentCues,
     setInstrumentChopStart,
+    setInstrumentChopPitch,
     setInstrumentRootNote,
     setChopEditorOpen,
     setInstrumentEditorOpen,

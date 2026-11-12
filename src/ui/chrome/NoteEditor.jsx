@@ -162,7 +162,7 @@ export default function NoteEditor({ store }) {
   // panel) while this cell is open, not just on a cursor/cell-content change.
   useStore(store, events.TRACK_FX_CHANGED, (s) => JSON.stringify(s.song.trackChannels[cursor.trackIndex]?.fxChain ?? []));
   // ...and the instrument list (names, kinds, which slots make sound) feeds the instrument entries.
-  useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments.map((i) => `${i.name}|${i.output?.type}|${i.output?.kind}|${i.sampleId != null}`).join(";"));
+  useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments.map((i) => `${i.name}|${i.output?.type}|${i.output?.kind}|${i.sampleId != null}|${i.sampleMode}`).join(";"));
 
   const state = store.getState();
   const pattern = getSelectedPattern(state.song);
@@ -177,7 +177,9 @@ export default function NoteEditor({ store }) {
     );
   }
 
-  const tieOutput = state.instruments[event.instrument]?.output;
+  const tieInstrument = state.instruments[event.instrument];
+  const tieOutput = tieInstrument?.output;
+  const canChopPitch = event.note !== null && tieInstrument?.sampleMode === "chop" && tieInstrument?.output?.type === "sample";
   const canTie = event.note !== null && tieOutput?.type === "instrument" && supportsTieKind(tieOutput.kind);
 
   function setField(field, value) {
@@ -301,6 +303,24 @@ export default function NoteEditor({ store }) {
           ))}
         </select>
       </label>
+
+      {canChopPitch && (
+        <label className="note-editor__field" title="Semitones added to this instrument's chop pitch for this note only">
+          PITCH (st)
+          <input
+            type="number"
+            min={-24}
+            max={24}
+            step={1}
+            placeholder="0"
+            value={event.chopTranspose ?? ""}
+            onChange={(e) => {
+              const n = Math.round(Number(e.target.value));
+              setField("chopTranspose", e.target.value.trim() === "" || !Number.isFinite(n) || n === 0 ? null : Math.max(-24, Math.min(24, n)));
+            }}
+          />
+        </label>
+      )}
 
       {canTie && (
         <label className="note-editor__field" title="Hold this note through the next one, which glides in with no re-attack (303-style slide)">

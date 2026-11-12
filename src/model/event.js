@@ -32,6 +32,8 @@ export function createEmptyEvent() {
     // Ratchet: how many evenly spaced retriggers this note plays across its own length (see
     // RATCHET_VALUES). null = 1, a normal single trigger. A property of the note, not extra rows.
     ratchet: null,
+    // Chop transpose: semitones added to the instrument's chopPitch for this note (chop slots only), null = 0.
+    chopTranspose: null,
     // Tie: this note is held through the next note on the track, which glides in with no re-attack (a
     // 303-style slide). true | null; only meaningful for a synth with a legato mode (supportsTieKind).
     tie: null,

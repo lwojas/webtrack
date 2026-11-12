@@ -180,3 +180,33 @@ describe("chop tools", () => {
     expect(events().every((e) => e.note >= 60 && e.note <= 63)).toBe(true);
   });
 });
+
+describe("chop pitch", () => {
+  const slot = (chopPitch) => [createInstrumentSlot({ id: 0, sampleId: 1, rootNote: 60, sampleMode: "chop", chopPitch })];
+
+  it("adds the instrument pitch and the note's transpose to a chop note without changing its slice", () => {
+    const compiled = compileEvent({ ...event(62), chopTranspose: 3 }, channel, slot(-1));
+    expect(compiled.region).toBe(2);
+    expect(compiled.pitch).toBe(2);
+    expect(compileEvent(event(62), channel, slot(0)).pitch).toBeUndefined();
+  });
+
+  it("ignores chop pitch on a chromatic slot", () => {
+    const chromatic = [createInstrumentSlot({ id: 0, sampleId: 1, rootNote: 60, chopPitch: 5 })];
+    expect(compileEvent({ ...event(60), chopTranspose: 2 }, channel, chromatic).pitch).toBe(0);
+  });
+
+  it("clamps in the store and round-trips, loading older projects at 0", async () => {
+    const store = createStore({ song: createSong(), instruments: [createInstrumentSlot({ id: 0, name: "Break", sampleId: "x", sampleMode: "chop" })] });
+    store.setInstrumentChopPitch(0, 99);
+    expect(store.getState().instruments[0].chopPitch).toBe(24);
+    store.setInstrumentChopPitch(0, -3.4);
+    expect(store.getState().instruments[0].chopPitch).toBe(-3);
+    const serialized = serializeProject({ song: createSong(), instruments: store.getState().instruments, ui: {} });
+    const restored = await deserializeProject(serialized, { loadSampleBytes: async () => "fresh" });
+    expect(restored.instruments[0].chopPitch).toBe(-3);
+    delete serialized.instruments[0].chopPitch;
+    const old = await deserializeProject(serialized, { loadSampleBytes: async () => "fresh" });
+    expect(old.instruments[0].chopPitch).toBe(0);
+  });
+});

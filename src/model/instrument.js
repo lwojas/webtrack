@@ -79,6 +79,9 @@ export function createInstrumentSlot({
   sampleMode = "chromatic",
   cues = [],
   chopStart = 0,
+  // chopPitch: whole-sample transpose in semitones (integer, -24..24, default 0) applied to every slice in
+  // chop mode (audio/compile.js). Slice positions are source frames, so it only changes how fast a slice plays.
+  chopPitch = 0,
   // arp: this instrument's arpeggiator config (model/arp.js), or null = none (disabled). Lives on the
   // instrument because a track's cells can address different instruments; compileRow applies it
   // only to the notes that address this slot. Additive: a project saved before it loads as null.
@@ -115,6 +118,7 @@ export function createInstrumentSlot({
     sampleMode,
     cues,
     chopStart,
+    chopPitch,
     arp,
     instrumentParams,
     instrumentLfos,

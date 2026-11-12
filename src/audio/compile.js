@@ -140,6 +140,10 @@ export function compileEvent(event, trackChannel, instruments, time, durationSec
     // engine. See model/chop.js.
     if (pitch < 0) return null;
     compiled.region = pitch;
+    // Whole-sample pitch plus this note's own transpose; slice bounds are source frames, so this
+    // only changes playback speed (a pitched-up slice is shorter), never which audio is played.
+    const transpose = (instrument.chopPitch ?? 0) + (Number.isFinite(event.chopTranspose) ? event.chopTranspose : 0);
+    if (transpose !== 0) compiled.pitch = transpose;
   } else {
     compiled.pitch = pitch;
   }

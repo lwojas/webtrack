@@ -791,10 +791,11 @@ export function createAppContext() {
     setSampleMode: applyInstrumentSampleMode,
     setCues: applyInstrumentCues,
     setChopStart: applyInstrumentChopStart,
+    setChopPitch: (index, semitones) => store.setInstrumentChopPitch(index, semitones),
     setRootNote: (index, note) => store.setInstrumentRootNote(index, note),
     auditionSlice: (index, slice) => {
-      const sampleId = store.getState().instruments[index]?.sampleId;
-      return auditionSlice(sampleId, slice);
+      const instrument = store.getState().instruments[index];
+      return auditionSlice(instrument?.sampleId, slice, instrument?.chopPitch ?? 0);
     },
     setChopEditorOpen: (open) => store.setChopEditorOpen(open),
     setSample: applyInstrumentSample,

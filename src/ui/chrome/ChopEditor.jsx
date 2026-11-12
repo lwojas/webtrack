@@ -31,6 +31,7 @@ export default function ChopEditor({ store, instrumentController }) {
 
 function ChopEditorBody({ store, instrumentController, index }) {
   const name = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.name ?? "");
+  const chopPitch = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.chopPitch ?? 0);
   const rootNote = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.rootNote ?? 60);
   // The cue array is replaced (never mutated) by setInstrumentCues, so its identity is a safe
   // snapshot for useSyncExternalStore.
@@ -205,6 +206,25 @@ function ChopEditorBody({ store, instrumentController, index }) {
         </button>
         <button type="button" className="fx-panel__target-btn" disabled={rootNote >= MAX_NOTE} onClick={() => instrumentController.setRootNote(index, rootNote + 12)} title="Root up an octave">
           +12
+        </button>
+        <span className="chop-editor__label" title="Transpose the whole sample (every slice) in semitones">PITCH</span>
+        <button type="button" className="fx-panel__target-btn" disabled={chopPitch <= -24} onClick={() => instrumentController.setChopPitch(index, chopPitch - 12)} title="Pitch down an octave">
+          -12
+        </button>
+        <button type="button" className="fx-panel__target-btn" disabled={chopPitch <= -24} onClick={() => instrumentController.setChopPitch(index, chopPitch - 1)} title="Pitch down a semitone">
+          -
+        </button>
+        <span className="chop-editor__root" title="Sample pitch in semitones">
+          {chopPitch > 0 ? `+${chopPitch}` : chopPitch} st
+        </span>
+        <button type="button" className="fx-panel__target-btn" disabled={chopPitch >= 24} onClick={() => instrumentController.setChopPitch(index, chopPitch + 1)} title="Pitch up a semitone">
+          +
+        </button>
+        <button type="button" className="fx-panel__target-btn" disabled={chopPitch >= 24} onClick={() => instrumentController.setChopPitch(index, chopPitch + 12)} title="Pitch up an octave">
+          +12
+        </button>
+        <button type="button" className="fx-panel__target-btn" disabled={chopPitch === 0} onClick={() => instrumentController.setChopPitch(index, 0)} title="Reset pitch to 0">
+          RESET PITCH
         </button>
         <button type="button" className="fx-panel__target-btn chop-editor__close" onClick={() => instrumentController.setChopEditorOpen(false)}>
           CLOSE

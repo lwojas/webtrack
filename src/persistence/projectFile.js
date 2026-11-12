@@ -104,6 +104,7 @@ function serializeInstrument(instrument, embedSampleBytes) {
     sampleMode: instrument.sampleMode,
     cues: instrument.cues,
     chopStart: instrument.chopStart,
+    chopPitch: instrument.chopPitch,
     arp: instrument.arp ?? undefined,
     instrumentParams: instrument.instrumentParams,
     instrumentLfos: instrument.instrumentLfos,
@@ -391,6 +392,8 @@ export async function deserializeProject(parsed, { loadSampleBytes, loadLocalAss
         sampleMode: def.sampleMode === "chop" ? "chop" : undefined,
         // Additive: undefined in a project saved before the chop start marker -> 0.
         chopStart: Number.isFinite(def.chopStart) ? Math.min(1, Math.max(0, def.chopStart)) : undefined,
+        // Additive: undefined in a project saved before chop pitch -> 0.
+        chopPitch: Number.isFinite(def.chopPitch) ? Math.min(24, Math.max(-24, Math.round(def.chopPitch))) : undefined,
         cues: Array.isArray(def.cues) ? normalizeCues(def.cues, Number.isFinite(def.chopStart) ? def.chopStart : 0) : undefined,
         // Additive: undefined in a project saved before the per-instrument arp -> null (no arp).
         arp: def.arp && typeof def.arp === "object" ? normalizeArp(def.arp) : undefined,

@@ -23,7 +23,7 @@ import { midiOutput } from "./midiOutput.js";
 const AUDITION_GAIN = 0.8;
 let lastAuditionHandle = null;
 
-export async function auditionSlice(sampleId, slice) {
+export async function auditionSlice(sampleId, slice, pitch = 0) {
   if (sampleId === null || sampleId === undefined) return false;
   let runtime;
   try {
@@ -32,7 +32,7 @@ export async function auditionSlice(sampleId, slice) {
     return false;
   }
   if (lastAuditionHandle !== null) runtime.release(lastAuditionHandle);
-  lastAuditionHandle = runtime.trigger({ sampleId, region: slice, gain: AUDITION_GAIN });
+  lastAuditionHandle = runtime.trigger({ sampleId, region: slice, gain: AUDITION_GAIN, ...(pitch ? { pitch } : {}) });
   return true;
 }
 
