@@ -46,4 +46,6 @@ invalidate them. The canvas draws on peaks/resize only (no rAF loop); a drag kee
 and commits once. Nothing in the grid scrolls to follow the playhead, so a short grid can hide the
 active row — same as any tall pattern.
 
+The Selection panel's **CHOP TOOLS** (Fill / Randomise with Chops) have a **SPACING** select — 16th, 8th, 1/4, 1/2, 1 bar (1/2/4/8/16 rows, since a row is a 16th). Rows between notes are cleared; slices count up once per note.
+
 Tests: `test/chop.test.js`.

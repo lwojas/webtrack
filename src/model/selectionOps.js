@@ -61,14 +61,19 @@ export function tileBlockIntoRect(pattern, rect, block) {
 // slot, played as note = rootNote + slice — model/chop.js). In order, each track counts slices up
 // from slice 1 at the rect's first row and wraps at `slices`; with `random` (a () => 0..1) each
 // cell gets a random slice instead. Cells whose slice falls past the note range are left empty.
-export function fillRectWithChops(pattern, rect, instrumentIndex, instrument, slices, random = null) {
+// `spacing` is the rows between notes (1 = every row); the rows in between are cleared, and the slice
+// counter advances once per note, not per row.
+export function fillRectWithChops(pattern, rect, instrumentIndex, instrument, slices, random = null, spacing = 1) {
   const n = Math.max(1, slices);
+  const step = Math.max(1, Math.floor(spacing));
   for (let t = rect.trackStart; t <= rect.trackEnd; t++) {
     const track = pattern.tracks[t];
     if (!track) continue;
     for (let r = rect.rowStart; r <= rect.rowEnd && r < track.events.length; r++) {
-      const slice = random ? Math.min(n - 1, Math.floor(random() * n)) : (r - rect.rowStart) % n;
-      const note = noteForSlice(instrument.rootNote, slice);
+      const offset = r - rect.rowStart;
+      const onBeat = offset % step === 0;
+      const slice = random ? Math.min(n - 1, Math.floor(random() * n)) : Math.floor(offset / step) % n;
+      const note = onBeat ? noteForSlice(instrument.rootNote, slice) : null;
       const event = createEmptyEvent();
       if (note !== null) {
         event.note = note;

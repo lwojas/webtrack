@@ -168,6 +168,12 @@ describe("chop tools", () => {
     expect(events().map((e) => e.note).slice(0, 6)).toEqual([null, null, 60, 61, 62, null]);
   });
 
+  it("spaces notes by the given rows, counting slices per note and clearing rows between", () => {
+    const { store, events } = setup();
+    store.chopSelection({ spacing: 4 });
+    expect(events().slice(0, 9).map((e) => e.note)).toEqual([60, null, null, null, 61, null, null, null, 62]);
+  });
+
   it("randomises with slices inside the sample's chop range", () => {
     const { store, events } = setup();
     store.chopSelection({ random: true });

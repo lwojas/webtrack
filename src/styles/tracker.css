@@ -1878,6 +1878,20 @@ input[type="range"].range-lg {
   border-color: var(--border-active);
 }
 
+.selection-toolbar__field {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  color: var(--text-dim);
+  font-size: var(--text-micro);
+  letter-spacing: 0.04em;
+}
+
+.selection-toolbar__select {
+  font-size: var(--text-micro);
+  padding: var(--space-xs);
+}
+
 .selection-toolbar__button:disabled {
   color: var(--border-active);
   cursor: default;

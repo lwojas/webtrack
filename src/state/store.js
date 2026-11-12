@@ -352,8 +352,8 @@ export function createStore({ song, instruments }) {
 
   // Fill / Randomise with Chops (ui/chrome/SelectionToolbar.jsx): writes the selected chop instrument's slices into the
   // selection. A single-cell selection (nothing extended) means the cursor's whole track, top to bottom. `random` picks
-  // random slices instead of counting up from slice 1. A no-op without a chop instrument.
-  function chopSelection({ random = false } = {}) {
+  // random slices instead of counting up from slice 1; `spacing` is rows between notes. A no-op without a chop instrument.
+  function chopSelection({ random = false, spacing = 1 } = {}) {
     const instrument = getChopInstrument();
     if (!instrument) return;
     const pattern = getSelectedPattern(state.song);
@@ -361,7 +361,7 @@ export function createStore({ song, instruments }) {
     if (rect.trackStart === rect.trackEnd && rect.rowStart === rect.rowEnd) {
       rect = { trackStart: rect.trackStart, trackEnd: rect.trackEnd, rowStart: 0, rowEnd: pattern.rowCount - 1 };
     }
-    fillRectWithChops(pattern, rect, state.selectedInstrumentIndex, instrument, sliceCount(instrument.cues), random ? Math.random : null);
+    fillRectWithChops(pattern, rect, state.selectedInstrumentIndex, instrument, sliceCount(instrument.cues), random ? Math.random : null, spacing);
     emitCellChangedInRect(rect);
   }
 

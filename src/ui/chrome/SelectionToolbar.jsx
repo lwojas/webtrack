@@ -1,5 +1,16 @@
+import { useState } from "react";
 import { useStore } from "../../state/useStore.js";
 import * as events from "../../state/events.js";
+import { STEPS_PER_BAR, STEPS_PER_BEAT } from "../../model/timing.js";
+
+// Note spacing for the chop tools, in rows (one row = a 16th).
+const CHOP_SPACINGS = [
+  { label: "16th", rows: 1 },
+  { label: "8th", rows: STEPS_PER_BEAT / 2 },
+  { label: "1/4", rows: STEPS_PER_BEAT },
+  { label: "1/2", rows: STEPS_PER_BEAT * 2 },
+  { label: "1 bar", rows: STEPS_PER_BAR },
+];
 
 // Discoverability for the selection-editing operations store.js already exposes (copySelection/
 // pasteSelection/clearSelection/fillSelection) — Ctrl/Cmd+C/V and Backspace/Delete
@@ -15,6 +26,7 @@ import * as events from "../../state/events.js";
 // existing clipboard shortcuts too. They differ only in which axis makes them worth enabling:
 // Fill Right wants more than one track selected, Fill Down more than one row, Repeat either.
 export default function SelectionToolbar({ store }) {
+  const [chopSpacing, setChopSpacing] = useState(1);
   // getSelectionRect() builds a fresh object every call — selecting it directly would hand
   // useSyncExternalStore a snapshot that's never equal to its own last return, which is an
   // infinite render loop, not just a wasted one (see ARCHITECTURE.md's in-place-mutation
@@ -61,11 +73,11 @@ export default function SelectionToolbar({ store }) {
   }
 
   function handleChopFill() {
-    store.chopSelection();
+    store.chopSelection({ spacing: chopSpacing });
   }
 
   function handleChopRandomise() {
-    store.chopSelection({ random: true });
+    store.chopSelection({ random: true, spacing: chopSpacing });
   }
 
   // A single cell stands for the cursor's whole track; anything bigger is exactly the selection.
@@ -115,6 +127,21 @@ export default function SelectionToolbar({ store }) {
       </div>
       <span className="selection-toolbar__label selection-toolbar__label--sub">CHOP TOOLS</span>
       <div className="selection-toolbar__actions">
+        <label className="selection-toolbar__field" title="Rows between chop notes">
+          SPACING
+          <select
+            className="selection-toolbar__select"
+            value={chopSpacing}
+            onChange={(e) => setChopSpacing(Number(e.target.value))}
+            disabled={!chopReady}
+          >
+            {CHOP_SPACINGS.map(({ label, rows }) => (
+              <option key={rows} value={rows}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
         <button type="button" className="selection-toolbar__button" onClick={handleChopFill} disabled={!chopReady} title={chopTitle}>
           Fill with Chops
         </button>
