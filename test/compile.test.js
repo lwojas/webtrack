@@ -629,3 +629,17 @@ describe("compileRowFx", () => {
     );
   });
 });
+
+describe("noteDurationSteps wrap-around", () => {
+  it("gives the last note of a lane the same gap as the others by wrapping to the first note", () => {
+    const track = { length: 16, events: Array.from({ length: 16 }, () => ({ note: null })) };
+    [0, 4, 8, 12].forEach((i) => (track.events[i] = { note: 60 }));
+    expect([0, 4, 8, 12].map((i) => noteDurationSteps(track, i))).toEqual([4, 4, 4, 4]);
+  });
+
+  it("keeps a 1-step default for a lone note", () => {
+    const track = { length: 16, events: Array.from({ length: 16 }, () => ({ note: null })) };
+    track.events[3] = { note: 60 };
+    expect(noteDurationSteps(track, 3)).toBe(1);
+  });
+});

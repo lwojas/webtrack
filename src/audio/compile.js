@@ -14,9 +14,10 @@ const SUSTAINED_PREVIEW_SECONDS = 0.5;
 
 // How many steps a note holds for. An explicit Event.length wins (set via the note editor —
 // see ui/chrome/NoteEditor.jsx); otherwise falls back to the original auto behavior: hold
-// until the next non-empty note on the same track, or a 1-step default if none follows before
-// the track's own playback loop ends (track.length — model/pattern.js — not necessarily the
-// full events array, for a track shortened below the pattern's grid size).
+// until the next non-empty note on the same track. The last note of a lane wraps round the
+// track's loop (track.length — model/pattern.js — not necessarily the full events array, for a
+// track shortened below the pattern's grid size) to the first note, so it gets the same gap as
+// the others; a lone note has nothing to reach and keeps a 1-step default.
 export function noteDurationSteps(track, rowIndex) {
   const explicitLength = track.events[rowIndex]?.length;
   if (typeof explicitLength === "number" && explicitLength > 0) return explicitLength;
@@ -24,6 +25,9 @@ export function noteDurationSteps(track, rowIndex) {
   const loopEnd = track.length ?? track.events.length;
   for (let i = rowIndex + 1; i < loopEnd; i++) {
     if (track.events[i].note !== null) return i - rowIndex;
+  }
+  for (let i = 0; i < rowIndex; i++) {
+    if (track.events[i].note !== null) return Math.max(1, loopEnd - rowIndex + i);
   }
   return 1;
 }
