@@ -2903,6 +2903,19 @@ input[type="range"].range-lg {
   font-size: var(--text-micro);
 }
 
+/* A card that needs more room than the standard 240px column (the compressor's transfer curve + gain-reduction display). */
+.fx-module--wide {
+  width: 400px;
+}
+
+/* Canvas displays inside an FX card have a fixed size, so live values drawn into them never change the card's layout. */
+.fx-module__display {
+  display: block;
+  width: 100%;
+  height: 130px;
+  flex-shrink: 0;
+}
+
 /* --- EQ curve editor (ui/chrome/EqCurveEditor.jsx) --- */
 .fx-module--eq {
   width: 720px;

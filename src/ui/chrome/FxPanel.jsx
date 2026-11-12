@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { MASTER_BUS, compressorMeter, reductionCharacter } from "webdsp";
+import { GainReductionHistory, MASTER_BUS, compressorCurveDb, compressorMeter, peakToDb, reductionCharacter } from "webdsp";
+import { CanvasSurface } from "../viz/canvasSurface.js";
+import { cssColor, withAlpha } from "../viz/theme.js";
 import { peekRuntime, peekTrackBusIds } from "../../audio/runtime.js";
 import { compressorPresets } from "../../audio/presets.js";
 import EqCurveEditor from "./EqCurveEditor.jsx";
@@ -59,18 +61,97 @@ function FxTrackField({ param, value, onChange, trackNames, ownerIndex }) {
   );
 }
 
-// Gain-reduction readout for a compressor: the bus's compressor as reported by the engine's meter feed (webdsp compressorMeter).
-// One compressor per bus is metered, so with several on one bus this shows the bus's. Updates the DOM directly from the meter
-// callback (no React state), attaching as soon as the runtime exists. `trackIndex` null is the master bus.
-function CompressorMeterBar({ trackIndex }) {
-  const fillRef = useRef(null);
-  const textRef = useRef(null);
+// The compressor's display: the static transfer curve (with a dot at the live input level) beside a scrolling gain-reduction
+// trace, all on one canvas with its readout drawn into it, so a moving value never changes the DOM or the card's size. Fed by the
+// engine's per-bus compressor meter (webdsp compressorMeter); with several compressors on one bus it shows the bus's. Runs outside
+// React (one rAF loop, no state) and repaints only when the picture changed. `settingsRef` holds the instance's current
+// threshold / ratio / knee; `trackIndex` null is the master bus.
+const GR_RANGE_DB = 18;
+const CURVE_MIN_DB = -48;
+const TRACE_LEN = 150;
+
+function CompressorDisplay({ settingsRef, trackIndex }) {
+  const canvasRef = useRef(null);
   useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return undefined;
+    const surface = new CanvasSurface(canvas);
+    const colors = {
+      grid: withAlpha(cssColor(canvas, "--text-dim", "#8a93a6"), 0.25),
+      text: cssColor(canvas, "--text-dim", "#8a93a6"),
+      curve: cssColor(canvas, "--text", "#e4e6eb"),
+      gr: cssColor(canvas, "--amber", "#ff9d00"),
+      dot: cssColor(canvas, "--cyan", "#00f0ff"),
+    };
+    const history = new GainReductionHistory(TRACE_LEN);
+    let live = { inDb: CURVE_MIN_DB, grDb: 0 };
     let unsubscribe = null;
     let attachedTo = null;
-    let shown = 0;
     let frame = 0;
-    const attach = () => {
+    let lastKey = "";
+
+    const paint = () => {
+      const w = surface.width;
+      const h = surface.height;
+      const s = settingsRef.current;
+      const ctx = surface.begin();
+      if (!ctx) return;
+      ctx.font = "10px monospace";
+      // Left square: transfer curve, input dB across, output dB up, -48..0.
+      const size = Math.min(h - 4, w * 0.4);
+      const x0 = 2;
+      const y0 = 2;
+      const px = (db) => x0 + ((db - CURVE_MIN_DB) / -CURVE_MIN_DB) * size;
+      const py = (db) => y0 + size - ((db - CURVE_MIN_DB) / -CURVE_MIN_DB) * size;
+      ctx.strokeStyle = colors.grid;
+      ctx.lineWidth = 1;
+      ctx.strokeRect(x0, y0, size, size);
+      ctx.beginPath();
+      ctx.moveTo(px(CURVE_MIN_DB), py(CURVE_MIN_DB));
+      ctx.lineTo(px(0), py(0)); // unity
+      ctx.stroke();
+      ctx.beginPath();
+      for (let i = 0; i <= 48; i++) {
+        const inDb = CURVE_MIN_DB + (i / 48) * -CURVE_MIN_DB;
+        const outDb = compressorCurveDb(inDb, s);
+        if (i === 0) ctx.moveTo(px(inDb), py(outDb));
+        else ctx.lineTo(px(inDb), py(outDb));
+      }
+      ctx.strokeStyle = colors.curve;
+      ctx.stroke();
+      const dotIn = Math.max(CURVE_MIN_DB, Math.min(0, live.inDb));
+      ctx.fillStyle = colors.dot;
+      ctx.beginPath();
+      ctx.arc(px(dotIn), py(compressorCurveDb(dotIn, s)), 3, 0, Math.PI * 2);
+      ctx.fill();
+      // Right: gain-reduction trace, 0 at the top down to -GR_RANGE_DB.
+      const tx = x0 + size + 14;
+      const tw = w - tx - 2;
+      ctx.strokeStyle = colors.grid;
+      ctx.strokeRect(tx, y0, tw, size);
+      const values = history.values();
+      ctx.beginPath();
+      ctx.moveTo(tx, y0);
+      for (let i = 0; i < values.length; i++) {
+        const x = tx + (i / (values.length - 1)) * tw;
+        ctx.lineTo(x, y0 + Math.min(1, -values[i] / GR_RANGE_DB) * size);
+      }
+      ctx.lineTo(tx + tw, y0);
+      ctx.closePath();
+      ctx.fillStyle = withAlpha(colors.gr, 0.35);
+      ctx.fill();
+      ctx.strokeStyle = colors.gr;
+      ctx.stroke();
+      // Readout, drawn (fixed position, never reflows).
+      ctx.fillStyle = colors.text;
+      ctx.textAlign = "right";
+      const gr = live.grDb;
+      ctx.fillText(gr > -0.1 ? "0.0 dB" : `${gr.toFixed(1)} dB · ${reductionCharacter(gr)}`, tx + tw - 4, y0 + 12);
+      ctx.textAlign = "left";
+      ctx.fillText("GR", tx + 4, y0 + 12);
+    };
+
+    const loop = () => {
       const runtime = peekRuntime();
       if (runtime && runtime !== attachedTo) {
         unsubscribe?.();
@@ -78,29 +159,28 @@ function CompressorMeterBar({ trackIndex }) {
         unsubscribe = runtime.onMeters((snapshot) => {
           const bus = trackIndex === null ? MASTER_BUS : peekTrackBusIds()[trackIndex];
           if (bus === undefined) return;
-          const gr = compressorMeter(snapshot, bus).gainReductionDb;
-          shown = gr < shown ? gr : shown + (gr - shown) * 0.25; // instant attack, smoothed release
-          if (fillRef.current) fillRef.current.style.width = `${Math.min(100, (-shown / 24) * 100)}%`;
-          if (textRef.current) textRef.current.textContent = shown > -0.1 ? "0.0 dB" : `${shown.toFixed(1)} dB · ${reductionCharacter(shown)}`;
+          const m = compressorMeter(snapshot, bus);
+          history.push(m.gainReductionDb);
+          live = { inDb: m.inPeak > 0 ? peakToDb(m.inPeak) : CURVE_MIN_DB, grDb: m.gainReductionDb };
         });
       }
-      frame = requestAnimationFrame(attach);
+      const s = settingsRef.current;
+      // Repaint only when something visible changed: the (0.1 dB, pixel-scale) live values or the settings.
+      const key = `${live.inDb.toFixed(1)}|${live.grDb.toFixed(1)}|${s.threshold}|${s.ratio}|${s.knee}|${history.values()[TRACE_LEN - 1]?.toFixed(1)}`;
+      if (surface.dirty || key !== lastKey) {
+        lastKey = key;
+        paint();
+      }
+      frame = requestAnimationFrame(loop);
     };
-    frame = requestAnimationFrame(attach);
+    frame = requestAnimationFrame(loop);
     return () => {
       unsubscribe?.();
       cancelAnimationFrame(frame);
+      surface.dispose();
     };
-  }, [trackIndex]);
-  return (
-    <div className="fx-module__field" title="Gain reduction">
-      <span className="fx-module__field-label">GR</span>
-      <div style={{ height: 8, background: "rgba(128,128,128,0.25)", borderRadius: 2, overflow: "hidden" }}>
-        <div ref={fillRef} style={{ height: "100%", width: "0%", background: "#e8743b" }} />
-      </div>
-      <span className="fx-module__value" ref={textRef}>0.0 dB</span>
-    </div>
-  );
+  }, [settingsRef, trackIndex]);
+  return <canvas ref={canvasRef} className="fx-module__display" />;
 }
 
 function CompressorPresetField({ onApply }) {
@@ -279,6 +359,32 @@ export default function FxPanel({ store, fxController }) {
     else fxController.moveMasterFx(instanceId, direction);
   }
 
+  // The compressor display reads its curve settings from a ref it can poll without re-rendering; refreshed every render.
+  const compRef = useRef({});
+  function compSettings(values) {
+    compRef.current = {
+      threshold: values["comp.threshold"] ?? getFxParam("comp.threshold").default,
+      ratio: values["comp.ratio"] ?? getFxParam("comp.ratio").default,
+      knee: values["comp.knee"] ?? getFxParam("comp.knee").default,
+    };
+    return compRef;
+  }
+
+  function renderParamFields(entry, instanceValues) {
+    return getFxParamsForType(entry.type).map((param) => (
+      <FxParamField
+        key={param.id}
+        param={param}
+        value={instanceValues[param.id] ?? param.default}
+        onChange={(value) => handleInstanceChange(entry.id, param.id, value)}
+        automated={automatedFx.includes(fxKey(entry.id, param.id))}
+        lfos={(entry.lfos ?? []).filter((l) => l.target === param.id).length}
+        trackNames={trackNames}
+        ownerIndex={target === "track" ? trackIndex : null}
+      />
+    ));
+  }
+
   return (
     <div className="fx-panel">
       <div className="fx-panel__header">
@@ -321,7 +427,7 @@ export default function FxPanel({ store, fxController }) {
           if (!fxType) return null;
           const instanceValues = fxBag.instances?.[entry.id] ?? {};
           return (
-            <div className={`fx-module${entry.type === "eq" ? " fx-module--eq" : ""}`} key={entry.id}>
+            <div className={`fx-module${entry.type === "eq" ? " fx-module--eq" : ""}${entry.type === "compressor" ? " fx-module--wide" : ""}`} key={entry.id}>
               <div className="fx-module__header">
                 <span className="fx-module__title">{getFxInstanceLabel(fxChain, entry.id)}</span>
                 <button
@@ -373,25 +479,14 @@ export default function FxPanel({ store, fxController }) {
                     );
                   }}
                 />
+              ) : entry.type === "compressor" ? (
+                <>
+                  <CompressorDisplay settingsRef={compSettings(instanceValues)} trackIndex={target === "track" ? trackIndex : null} />
+                  <CompressorPresetField onApply={(paramId, value) => handleInstanceChange(entry.id, paramId, value)} />
+                  {renderParamFields(entry, instanceValues)}
+                </>
               ) : (
-                [
-                  entry.type === "compressor" && (
-                    <CompressorPresetField key="preset" onApply={(paramId, value) => handleInstanceChange(entry.id, paramId, value)} />
-                  ),
-                  entry.type === "compressor" && <CompressorMeterBar key="meter" trackIndex={target === "track" ? trackIndex : null} />,
-                  ...getFxParamsForType(entry.type).map((param) => (
-                  <FxParamField
-                    key={param.id}
-                    param={param}
-                    value={instanceValues[param.id] ?? param.default}
-                    onChange={(value) => handleInstanceChange(entry.id, param.id, value)}
-                    automated={automatedFx.includes(fxKey(entry.id, param.id))}
-                    lfos={(entry.lfos ?? []).filter((l) => l.target === param.id).length}
-                    trackNames={trackNames}
-                    ownerIndex={target === "track" ? trackIndex : null}
-                  />
-                )),
-                ]
+                renderParamFields(entry, instanceValues)
               )}
               <FxModulation entry={entry} lfoTrackIndex={target === "track" ? trackIndex : null} fxController={fxController} />
             </div>
