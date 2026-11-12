@@ -2,7 +2,7 @@
 // webdsp docs/midi-routing.md). It is what audio/preview.js's audition of a note plays (compileEvent for the selected instrument on the
 // cursor's track), written as a route so the host can do it without the page. The page still receives the MIDI (note entry into the
 // pattern); it just must not also make the sound, which input/midiInputSource.js knows from `isRouted`.
-import { effectiveChokeGroup } from "../model/trackChannel.js";
+import { effectiveChokeGroup, isFxSend } from "../model/trackChannel.js";
 import { isSustainedSynthKind } from "../model/instrumentParams.js";
 import { scaleOf } from "../model/scale.js";
 
@@ -12,7 +12,7 @@ import { scaleOf } from "../model/scale.js";
 // in progress (it records the master output, so nothing may be played over it, as with the page's audition).
 // `knowsSample(id)` says whether the engine has the sample yet.
 export function routeForAudition({ song, instruments, selectedInstrumentIndex, trackChannel, resampleStatus, knowsSample }) {
-  if (!trackChannel || trackChannel.muted) return null;
+  if (!trackChannel || trackChannel.muted || isFxSend(trackChannel)) return null;
   if (resampleStatus === "armed" || resampleStatus === "processing") return null;
   if (scaleOf(song).snap) return null;
   const instrument = instruments[selectedInstrumentIndex];

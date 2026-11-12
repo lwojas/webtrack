@@ -4,6 +4,7 @@ import { limiterState, useMixerMeters } from "../useMixerMeters.js";
 import { useStore } from "../../state/useStore.js";
 import * as events from "../../state/events.js";
 import { rangeFillStyle } from "../rangeFill.js";
+import { isFxSend } from "../../model/trackChannel.js";
 
 // model/mutations.js mutates a trackChannel object in place (same reference before/after —
 // see ARCHITECTURE.md's in-place-mutation gotcha) — useSyncExternalStore compares snapshots
@@ -28,9 +29,11 @@ function ChannelStrip({ store, fxController, trackIndex }) {
   const volume = useStore(store, events.TRACK_CHANNEL_CHANGED, (s) => s.song.trackChannels[trackIndex].volume);
   const pan = useStore(store, events.TRACK_CHANNEL_CHANGED, (s) => s.song.trackChannels[trackIndex].pan);
 
+  const fxSend = useStore(store, events.TRACK_CHANNEL_CHANGED, (s) => isFxSend(s.song.trackChannels[trackIndex]));
+
   return (
-    <div className="channel-strip">
-      <span className="channel-strip__name">{name}</span>
+    <div className={`channel-strip${fxSend ? " channel-strip--fx-send" : ""}`}>
+      <span className="channel-strip__name">{fxSend ? `${name} · SEND` : name}</span>
       <span
         className="channel-strip__clip"
         data-clip-track={trackIndex}

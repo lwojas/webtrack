@@ -5,6 +5,7 @@ import { createPlayheadLayer } from "./playheadLayer.js";
 import { createCursorLayer } from "./cursorLayer.js";
 import { attachMutationCrossCheck } from "../../debug/renderStats.js";
 import { getSelectedPattern } from "../../model/query.js";
+import { isFxSend } from "../../model/trackChannel.js";
 import * as events from "../../state/events.js";
 
 // The React/vanilla-DOM boundary (ECS-156 plan §3/§4): renders one container div with a ref,
@@ -67,7 +68,10 @@ export default function TrackerGridHost({ store, playbackController, renderStats
     // at mount and again on TRACK_CHANNEL_CHANGED, not on every handlePossibleResize.
     function syncVoiceHeaders() {
       const state = store.getState();
-      state.song.trackChannels.forEach((channel, trackIndex) => gridView.setHeaderVoiceSettings(trackIndex, channel));
+      state.song.trackChannels.forEach((channel, trackIndex) => {
+        gridView.setHeaderVoiceSettings(trackIndex, channel);
+        gridView.setTrackFxSend(trackIndex, isFxSend(channel));
+      });
     }
 
     function handleVoiceModeChange(trackIndex, voiceMode) {

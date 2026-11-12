@@ -38,6 +38,8 @@ import {
   setPatternRowCount,
   setTrackLength as setTrackLengthModel,
   setTrackCount as setTrackCountModel,
+  setTrackChannelFxSend as setTrackChannelFxSendModel,
+  stripSendTrackNotes,
   setSongName,
   addPattern as addPatternModel,
   appendPatternToQueue as appendPatternToQueueModel,
@@ -52,6 +54,7 @@ import { MAX_INSTRUMENT_LFOS, createLfo, patchLfo } from "../model/instrumentLfo
 import { DEFAULT_ROOT_NOTE, defaultSynthParamValues, supportsTieKind, synthKindRootNote } from "../model/instrumentParams.js";
 import { rowCountForBars, SWING_MIN, SWING_MAX } from "../model/timing.js";
 import { getSelectedPattern } from "../model/query.js";
+import { isFxSend } from "../model/trackChannel.js";
 import { clearRect, captureBlock, fillRectWithChops, tileBlockIntoRect } from "../model/selectionOps.js";
 import * as events from "./events.js";
 import { SCALE_PRESETS } from "../model/scale.js";
@@ -327,6 +330,7 @@ export function createStore({ song, instruments }) {
       rowEnd: Math.min(rowIndex + state.clipboard.height - 1, pattern.rowCount - 1),
     };
     tileBlockIntoRect(pattern, rect, state.clipboard.block);
+    stripSendTrackNotes(state.song, pattern, rect);
     emitCellChangedInRect(rect);
   }
 
@@ -342,6 +346,7 @@ export function createStore({ song, instruments }) {
     const pattern = getSelectedPattern(state.song);
     const rect = getSelectionRect();
     tileBlockIntoRect(pattern, rect, state.clipboard.block);
+    stripSendTrackNotes(state.song, pattern, rect);
     emitCellChangedInRect(rect);
   }
 
@@ -362,7 +367,7 @@ export function createStore({ song, instruments }) {
     if (rect.trackStart === rect.trackEnd && rect.rowStart === rect.rowEnd) {
       rect = { trackStart: rect.trackStart, trackEnd: rect.trackEnd, rowStart: 0, rowEnd: pattern.rowCount - 1 };
     }
-    fillRectWithChops(pattern, rect, state.selectedInstrumentIndex, instrument, sliceCount(instrument.cues), random ? Math.random : null, spacing);
+    fillRectWithChops(pattern, rect, state.selectedInstrumentIndex, instrument, sliceCount(instrument.cues), random ? Math.random : null, spacing, (t) => isFxSend(state.song.trackChannels[t]));
     emitCellChangedInRect(rect);
   }
 
@@ -386,6 +391,7 @@ export function createStore({ song, instruments }) {
       rowEnd: Math.min(rect.rowEnd + height, pattern.rowCount - 1),
     };
     tileBlockIntoRect(pattern, destRect, block);
+    stripSendTrackNotes(state.song, pattern, destRect);
     emitCellChangedInRect(destRect);
   }
 
@@ -537,6 +543,15 @@ export function createStore({ song, instruments }) {
 
   // Track LFO (model/eventLfo.js, docs/TRACK_LFO.md). The config lives on the track channel and is
   // read live by audio/compile.js on the next scheduled step, so no engine push is needed.
+  // Locks/unlocks a track as an FX send (model/mutations.js#setTrackChannelFxSend). Returns false when
+  // refused because the track still holds notes. Rebuilds nothing in the engine: the track's bus,
+  // FX chain and routing are the same either way, only note triggering and note entry change.
+  function setTrackChannelFxSend(trackIndex, on) {
+    if (!setTrackChannelFxSendModel(state.song, trackIndex, on)) return false;
+    emitter.emit(events.TRACK_CHANNEL_CHANGED, { trackIndex });
+    return true;
+  }
+
   function setTrackChannelEventLfo(trackIndex, patch) {
     setTrackChannelEventLfoModel(state.song, trackIndex, patch);
     emitter.emit(events.TRACK_CHANNEL_CHANGED, { trackIndex });
@@ -1011,6 +1026,7 @@ export function createStore({ song, instruments }) {
     setTrackChannelMuted,
     setTrackChannelSolo,
     setTrackChannelEventLfo,
+    setTrackChannelFxSend,
     setInstrumentArp,
     setScale,
     setTrackStepsLfo,

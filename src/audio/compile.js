@@ -5,7 +5,7 @@ import { trackLocalStep } from "../model/pattern.js";
 import { listCellEntries, nextPoint } from "../model/cellAutomation.js";
 import { isSustainedSynthKind, supportsTieKind } from "../model/instrumentParams.js";
 import { effectiveNote, effectiveVelocity } from "./trackLfo.js";
-import { effectiveChokeGroup } from "../model/trackChannel.js";
+import { effectiveChokeGroup, isFxSend } from "../model/trackChannel.js";
 import { ratchetOf } from "../model/event.js";
 import { arpEventsAtRow, arpOf, isArpActive } from "../model/arp.js";
 
@@ -207,6 +207,8 @@ export function compileRow(pattern, trackChannels, instruments, transportStep, t
     // Notes switched off for this track in this pattern (model/mutations.js#setTrackNotesEnabled): no
     // triggers, but the track's FX, bus and automation keep running (unlike mute).
     if (track.notesOff) return;
+    // An FX send track (model/trackChannel.js#isFxSend) never triggers; its bus, FX and automation still run.
+    if (isFxSend(trackChannel)) return;
 
     const localStep = trackLocalStep(track, transportStep);
     const trackBus = trackBusIds?.[trackIndex];

@@ -3105,3 +3105,36 @@ input[type="range"].range-lg {
 .tracker-track-header__cell.is-notes-off {
   opacity: 0.4;
 }
+
+/* An FX send track (Track tab, Track type card): the whole column, its mixer strip and its lock button
+   share one violet accent so send lanes read apart from note tracks at a glance. */
+:root {
+  --send: #b36bff;
+  --send-dim: rgba(179, 107, 255, 0.1);
+}
+
+.tracker-cell.is-fx-send,
+.tracker-track-header__cell.is-fx-send {
+  background: var(--send-dim);
+  border-left-color: var(--send);
+}
+
+.tracker-track-header__cell.is-fx-send .tracker-track-header__length {
+  color: var(--send);
+}
+
+.channel-strip--fx-send {
+  border-color: var(--send);
+  background: var(--send-dim);
+}
+
+.channel-strip--fx-send .channel-strip__name {
+  color: var(--send);
+}
+
+.fx-panel__target-btn--fx-send,
+.fx-panel__target-btn--fx-send[aria-pressed="true"] {
+  color: var(--send);
+  border-color: var(--send);
+  background: var(--send-dim);
+}

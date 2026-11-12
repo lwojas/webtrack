@@ -342,6 +342,14 @@ export function createGridView({
     cellRefs?.[trackIndex]?.forEach((refs) => refs.cellEl.classList.toggle("is-notes-off", off));
   }
 
+  // Colours an FX send track's whole column (trackChannel.fxSend): header, voice/choke headers and cells.
+  function setTrackFxSend(trackIndex, on) {
+    headerRefs?.[trackIndex]?.cellEl.classList.toggle("is-fx-send", on);
+    voiceHeaderRefs?.[trackIndex]?.cellEl.classList.toggle("is-fx-send", on);
+    voiceHeaderRefs?.[trackIndex]?.chokeCellEl.classList.toggle("is-fx-send", on);
+    cellRefs?.[trackIndex]?.forEach((refs) => refs.cellEl.classList.toggle("is-fx-send", on));
+  }
+
   // Refreshes one track's voice controls — called on mount and whenever that track's channel
   // changes (state/events.js#TRACK_CHANNEL_CHANGED), same as mute/solo/volume already do
   // elsewhere; this is the grid's own copy of that same trackChannel data, not a second source
@@ -436,6 +444,7 @@ export function createGridView({
     repaintPattern,
     setHeaderLength,
     setTrackNotesOff,
+    setTrackFxSend,
     setHeaderVoiceSettings,
     getContainerElement,
     getRowElement,

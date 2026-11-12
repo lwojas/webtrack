@@ -2,6 +2,7 @@ import { getSelectedPattern } from "../model/query.js";
 import { triggerPreview } from "../audio/preview.js";
 import { isTypingTarget } from "./isTypingTarget.js";
 import { scaleOf, snapEnteredNote } from "../model/scale.js";
+import { isFxSend } from "../model/trackChannel.js";
 
 // Hex-digit entry (instrument/velocity columns) and cursor navigation. Effect command/param
 // aren't part of this MVP's keyboard cursor flow — the fx column still displays and stores
@@ -146,7 +147,7 @@ export function createEditController({ store, noteSources }) {
     // is a legitimate no-op, not an error — getRuntime() rejects in that case, and this swallows
     // it rather than leaving an unhandled rejection.
     // `routed`: the host is already playing this note itself (a MIDI key, audio/midiRoute.js): entering it below still happens, hearing it twice must not.
-    if (trackChannel && !routed) triggerPreview(previewEvent, trackChannel, instruments).catch(() => {});
+    if (trackChannel && !routed && !isFxSend(trackChannel)) triggerPreview(previewEvent, trackChannel, instruments).catch(() => {});
 
     if (!editMode || cursor.field !== "note") return;
 

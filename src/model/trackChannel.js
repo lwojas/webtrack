@@ -28,6 +28,15 @@ export function effectiveChokeGroup(channel) {
   return Number.isInteger(g) && g >= 1 ? g : null;
 }
 //
+// fxSend: this track is an FX send/return lane (model/mutations.js#setTrackChannelFxSend). It
+// takes no notes, so no instrument or sample is ever written into it (model/mutations.js#
+// setEventField, the paste/fill paths, and audio/compile.js all honour that), but its FX chain,
+// cell FX automation, pan/volume and routing (an instrument slot's output.track can point at it)
+// work as on any track. Absent/false = an ordinary track.
+export function isFxSend(channel) {
+  return channel?.fxSend === true;
+}
+//
 // FX is a three-layer model (model/fxParams.js has the full doc comment on the catalog side),
 // built on webdsp's own ordered-FX-chain-of-*instances* primitive (node_modules/webdsp's
 // docs/fx-chain.md) rather than "one of each type":
@@ -82,6 +91,7 @@ export function createTrackChannel({
   voiceMode = "poly",
   maxVoices = DEFAULT_MAX_VOICES,
   chokeGroup = null,
+  fxSend = false,
 } = {}) {
   return {
     index,
@@ -95,5 +105,7 @@ export function createTrackChannel({
     voiceMode,
     maxVoices,
     chokeGroup,
+    // Only written when on, so projects saved before send tracks existed stay byte-identical.
+    ...(fxSend ? { fxSend: true } : {}),
   };
 }

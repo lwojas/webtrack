@@ -124,6 +124,12 @@ Three things worth noting:
   Muting the *notes* of a track in one pattern is `PatternTrack.notesOff` (Track tab, Steps card,
   **NOTES ON / OFF**; `store.setTrackNotesEnabled`): `compileRow` skips the track's triggers but its
   FX, bus and automation keep running, unlike channel mute. The grid dims the track's columns.
+  A track can instead be locked as an **FX send** (`TrackChannel.fxSend`, Track tab, Track type card;
+  `store.setTrackChannelFxSend`): it takes no notes — `setEventField`, paste/fill/duplicate
+  (`stripSendTrackNotes`), chop fills, audition and `compileRow` all skip it — while its FX chain,
+  cell FX automation, pan/volume and routing (an instrument's `output.track` can target it) work as
+  usual. Locking is refused while the track holds notes in any pattern. Grid columns, header and mixer
+  strip use the `--send` accent.
 - **`Instrument` is not part of `Song`.** Instrument slots (and the samples loaded into them)
   are store-level (`store.instruments`), not musical data — an `Event.instrument` is just an
   index into that array. This keeps instrument/sample assignment independent of which pattern

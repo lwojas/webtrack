@@ -1,20 +1,54 @@
 // Direct, in-place mutation of the plain object tree, not copy-on-write — MVP has no
 // undo/history requirement, so structural sharing would be pure overhead (see ECS-156 plan
 // §5). Callers (state/store.js) are responsible for emitting the matching change event.
-import { createEmptyEvent, cloneEvent, isEmptyEvent } from "./event.js";
+import { createEmptyEvent, cloneEvent, isEmptyEvent, hasNoteData, fxOnlyEvent } from "./event.js";
 import { createPattern, createPatternTrack } from "./pattern.js";
 import { getEvent, getPattern, getTrackChannel } from "./query.js";
 import { getFxParamsForType } from "./fxParams.js";
 import { MAX_INSTRUMENT_LFOS, createLfo, patchLfo } from "./instrumentLfos.js";
 import { BUS_GAIN_KEY, fxKey, getAutomationParam, parseKey } from "./cellAutomation.js";
-import { VOICE_MODES, createTrackChannel } from "./trackChannel.js";
+import { VOICE_MODES, createTrackChannel, isFxSend } from "./trackChannel.js";
 import { eventLfoOf, normalizeParticipation, patchEventLfo } from "./eventLfo.js";
 import { patchScale, scaleOf } from "./scale.js";
 
+// An FX send track (trackChannel.fxSend) takes no note data, so every field edit is refused;
+// its FX automation goes through setCellFxParam & co, which are not blocked.
 export function setEventField(song, { patternId, trackIndex, rowIndex }, field, value) {
+  if (isFxSend(song.trackChannels[trackIndex])) return;
   const event = getEvent(song, patternId, trackIndex, rowIndex);
   if (!event) return;
   event[field] = value;
+}
+
+// Reduces every cell of an FX send track inside rect to its FX automation, in place — run after a
+// paste/fill/duplicate has tiled whole events into the pattern.
+export function stripSendTrackNotes(song, pattern, rect) {
+  for (let t = rect.trackStart; t <= rect.trackEnd; t++) {
+    const track = pattern.tracks[t];
+    if (!track || !isFxSend(song.trackChannels[t])) continue;
+    for (let r = rect.rowStart; r <= rect.rowEnd && r < track.events.length; r++) {
+      if (hasNoteData(track.events[r])) track.events[r] = fxOnlyEvent(track.events[r]);
+    }
+  }
+}
+
+// True when the track holds a note (or other note data) in any pattern.
+export function trackHasNotes(song, trackIndex) {
+  return song.patterns.some((pattern) => pattern.tracks[trackIndex]?.events.some(hasNoteData));
+}
+
+// Locks a track as an FX send (or unlocks it). Refused (false) while the track still holds notes
+// in any pattern, so nothing is ever deleted silently — clear them first.
+export function setTrackChannelFxSend(song, trackIndex, on) {
+  const channel = getTrackChannel(song, trackIndex);
+  if (!channel) return false;
+  if (on) {
+    if (trackHasNotes(song, trackIndex)) return false;
+    channel.fxSend = true;
+  } else {
+    delete channel.fxSend;
+  }
+  return true;
 }
 
 export function clearEvent(song, { patternId, trackIndex, rowIndex }) {
@@ -29,7 +63,7 @@ export function clearEvent(song, { patternId, trackIndex, rowIndex }) {
 export function pasteEvent(song, { patternId, trackIndex, rowIndex }, sourceEvent) {
   const track = getPattern(song, patternId)?.tracks[trackIndex];
   if (!track) return;
-  track.events[rowIndex] = cloneEvent(sourceEvent);
+  track.events[rowIndex] = isFxSend(song.trackChannels[trackIndex]) ? fxOnlyEvent(sourceEvent) : cloneEvent(sourceEvent);
 }
 
 export function setSongName(song, name) {

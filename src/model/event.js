@@ -80,6 +80,17 @@ export function isEmptyEvent(event) {
   );
 }
 
+// True when the event holds anything a note track plays — a note, instrument, velocity, pan,
+// command, length, LFO, ratchet or tie — as opposed to FX automation alone.
+export function hasNoteData(event) {
+  return !isEmptyEvent({ ...event, fx: null });
+}
+
+// The event reduced to its FX automation: what a send track keeps of a pasted or filled cell.
+export function fxOnlyEvent(event) {
+  return { ...createEmptyEvent(), fx: cloneEvent(event).fx };
+}
+
 // A plain `{ ...event }` spread would alias the same `fx` object (and its nested `instances`
 // bags) between source and clone — an edit to one cell's fx map would then silently leak into
 // every cell pasted/duplicated from it (see model/mutations.js#pasteEvent/duplicatePattern, and

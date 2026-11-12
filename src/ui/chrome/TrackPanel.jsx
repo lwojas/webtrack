@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { LFO_DIVISIONS } from "webdsp";
 import { useStore } from "../../state/useStore.js";
 import * as events from "../../state/events.js";
@@ -14,6 +15,7 @@ import {
   sliderToRate,
 } from "../../model/eventLfo.js";
 import { rangeFillStyle } from "../rangeFill.js";
+import { isFxSend } from "../../model/trackChannel.js";
 import { supportsTieKind } from "../../model/instrumentParams.js";
 
 // Track-level properties for the selected track (the grid cursor's track, as in FxPanel): the
@@ -33,6 +35,9 @@ export default function TrackPanel({ store }) {
   // The bulk buttons repaint through PATTERN_LENGTH_CHANGED; listen to it too so the counts follow.
   useStore(store, events.PATTERN_LENGTH_CHANGED, (s) => stepCounts(s, s.cursor.trackIndex).join("/"));
   const notesOn = useStore(store, events.PATTERN_LENGTH_CHANGED, (s) => !getSelectedPattern(s.song)?.tracks[s.cursor.trackIndex]?.notesOff);
+  const fxSend = useStore(store, events.TRACK_CHANNEL_CHANGED, (s) => isFxSend(s.song.trackChannels[s.cursor.trackIndex]));
+  // Locking is refused while the track holds notes (any pattern); the button reports why instead of failing silently.
+  const [refusedTrack, setRefusedTrack] = useState(null);
   const lfo = JSON.parse(lfoJson);
   const [participating, notes, tied, tieable] = stepsKey.split("/").map(Number);
   const set = (patch) => store.setTrackChannelEventLfo(trackIndex, patch);
@@ -43,6 +48,23 @@ export default function TrackPanel({ store }) {
         <span className="fx-panel__label">{`TRK ${trackIndex + 1} — ${trackName}`}</span>
       </div>
       <div className="fx-panel__modules">
+        <div className="fx-module">
+          <div className="fx-module__header">
+            <span className="fx-module__title">Track type</span>
+          </div>
+          <button
+            type="button"
+            className={`fx-panel__target-btn${fxSend ? " fx-panel__target-btn--fx-send" : ""}`}
+            aria-pressed={fxSend}
+            onClick={() => setRefusedTrack(!store.setTrackChannelFxSend(trackIndex, !fxSend) ? trackIndex : null)}
+            title="Lock this track as an FX send: no notes, instruments or samples can be put on it, but its FX chain, FX automation, pan/volume and routing (point an instrument's output at it) all work. Needs a track with no notes."
+          >
+            {fxSend ? "FX SEND — LOCKED" : "FX SEND"}
+          </button>
+          {refusedTrack === trackIndex && !fxSend ? <span className="fx-panel__empty">Clear this track's notes (all patterns) first</span> : null}
+          <span className="fx-panel__empty">{fxSend ? "Notes are blocked; FX and routing stay editable" : "A normal note track"}</span>
+        </div>
+
         <div className="fx-module">
           <div className="fx-module__header">
             <span className="fx-module__title">Track LFO</span>

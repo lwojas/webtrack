@@ -62,13 +62,13 @@ export function tileBlockIntoRect(pattern, rect, block) {
 // from slice 1 at the rect's first row and wraps at `slices`; with `random` (a () => 0..1) each
 // cell gets a random slice instead. Cells whose slice falls past the note range are left empty.
 // `spacing` is the rows between notes (1 = every row); the rows in between are cleared, and the slice
-// counter advances once per note, not per row.
-export function fillRectWithChops(pattern, rect, instrumentIndex, instrument, slices, random = null, spacing = 1) {
+// counter advances once per note, not per row. `skipTrack` (t => bool) leaves a track untouched (FX send tracks).
+export function fillRectWithChops(pattern, rect, instrumentIndex, instrument, slices, random = null, spacing = 1, skipTrack = null) {
   const n = Math.max(1, slices);
   const step = Math.max(1, Math.floor(spacing));
   for (let t = rect.trackStart; t <= rect.trackEnd; t++) {
     const track = pattern.tracks[t];
-    if (!track) continue;
+    if (!track || skipTrack?.(t)) continue;
     for (let r = rect.rowStart; r <= rect.rowEnd && r < track.events.length; r++) {
       const offset = r - rect.rowStart;
       const onBeat = offset % step === 0;
