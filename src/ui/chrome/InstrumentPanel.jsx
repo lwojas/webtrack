@@ -442,6 +442,12 @@ function InstrumentEditor({ store, instrumentController, view, onViewChange }) {
     instrumentController.setOutput(index, { type: "instrument", channel: null, kind: outputKind, track: displayValue === "" ? null : Number(displayValue) });
   }
 
+  // A sample slot's routing: "" = follow the track whose cell triggers it (the default), or force every
+  // voice of this slot into one track's insert bus (audio/compile.js#compileRow).
+  function setSampleTrack(displayValue) {
+    instrumentController.setOutput(index, { type: "sample", channel: null, kind: null, track: displayValue === "" ? null : Number(displayValue) });
+  }
+
   return (
     <div className="instrument-editor">
       <div className="instrument-editor__header">
@@ -559,6 +565,21 @@ function InstrumentEditor({ store, instrumentController, view, onViewChange }) {
       ) : (
         hasSample && (
           <>
+            <label className="fx-module__field">
+              <span className="fx-module__field-label" title="Which track's FX bus this sample plays through">
+                Output Bus
+              </span>
+              <select value={outputTrack ?? ""} onChange={(e) => setSampleTrack(e.target.value)}>
+                <option value="">TRIGGERING TRACK</option>
+                {Array.from({ length: trackCount }, (_, i) => (
+                  <option key={i} value={i}>
+                    TRK {i + 1}
+                  </option>
+                ))}
+              </select>
+              <span className="fx-module__value" />
+            </label>
+
             <label className="fx-module__field">
               <span className="fx-module__field-label" title="Gain">
                 Gain

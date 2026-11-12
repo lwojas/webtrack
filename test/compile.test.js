@@ -446,6 +446,21 @@ describe("compileRow", () => {
     expect(events).toHaveLength(0);
   });
 
+  it("routes a sample slot with output.track into that track's bus, else the triggering track's", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 60);
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "instrument", 0);
+    const instruments = [createInstrumentSlot({ id: 0, sampleId: 1 })];
+    const busIds = [100, 101, 102, 103, 104, 105, 106, 107];
+    const compile = () => compileRow(getSelectedPattern(song), song.trackChannels, instruments, 0, 0, 0.25, busIds);
+
+    expect(compile()[0].bus).toBe(100);
+    instruments[0].output = { type: "sample", channel: null, kind: null, track: 2 };
+    expect(compile()[0].bus).toBe(102);
+    expect(compile()[0].trackIndex).toBe(0);
+  });
+
   it("compiles every unmuted, non-excluded track's event at a row", () => {
     const song = createSong();
     const patternId = song.patterns[0].id;

@@ -202,7 +202,12 @@ export function compileRow(pattern, trackChannels, instruments, transportStep, t
     if (soloActive && !trackChannel.solo) return;
 
     const localStep = trackLocalStep(track, transportStep);
-    const bus = trackBusIds?.[trackIndex];
+    const trackBus = trackBusIds?.[trackIndex];
+    // A sample slot with output.track set plays through that track's bus whichever track triggers it.
+    const busFor = (instrumentIndex) => {
+      const output = instruments[instrumentIndex]?.output;
+      return output?.type === "sample" && Number.isInteger(output.track) ? (trackBusIds?.[output.track] ?? trackBus) : trackBus;
+    };
 
     // The arp belongs to the instrument (model/arp.js, instrument.arp): every arp-enabled
     // instrument sounds whatever it generates for this row from *its own* notes on this track —
@@ -218,7 +223,7 @@ export function compileRow(pattern, trackChannels, instruments, transportStep, t
           instruments,
           time + item.offset * stepDurationSeconds,
           item.durationSteps * stepDurationSeconds,
-          bus,
+          busFor(item.event.instrument),
           lfoClock,
           false,
           scale,
@@ -247,7 +252,7 @@ export function compileRow(pattern, trackChannels, instruments, transportStep, t
     for (let hit = 0; hit < hits; hit++) {
       // A note that ties into the next holds its gate to just past that note's start, on its last hit.
       const hold = hit === hits - 1 && holdSteps !== null ? Math.max(slotSeconds, (holdSteps + 0.5) * stepDurationSeconds - hit * slotSeconds) : slotSeconds;
-      const compiled = compileEvent(event, trackChannel, instruments, time + hit * slotSeconds, hold, bus, lfoClock, tieIn && hit === 0, scale);
+      const compiled = compileEvent(event, trackChannel, instruments, time + hit * slotSeconds, hold, busFor(event.instrument), lfoClock, tieIn && hit === 0, scale);
       if (compiled) events.push({ ...compiled, trackIndex });
     }
   });
