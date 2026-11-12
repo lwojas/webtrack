@@ -643,3 +643,20 @@ describe("noteDurationSteps wrap-around", () => {
     expect(noteDurationSteps(track, 3)).toBe(1);
   });
 });
+
+describe("track notesOff", () => {
+  it("compiles no note events while a track's notes are off, and again once re-enabled", async () => {
+    const { setTrackNotesEnabled } = await import("../src/model/mutations.js");
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 60);
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "instrument", 0);
+    const pattern = getSelectedPattern(song);
+    const row = () => compileRow(pattern, song.trackChannels, makeInstruments(), 0, 0, 0.125);
+    expect(row().length).toBe(1);
+    setTrackNotesEnabled(song, patternId, 0, false);
+    expect(row().length).toBe(0);
+    setTrackNotesEnabled(song, patternId, 0, true);
+    expect(row().length).toBe(1);
+  });
+});

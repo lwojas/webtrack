@@ -3066,3 +3066,9 @@ input[type="range"].range-lg {
 .instrument-panel > .fx-panel__target {
   margin-top: var(--space-sm);
 }
+
+/* A track whose notes are switched off for this pattern (Track tab, Steps card): still editable, reads as silent. */
+.tracker-cell.is-notes-off,
+.tracker-track-header__cell.is-notes-off {
+  opacity: 0.4;
+}

@@ -42,7 +42,14 @@ export default function TrackerGridHost({ store, playbackController, renderStats
       const state = store.getState();
       const pattern = getSelectedPattern(state.song);
       gridView.repaintPattern(pattern);
-      pattern.tracks.forEach((track, trackIndex) => gridView.setHeaderLength(trackIndex, track.length, pattern.rowCount));
+      pattern.tracks.forEach((track, trackIndex) => {
+        gridView.setHeaderLength(trackIndex, track.length, pattern.rowCount);
+        gridView.setTrackNotesOff(trackIndex, !!track.notesOff);
+      });
+    }
+
+    function patchNotesOff() {
+      getSelectedPattern(store.getState().song).tracks.forEach((track, trackIndex) => gridView.setTrackNotesOff(trackIndex, !!track.notesOff));
     }
 
     function patchHeaderLength({ trackIndex }) {
@@ -205,6 +212,7 @@ export default function TrackerGridHost({ store, playbackController, renderStats
       store.subscribe(events.PATTERN_LENGTH_CHANGED, handlePossibleResize),
       store.subscribe(events.TRACK_COUNT_CHANGED, handlePossibleResize),
       store.subscribe(events.TRACK_LENGTH_CHANGED, patchHeaderLength),
+      store.subscribe(events.PATTERN_LENGTH_CHANGED, patchNotesOff),
       store.subscribe(events.TRACK_CHANNEL_CHANGED, syncVoiceHeaders),
       store.subscribe(events.SCALE_CHANGED, repaintActivePattern),
       store.subscribe(events.CURSOR_MOVED, updateCursor),

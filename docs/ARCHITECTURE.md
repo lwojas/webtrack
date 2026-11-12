@@ -100,7 +100,7 @@ belongs, it almost certainly belongs here, not inside `model/`, `audio/`, or `st
 Song { bpm, swing, trackCount, rowCount, trackChannels: TrackChannel[8],
        patterns: Pattern[], patternQueue: PatternId[], selectedPatternId: PatternId, nextPatternId }
 Pattern { id, name, rowCount, tracks: PatternTrack[8] }        // rowCount is per-pattern — 1-8 bars, see model/timing.js
-PatternTrack { events: Event[rowCount], length }   // length is the track's own playback loop length — defaults to rowCount, see §8
+PatternTrack { events: Event[rowCount], length, notesOff? }   // length is the track's own playback loop length — defaults to rowCount, see §8; notesOff = notes silenced in this pattern only
 Event { note, instrument, velocity, pan, effectCommand, effectParam, length }   // all nullable; empty = all null
 TrackChannel { index, name, muted, solo, volume }   // mixer-level — persists across pattern switches
 Instrument { id, name, sampleId, gain, rootNote, sampleAsset, output, origin, localAssetId,
@@ -121,6 +121,9 @@ Three things worth noting:
   Mute/solo/volume are mixer-level state that should survive switching patterns on the same
   track; the events themselves are per-pattern. `Song.trackChannels` is indexed in parallel
   with every pattern's `tracks` array by track index.
+  Muting the *notes* of a track in one pattern is `PatternTrack.notesOff` (Track tab, Steps card,
+  **NOTES ON / OFF**; `store.setTrackNotesEnabled`): `compileRow` skips the track's triggers but its
+  FX, bus and automation keep running, unlike channel mute. The grid dims the track's columns.
 - **`Instrument` is not part of `Song`.** Instrument slots (and the samples loaded into them)
   are store-level (`store.instruments`), not musical data — an `Event.instrument` is just an
   index into that array. This keeps instrument/sample assignment independent of which pattern

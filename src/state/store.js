@@ -13,6 +13,7 @@ import {
   setSongScale as setSongScaleModel,
   setTrackStepsLfo as setTrackStepsLfoModel,
   setTrackStepsTie as setTrackStepsTieModel,
+  setTrackNotesEnabled as setTrackNotesEnabledModel,
   setMasterPan as setMasterPanModel,
   setTrackFxParam as setTrackFxParamModel,
   setMasterFxParam as setMasterFxParamModel,
@@ -578,6 +579,12 @@ export function createStore({ song, instruments }) {
     emitter.emit(events.PATTERN_LENGTH_CHANGED, {});
   }
 
+  // Per-pattern notes on/off for a track (model/mutations.js#setTrackNotesEnabled); read live by compileRow.
+  function setTrackNotesEnabled(trackIndex, enabled) {
+    setTrackNotesEnabledModel(state.song, state.song.selectedPatternId, trackIndex, enabled);
+    emitter.emit(events.PATTERN_LENGTH_CHANGED, {});
+  }
+
   function setMasterPan(pan) {
     setMasterPanModel(state.song, pan);
     emitter.emit(events.MASTER_FX_CHANGED, { pan });
@@ -996,6 +1003,7 @@ export function createStore({ song, instruments }) {
     setSequenceLength,
     setTrackCount,
     setTrackLength,
+    setTrackNotesEnabled,
     toggleEditMode,
     setEditStep,
     setOctave,

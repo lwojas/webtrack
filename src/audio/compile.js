@@ -204,6 +204,9 @@ export function compileRow(pattern, trackChannels, instruments, transportStep, t
     const trackChannel = trackChannels[trackIndex];
     if (!trackChannel) return;
     if (soloActive && !trackChannel.solo) return;
+    // Notes switched off for this track in this pattern (model/mutations.js#setTrackNotesEnabled): no
+    // triggers, but the track's FX, bus and automation keep running (unlike mute).
+    if (track.notesOff) return;
 
     const localStep = trackLocalStep(track, transportStep);
     const trackBus = trackBusIds?.[trackIndex];

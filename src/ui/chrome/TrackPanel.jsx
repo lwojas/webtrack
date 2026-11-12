@@ -32,6 +32,7 @@ export default function TrackPanel({ store }) {
   const stepsKey = useStore(store, events.CELL_CHANGED, (s) => stepCounts(s, s.cursor.trackIndex).join("/"));
   // The bulk buttons repaint through PATTERN_LENGTH_CHANGED; listen to it too so the counts follow.
   useStore(store, events.PATTERN_LENGTH_CHANGED, (s) => stepCounts(s, s.cursor.trackIndex).join("/"));
+  const notesOn = useStore(store, events.PATTERN_LENGTH_CHANGED, (s) => !getSelectedPattern(s.song)?.tracks[s.cursor.trackIndex]?.notesOff);
   const lfo = JSON.parse(lfoJson);
   const [participating, notes, tied, tieable] = stepsKey.split("/").map(Number);
   const set = (patch) => store.setTrackChannelEventLfo(trackIndex, patch);
@@ -132,6 +133,15 @@ export default function TrackPanel({ store }) {
           </button>
           <button type="button" className="fx-panel__target-btn" disabled={participating === 0} onClick={() => store.setTrackStepsLfo(trackIndex, 0)} title="No note on this track follows the LFO (this pattern)">
             NONE
+          </button>
+          <button
+            type="button"
+            className="fx-panel__target-btn"
+            aria-pressed={notesOn}
+            onClick={() => store.setTrackNotesEnabled(trackIndex, !notesOn)}
+            title="Switch this track's notes on or off for this pattern. Off silences the steps but keeps FX and automation running (unlike Mute)"
+          >
+            {notesOn ? "NOTES ON" : "NOTES OFF"}
           </button>
           <span className="fx-panel__empty">Per step: Note Editor, TRACK LFO</span>
         </div>

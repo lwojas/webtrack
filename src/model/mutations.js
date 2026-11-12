@@ -537,6 +537,15 @@ export function setTrackLength(song, patternId, trackIndex, length) {
   track.length = Math.max(1, Math.min(Math.round(length), track.events.length));
 }
 
+// Per-pattern switch for a track's notes (PatternTrack.notesOff): off = the track's steps don't
+// trigger in this pattern, while its FX, bus and automation carry on — unlike channel mute.
+export function setTrackNotesEnabled(song, patternId, trackIndex, enabled) {
+  const track = getPattern(song, patternId)?.tracks[trackIndex];
+  if (!track) return;
+  if (enabled) delete track.notesOff;
+  else track.notesOff = true;
+}
+
 export const MIN_TRACKS = 1;
 export const MAX_TRACKS = 32;
 
@@ -619,7 +628,7 @@ export function duplicatePattern(song, patternId) {
     id: song.nextPatternId++,
     name: `${source.name} copy`,
     rowCount: source.rowCount,
-    tracks: source.tracks.map((track) => ({ events: track.events.map(cloneEvent), length: track.length })),
+    tracks: source.tracks.map((track) => ({ events: track.events.map(cloneEvent), length: track.length, ...(track.notesOff ? { notesOff: true } : {}) })),
   };
 
   song.patterns.splice(song.patterns.indexOf(source) + 1, 0, duplicate);

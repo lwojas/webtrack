@@ -335,6 +335,13 @@ export function createGridView({
     refs.lengthEl.title = `Playback length: ${length} steps (of ${maxLength})`;
   }
 
+  // Dims a track's header and cells while its notes are switched off for the shown pattern
+  // (PatternTrack.notesOff): the columns stay editable, they just read as silent.
+  function setTrackNotesOff(trackIndex, off) {
+    headerRefs?.[trackIndex]?.cellEl.classList.toggle("is-notes-off", off);
+    cellRefs?.[trackIndex]?.forEach((refs) => refs.cellEl.classList.toggle("is-notes-off", off));
+  }
+
   // Refreshes one track's voice controls — called on mount and whenever that track's channel
   // changes (state/events.js#TRACK_CHANNEL_CHANGED), same as mute/solo/volume already do
   // elsewhere; this is the grid's own copy of that same trackChannel data, not a second source
@@ -428,6 +435,7 @@ export function createGridView({
     patchCell,
     repaintPattern,
     setHeaderLength,
+    setTrackNotesOff,
     setHeaderVoiceSettings,
     getContainerElement,
     getRowElement,
