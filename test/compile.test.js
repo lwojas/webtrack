@@ -36,7 +36,7 @@ describe("compileEvent", () => {
     expect(compileEvent(event, song.trackChannels[0], emptyInstruments)).toBe(null);
   });
 
-  it("maps note-relative-to-rootNote into a semitone pitch offset and scales gain by velocity/volume", () => {
+  it("maps note-relative-to-rootNote into a semitone pitch offset and scales gain by velocity only (track volume is a live bus gain)", () => {
     const song = createSong();
     const patternId = song.patterns[0].id;
     setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 67); // 7 semitones above rootNote 60
@@ -53,7 +53,7 @@ describe("compileEvent", () => {
 
     expect(compiled.sampleId).toBe(1);
     expect(compiled.pitch).toBe(7);
-    expect(compiled.gain).toBeCloseTo((64 / 127) * 0.5);
+    expect(compiled.gain).toBeCloseTo(64 / 127); // track volume (0.5) is not folded in
     expect(compiled.time).toBe(1.25);
     expect(compiled.duration).toBe(0.5);
   });
@@ -326,7 +326,7 @@ describe("compileEvent — synthesized instrument output (webdsp Kick/Snare/Clap
     expect(timed.pitch).toBe(7);
   });
 
-  it("scales velocity by track volume into a 0..1 level, same scalar sample output uses for gain", () => {
+  it("maps velocity to a 0..1 level and leaves track volume to the live bus gain", () => {
     const song = createSong();
     const patternId = song.patterns[0].id;
     setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 60);
@@ -337,7 +337,7 @@ describe("compileEvent — synthesized instrument output (webdsp Kick/Snare/Clap
 
     const compiled = compileEvent(event, song.trackChannels[0], makeSynthInstruments());
 
-    expect(compiled.velocity).toBeCloseTo((64 / 127) * 0.5);
+    expect(compiled.velocity).toBeCloseTo(64 / 127);
   });
 
   it("carries pan straight through, same as sample output", () => {

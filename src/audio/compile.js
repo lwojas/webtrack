@@ -110,7 +110,7 @@ export function compileEvent(event, trackChannel, instruments, time, durationSec
   // rather than holding forever.
   if (instrument.output?.type === "instrument") {
     if (instrument.engineInstrumentId === null || instrument.engineInstrumentId === undefined) return null;
-    const level = Math.max(0, Math.min(1, (velocity / 127) * trackChannel.volume));
+    const level = Math.max(0, Math.min(1, velocity / 127));
     const pitch = note - instrument.rootNote;
     const compiled = { kind: "instrument", instrumentId: voiceInstrumentId(instrument, voice), velocity: level, pitch };
     // Tied in (the previous note of this track ties into this one): glide into it, no re-attack.
@@ -132,7 +132,7 @@ export function compileEvent(event, trackChannel, instruments, time, durationSec
   // or a sample loads, so the engine applies it once at the sample level rather than this
   // compiling it into every triggered event's gain by hand. Folding it in here too would
   // double-count it.
-  const gain = (velocity / 127) * trackChannel.volume;
+  const gain = velocity / 127;
   const pitch = note - instrument.rootNote;
 
   const compiled = { kind: "sample", sampleId: instrument.sampleId, gain };

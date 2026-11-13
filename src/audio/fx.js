@@ -164,9 +164,56 @@ function pushInstanceValues(runtime, busId, effectId, type, values) {
 export async function setTrackFxParam(trackIndex, paramId, value) {
   const nodeParam = resolveNodeParam(paramId);
   if (nodeParam === undefined) return;
+  if (nodeParam === NodeParam.BusGain) {
+    // The mixer fader (TrackChannel.volume) lives on the same engine param, so the two multiply.
+    trackBusGain[trackIndex] = value;
+    return pushTrackBusGain(trackIndex);
+  }
   const runtime = await initRuntime();
   const busIds = await ensureTrackBuses(trackIndex + 1);
   runtime.setNodeParameter(busIds[trackIndex], nodeParam, value);
+}
+
+// Per-track bus output level = the FX panel's bus.gain x the mixer fader (TrackChannel.volume).
+// The fader is applied here, on the bus, rather than folded into each compiled event's gain:
+// a bus parameter takes effect on the audio thread at once, also for notes already scheduled
+// (up to the lookahead window ahead) and voices already sounding.
+const trackBusGain = [];
+const trackVolume = [];
+
+async function pushTrackBusGain(trackIndex) {
+  const runtime = await initRuntime();
+  const busIds = await ensureTrackBuses(trackIndex + 1);
+  runtime.setNodeParameter(busIds[trackIndex], NodeParam.BusGain, (trackBusGain[trackIndex] ?? 1) * (trackVolume[trackIndex] ?? 1));
+}
+
+export function setTrackVolume(trackIndex, volume) {
+  trackVolume[trackIndex] = volume;
+  return pushTrackBusGain(trackIndex);
+}
+
+// Live mute/solo cut: BusMainGain silences a bus's main output at once (notes already scheduled,
+// synth instruments, tails) while leaving its sends running. levels[i] is 0 or 1.
+const trackMainGain = [];
+export async function setTrackMainGains(levels) {
+  const runtime = await initRuntime();
+  const busIds = await ensureTrackBuses(levels.length);
+  levels.forEach((level, i) => {
+    if (trackMainGain[i] === level) return;
+    trackMainGain[i] = level;
+    runtime.setNodeParameter(busIds[i], NodeParam.BusMainGain, level);
+  });
+}
+
+// Replays every track's fader and bus.gain into the engine (project load, before play).
+export function syncTrackBusGains(trackChannels) {
+  return Promise.all(
+    trackChannels.map((channel, trackIndex) => {
+      trackBusGain[trackIndex] = channel.fx?.["bus.gain"] ?? 1;
+      trackVolume[trackIndex] = channel.volume ?? 1;
+      return pushTrackBusGain(trackIndex);
+    }),
+  );
 }
 
 export async function setMasterFxParam(paramId, value) {
@@ -353,6 +400,7 @@ export async function resyncAllFxChains(trackChannels, masterFxChain, masterFx) 
   await ensureTrackBuses(trackChannels.length);
   await Promise.all(trackChannels.map((channel, trackIndex) => resyncFxChain("track", trackIndex, channel.fxChain, channel.fx)));
   await resyncTrackOutputs(trackChannels, effectiveOutputTrack);
+  await syncTrackBusGains(trackChannels);
   await resyncFxChain("master", undefined, masterFxChain, masterFx);
 }
 

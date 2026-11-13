@@ -330,11 +330,12 @@ separate rather than collapsed into one "volume" concept:
   panel's pinned **Output** module (`bus.gain`). No separate "track gain" control needed
   adding: `NodeParam.BusGain` *is* the track-gain primitive the architecture calls for, reused
   rather than duplicated.
-- **Track mixer volume** (`TrackChannel.volume`, `ui/chrome/Mixer.jsx`) — the pre-existing
-  compile-time multiplier (`audio/compile.js`'s `gain = (velocity/127) * trackChannel.volume`),
-  unchanged by any of this. Kept conceptually separate from track gain above: one is a musical
-  mixer control the model/compile step owns, the other is a real DSP-stage parameter the
-  engine owns: two different layers, not two names for the same knob.
+- **Track mixer volume** (`TrackChannel.volume`, `ui/chrome/Mixer.jsx`) — applied live on the
+  track's bus: `audio/fx.js#setTrackVolume` sets `NodeParam.BusGain` to `bus.gain × volume`
+  (`appContext.js` pushes it on every `TRACK_CHANNEL_CHANGED`; `syncTrackBusGains` replays it on
+  load and before play). It is deliberately *not* folded into compiled events: that would only
+  reach notes scheduled after the edit (up to the ~150ms lookahead later) and never voices
+  already sounding, so faders lagged. `audio/compile.js` now scales by velocity only.
 
 Not part of this: **per-cell volume** (a future per-event level, mapping naturally to MIDI
 velocity later) stays entirely a tracker/event-level concern — `webdsp`'s `TriggerParams.gain`/

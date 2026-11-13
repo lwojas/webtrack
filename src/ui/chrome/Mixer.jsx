@@ -16,12 +16,11 @@ import { isFxSend } from "../../model/trackChannel.js";
 // header instead of here (ui/grid/gridView.js's track-header row) — it reads naturally sitting
 // above the column it governs, and this strip is left with only the song-wide trackChannel
 // fields (mute/solo/volume), which are shared across every pattern.
-// pan (model/trackChannel.js#pan) is a live engine parameter (webdsp's NodeParam.BusPan), unlike
-// volume above (a compile-time-only multiplier — ARCHITECTURE.md's "Instrument/track gain
-// staging") — it needs the model+engine push fxController already bundles for every other
-// bus-level control (ui/chrome/FxPanel.jsx's own bus.gain/pan controls use the same object), so
-// this calls fxController.setTrackPan rather than a bare store method the way volume/mute/solo
-// do.
+// volume is also a live bus gain (audio/fx.js#setTrackVolume), pushed by appContext.js on every
+// TRACK_CHANNEL_CHANGED, so a bare store call is enough. pan (model/trackChannel.js#pan) needs
+// the model+engine push fxController already bundles for every other bus-level control
+// (ui/chrome/FxPanel.jsx's own bus.gain/pan controls use the same object), so this calls
+// fxController.setTrackPan rather than a bare store method the way volume/mute/solo do.
 function ChannelStrip({ store, fxController, trackIndex }) {
   const name = store.getState().song.trackChannels[trackIndex].name;
   const muted = useStore(store, events.TRACK_CHANNEL_CHANGED, (s) => s.song.trackChannels[trackIndex].muted);

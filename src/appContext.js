@@ -27,6 +27,8 @@ import {
   moveTrackFxInstance,
   moveMasterFxInstance,
   setTrackPan,
+  setTrackVolume,
+  setTrackMainGains,
   setTrackOutput,
   resyncTrackOutputs,
   setMasterPan,
@@ -451,6 +453,39 @@ export function createAppContext() {
   // comment) — every mute/solo/volume/voiceMode edit fires this same event, so this just
   // recomputes and is a no-op unless mute/solo actually changed what's audible.
   store.subscribe(events.TRACK_CHANNEL_CHANGED, () => playbackController.syncTrackMuting());
+  // Fader moves go straight to the track bus (audio/fx.js#setTrackVolume), not through compile,
+  // so they are heard immediately. Every volume writer (Mixer, MIDI CC, Push, control contract)
+  // funnels through this event. Before the engine exists, the next resync replays all of them.
+  // Mute/solo likewise cut the track's bus output live. A track other audio is routed through (another
+  // track's Output, or a sample slot's output.track) is left to the compile-time gate, since silencing
+  // its bus would also silence what it carries for others.
+  function syncTrackAudibility() {
+    if (!peekRuntime()) return;
+    const { song, instruments } = store.getState();
+    const channels = song.trackChannels;
+    const soloActive = channels.some((channel) => channel.solo);
+    const carriesOthers = new Set();
+    channels.forEach((channel, i) => {
+      const target = effectiveOutputTrack(channel);
+      if (target !== null && target !== i) carriesOthers.add(target);
+    });
+    instruments.forEach((instrument) => {
+      const output = instrument?.output;
+      if (output?.type === "sample" && Number.isInteger(output.track)) carriesOthers.add(output.track);
+    });
+    setTrackMainGains(
+      channels.map((channel, i) => (carriesOthers.has(i) || (!channel.muted && (!soloActive || channel.solo)) ? 1 : 0)),
+    );
+  }
+  store.subscribe(events.TRACK_CHANNEL_CHANGED, syncTrackAudibility);
+  store.subscribe(events.TRACK_COUNT_CHANGED, syncTrackAudibility);
+  store.subscribe(events.INSTRUMENTS_CHANGED, syncTrackAudibility);
+  store.subscribe(events.TRACK_CHANNEL_CHANGED, (payload) => {
+    if (!peekRuntime()) return;
+    const channels = store.getState().song.trackChannels;
+    const indices = payload?.trackIndex !== undefined ? [payload.trackIndex] : channels.map((_, i) => i);
+    for (const i of indices) if (channels[i]) setTrackVolume(i, channels[i].volume);
+  });
   // A shrunk track count can drop the target of a route (the store sends that track to MASTER).
   store.subscribe(events.TRACK_COUNT_CHANGED, () => {
     if (peekRuntime()) resyncTrackOutputs(store.getState().song.trackChannels, effectiveOutputTrack);
@@ -709,6 +744,7 @@ export function createAppContext() {
     }
     await resyncSynthInstruments(instruments, (slot) => voicesNeededForSlot(song, instruments, slot));
     await resyncAllFxChains(song.trackChannels, song.masterFxChain, song.masterFx);
+    syncTrackAudibility();
   }
 
   // ui/chrome/TransportBar.jsx's Resample control — see audio/resampleController.js for the
@@ -781,6 +817,7 @@ export function createAppContext() {
     }
     await resyncSynthInstruments(instruments, (slot) => voicesNeededForSlot(song, instruments, slot));
     await resyncAllFxChains(song.trackChannels, song.masterFxChain, song.masterFx);
+    syncTrackAudibility();
   }
 
   // App.jsx's "discard" action on the restore prompt, and saveProject()'s own cleanup after an
