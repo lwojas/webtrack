@@ -184,14 +184,16 @@ export default function App() {
       {activeTab === "tracker" ? (
         <div className="app__body">
           <div className="app__tracker">
-            <TrackerGridHost store={store} playbackController={playbackController} renderStats={renderStats} />
+            <TrackerGridHost store={store} playbackController={playbackController} renderStats={renderStats}>
+              {/* Inside the grid's scroll container: scrolls with the columns, pinned to the bottom edge. */}
+              <MixerFxPanel store={store} fxController={fxController} />
+            </TrackerGridHost>
             {/* Sits in the same flex column as the grid, so opening it shrinks the grid host
                 (which scrolls) instead of overlaying it; renders nothing while closed. */}
             <ChopEditor store={store} instrumentController={instrumentController} />
             <ChordEditor store={store} />
             <InstrumentEditorPanel store={store} instrumentController={instrumentController} />
             <AutomationEditor store={store} />
-            <MixerFxPanel store={store} fxController={fxController} />
           </div>
           <div className="app__side">
             <SelectionToolbar store={store} />

@@ -10,7 +10,7 @@ import { isFxSend } from "../../model/trackChannel.js";
 // see ARCHITECTURE.md's in-place-mutation gotcha) — useSyncExternalStore compares snapshots
 // with Object.is, so a selector must return the primitive fields that actually changed, not
 // the mutable container object itself, or React never detects the change. The name never
-// changes after creation, so it's read once outside any hook rather than subscribed to.
+// is user-editable (grid name row), so it's subscribed to like the other fields.
 //
 // The track's own playback length (model/pattern.js) lives in the tracker grid's per-column
 // header instead of here (ui/grid/gridView.js's track-header row) — it reads naturally sitting
@@ -22,7 +22,7 @@ import { isFxSend } from "../../model/trackChannel.js";
 // (ui/chrome/FxPanel.jsx's own bus.gain/pan controls use the same object), so this calls
 // fxController.setTrackPan rather than a bare store method the way volume/mute/solo do.
 function ChannelStrip({ store, fxController, trackIndex }) {
-  const name = store.getState().song.trackChannels[trackIndex].name;
+  const name = useStore(store, events.TRACK_CHANNEL_CHANGED, (s) => s.song.trackChannels[trackIndex].name);
   const muted = useStore(store, events.TRACK_CHANNEL_CHANGED, (s) => s.song.trackChannels[trackIndex].muted);
   const solo = useStore(store, events.TRACK_CHANNEL_CHANGED, (s) => s.song.trackChannels[trackIndex].solo);
   const volume = useStore(store, events.TRACK_CHANNEL_CHANGED, (s) => s.song.trackChannels[trackIndex].volume);

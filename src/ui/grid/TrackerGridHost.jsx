@@ -19,7 +19,9 @@ import * as events from "../../state/events.js";
 // match what's currently mounted (see model/mutations.js's setPatternRowCount) —
 // handlePossibleResize() below detects that and rebuilds, rather than trying to resize the
 // existing DOM in place.
-export default function TrackerGridHost({ store, playbackController, renderStats }) {
+// `children` (the mixer/FX/track panel, App.jsx) render inside the same scroll container, after the grid, so the
+// panel scrolls horizontally with the columns (pure CSS: it is in the same flow) and sticks to the bottom edge.
+export default function TrackerGridHost({ store, playbackController, renderStats, children }) {
   const containerRef = useRef(null);
 
   useEffect(() => {
@@ -71,7 +73,12 @@ export default function TrackerGridHost({ store, playbackController, renderStats
       state.song.trackChannels.forEach((channel, trackIndex) => {
         gridView.setHeaderVoiceSettings(trackIndex, channel);
         gridView.setTrackFxSend(trackIndex, isFxSend(channel));
+        gridView.setHeaderName(trackIndex, channel.name);
       });
+    }
+
+    function handleNameChange(trackIndex, name) {
+      store.setTrackChannelName(trackIndex, name);
     }
 
     function handleVoiceModeChange(trackIndex, voiceMode) {
@@ -168,10 +175,12 @@ export default function TrackerGridHost({ store, playbackController, renderStats
         onCellMouseDown: handleCellMouseDown,
         onCellMouseEnter: handleCellMouseEnter,
         onLengthChange: handleLengthChange,
+        onNameChange: handleNameChange,
         onVoiceModeChange: handleVoiceModeChange,
         onChokeGroupChange: handleChokeGroupChange,
         onMaxVoicesChange: handleMaxVoicesChange,
         getScale: () => scaleOf(store.getState().song),
+        getInstrumentHue: (index) => store.getState().instruments[index]?.color ?? null,
       });
       gridView.mount(containerRef.current);
       renderStats?.setNodeCount(gridView.getNodeCount());
@@ -207,6 +216,16 @@ export default function TrackerGridHost({ store, playbackController, renderStats
       }
     }
 
+    // INSTRUMENTS_CHANGED also fires for gain/envelope edits, so only repaint when a color actually changed.
+    const hueSignature = () => store.getState().instruments.map((i) => i.color ?? "").join(",");
+    let lastHues = hueSignature();
+    function repaintIfHuesChanged() {
+      const next = hueSignature();
+      if (next === lastHues) return;
+      lastHues = next;
+      repaintActivePattern();
+    }
+
     buildGrid();
     window.addEventListener("mouseup", handleWindowMouseUp);
 
@@ -219,6 +238,7 @@ export default function TrackerGridHost({ store, playbackController, renderStats
       store.subscribe(events.PATTERN_LENGTH_CHANGED, patchNotesOff),
       store.subscribe(events.TRACK_CHANNEL_CHANGED, syncVoiceHeaders),
       store.subscribe(events.SCALE_CHANGED, repaintActivePattern),
+      store.subscribe(events.INSTRUMENTS_CHANGED, repaintIfHuesChanged),
       store.subscribe(events.CURSOR_MOVED, updateCursor),
     ];
 
@@ -229,5 +249,12 @@ export default function TrackerGridHost({ store, playbackController, renderStats
     };
   }, [store, playbackController, renderStats]);
 
-  return <div className="tracker-grid-host" ref={containerRef} />;
+  return (
+    <div className="tracker-grid-host">
+      <div className="tracker-grid-content">
+        <div ref={containerRef} />
+        {children}
+      </div>
+    </div>
+  );
 }

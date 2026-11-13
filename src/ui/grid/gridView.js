@@ -15,16 +15,21 @@ export function createGridView({
   onCellMouseDown,
   onCellMouseEnter,
   onLengthChange,
+  onNameChange,
   onVoiceModeChange,
   onChokeGroupChange,
   onMaxVoicesChange,
   // () => the song's scale (model/scale.js), read on every patch so a key change only needs a
   // repaint; omitted = no scale emphasis.
   getScale,
+  // (instrumentIndex) => the slot's color hue (model/instrument.js#color) or null; tints the INS field.
+  getInstrumentHue,
 } = {}) {
   let container = null;
   let cellRefs = null; // cellRefs[trackIndex][rowIndex] = { cellEl, noteEl, insEl, volEl, fxEl }
   let rowEls = null; // rowEls[rowIndex]
+  let nameHeaderRowEl = null;
+  let nameRefs = null; // nameRefs[trackIndex] = { cellEl, nameEl }
   let headerRowEl = null;
   let headerRefs = null; // headerRefs[trackIndex] = { cellEl, lengthEl }
   let voiceHeaderRowEl = null;
@@ -75,6 +80,58 @@ export function createGridView({
     }
 
     return { rowEl, refsForRow };
+  }
+
+  // The track name row: the topmost sticky header, one editable label per column. The name is the
+  // song-level trackChannel name (also shown on the mixer strip); committed on change (blur/Enter).
+  function buildNameHeaderRow() {
+    const rowEl = document.createElement("div");
+    rowEl.className = "tracker-track-header tracker-track-name-header";
+
+    const indexEl = document.createElement("span");
+    indexEl.className = "tracker-track-header__index";
+    indexEl.textContent = "BAR";
+    rowEl.appendChild(indexEl);
+
+    const refs = [];
+    for (let t = 0; t < trackCount; t++) {
+      const cellEl = document.createElement("div");
+      cellEl.className = "tracker-track-header__cell";
+      cellEl.dataset.track = String(t);
+      const nameEl = document.createElement("input");
+      nameEl.type = "text";
+      nameEl.className = "tracker-track-header__name";
+      nameEl.maxLength = 24;
+      nameEl.spellcheck = false;
+      nameEl.title = "Track name — click to rename";
+      cellEl.appendChild(nameEl);
+      rowEl.appendChild(cellEl);
+      refs.push({ cellEl, nameEl });
+    }
+    return { rowEl, refs };
+  }
+
+  function handleNameChangeEvent(e) {
+    const cellEl = e.target.closest(".tracker-track-header__cell");
+    if (!cellEl) return;
+    onNameChange?.(Number(cellEl.dataset.track), e.target.value);
+  }
+
+  // Enter commits (via blur), Escape reverts; stopPropagation keeps keys out of the tracker's note entry.
+  function handleNameKeyDown(e) {
+    e.stopPropagation();
+    if (e.key === "Enter") e.target.blur();
+    else if (e.key === "Escape") {
+      e.target.value = e.target.defaultValue;
+      e.target.blur();
+    }
+  }
+
+  function setHeaderName(trackIndex, name) {
+    const nameEl = nameRefs?.[trackIndex]?.nameEl;
+    if (!nameEl) return;
+    nameEl.defaultValue = name;
+    if (document.activeElement !== nameEl) nameEl.value = name;
   }
 
   // A track's own playback length (model/pattern.js) lives above its column, inside the grid
@@ -258,6 +315,13 @@ export function createGridView({
     container = document.createElement("div");
     container.className = "tracker-grid";
 
+    const { rowEl: nameRowEl, refs: refsForName } = buildNameHeaderRow();
+    nameHeaderRowEl = nameRowEl;
+    nameRefs = refsForName;
+    nameHeaderRowEl.addEventListener("change", handleNameChangeEvent);
+    nameHeaderRowEl.addEventListener("keydown", handleNameKeyDown);
+    container.appendChild(nameHeaderRowEl);
+
     const { rowEl: headerEl, refsForHeader } = buildHeaderRow();
     headerRowEl = headerEl;
     headerRefs = refsForHeader;
@@ -299,6 +363,10 @@ export function createGridView({
       const rect = getColumnRect(t);
       if (rect) cellEl.style.width = `${rect.width}px`;
     });
+    nameRefs.forEach(({ cellEl }, t) => {
+      const rect = getColumnRect(t);
+      if (rect) cellEl.style.width = `${rect.width}px`;
+    });
     voiceHeaderRefs.forEach(({ cellEl, chokeCellEl }, t) => {
       const rect = getColumnRect(t);
       if (!rect) return;
@@ -310,6 +378,8 @@ export function createGridView({
   function unmount() {
     container?.removeEventListener("mousedown", handleMouseDown);
     container?.removeEventListener("mouseover", handleMouseOver);
+    nameHeaderRowEl?.removeEventListener("change", handleNameChangeEvent);
+    nameHeaderRowEl?.removeEventListener("keydown", handleNameKeyDown);
     headerRowEl?.removeEventListener("input", handleHeaderInput);
     voiceHeaderRowEl?.removeEventListener("change", handleVoiceHeaderChange);
     chokeHeaderRowEl?.removeEventListener("change", handleVoiceHeaderChange);
@@ -317,6 +387,8 @@ export function createGridView({
     container = null;
     cellRefs = null;
     rowEls = null;
+    nameHeaderRowEl = null;
+    nameRefs = null;
     headerRowEl = null;
     headerRefs = null;
     voiceHeaderRowEl = null;
@@ -345,6 +417,7 @@ export function createGridView({
   // Colours an FX send track's whole column (trackChannel.fxSend): header, voice/choke headers and cells.
   function setTrackFxSend(trackIndex, on) {
     headerRefs?.[trackIndex]?.cellEl.classList.toggle("is-fx-send", on);
+    nameRefs?.[trackIndex]?.cellEl.classList.toggle("is-fx-send", on);
     voiceHeaderRefs?.[trackIndex]?.cellEl.classList.toggle("is-fx-send", on);
     voiceHeaderRefs?.[trackIndex]?.chokeCellEl.classList.toggle("is-fx-send", on);
     cellRefs?.[trackIndex]?.forEach((refs) => refs.cellEl.classList.toggle("is-fx-send", on));
@@ -385,6 +458,14 @@ export function createGridView({
     refs.insEl.textContent = formatted.instrument;
     refs.volEl.textContent = formatted.velocity;
     refs.fxEl.textContent = formatted.fx;
+    const hue = event.instrument == null ? null : getInstrumentHue?.(event.instrument);
+    if (hue == null) {
+      refs.insEl.classList.remove("tracker-cell__ins--tinted");
+      refs.insEl.style.removeProperty("--ins-hue");
+    } else {
+      refs.insEl.classList.add("tracker-cell__ins--tinted");
+      refs.insEl.style.setProperty("--ins-hue", String(hue));
+    }
     refs.cellEl.classList.toggle("tracker-cell--empty", isEmptyEvent(event));
     // A note outside the project's key: still fully editable, just visually secondary.
     const scale = getScale?.();
@@ -446,6 +527,7 @@ export function createGridView({
     setTrackNotesOff,
     setTrackFxSend,
     setHeaderVoiceSettings,
+    setHeaderName,
     getContainerElement,
     getRowElement,
     getCellElement,

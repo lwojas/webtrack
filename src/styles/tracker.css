@@ -252,8 +252,16 @@ input[type="range"]:disabled {
   position: relative;
   overflow: auto; /* wide track counts scroll horizontally, tall patterns scroll vertically —
                       both stay inside this panel, never the document */
+  container-type: inline-size; /* lets the FX/Track panels size to the visible width (100cqw) */
   background: var(--surface-1);
   border: 1px solid var(--border);
+}
+
+/* One box as wide as the columns: the rows, the bar column's sticky-left and the mixer (a sibling after
+   the grid) all share it, so the mixer scrolls horizontally with the grid and sticks to the bottom. */
+.tracker-grid-content {
+  width: max-content;
+  min-width: 100%;
 }
 
 .tracker-grid {
@@ -279,8 +287,8 @@ input[type="range"]:disabled {
    overlay. */
 .tracker-track-header {
   position: sticky;
-  top: 0;
-  z-index: 3;
+  top: calc(var(--row-height) + var(--space-xs)); /* second row; the name row is first (below) */
+  z-index: 6; /* above the sticky bar column (4) and the cursor (2) */
   display: flex;
   align-items: center;
   gap: var(--lane-gap);
@@ -301,6 +309,15 @@ input[type="range"]:disabled {
   letter-spacing: 0.04em;
   flex-shrink: 0;
   text-align: right;
+  /* The bar column stays put while the columns scroll sideways, above the cells and the cursor. */
+  position: sticky;
+  left: 0;
+  z-index: 4;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  background: var(--surface-2);
 }
 
 /* Width is set inline per column (ui/grid/gridView.js#mount), measured off the real rendered
@@ -334,14 +351,37 @@ input[type="range"]:disabled {
    offset by exactly LEN's own height so the two stack without overlapping, both still pinned
    to the top of the scrollable grid host while rows scroll past underneath. */
 .tracker-track-voice-header {
-  top: calc(var(--row-height) + var(--space-xs));
-  z-index: 2;
+  top: calc(2 * (var(--row-height) + var(--space-xs)));
+  z-index: 6;
 }
 
 /* Choke-group picker: third sticky row, offset by LEN + VOI heights. */
 .tracker-track-choke-header {
-  top: calc(2 * (var(--row-height) + var(--space-xs)));
-  z-index: 2;
+  top: calc(3 * (var(--row-height) + var(--space-xs)));
+  z-index: 6;
+}
+
+/* Track names: the topmost sticky row. */
+.tracker-track-name-header {
+  top: 0;
+}
+
+.tracker-track-header__name {
+  width: 100%;
+  min-width: 0;
+  background: transparent;
+  color: var(--text);
+  border: 1px solid transparent;
+  text-align: center;
+  font-size: var(--text-label);
+  letter-spacing: 0.04em;
+  text-overflow: ellipsis;
+}
+
+.tracker-track-header__name:hover,
+.tracker-track-header__name:focus {
+  background: var(--surface-1);
+  border-color: var(--border-active);
 }
 
 .tracker-track-voice-header__cell {
@@ -380,6 +420,16 @@ input[type="range"]:disabled {
   font-size: var(--text-label);
   flex-shrink: 0;
   text-align: right;
+  /* Pinned to the left edge so the current bar is always visible; opaque so cells scroll under it. */
+  position: sticky;
+  left: 0;
+  z-index: 4;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  background: var(--surface-1);
+  box-shadow: 1px 0 0 var(--border);
 }
 
 .tracker-row__index--beat {
@@ -422,6 +472,11 @@ input[type="range"]:disabled {
 .tracker-cell__vol {
   width: 2ch;
   color: var(--text-dim);
+}
+
+/* Instrument color (Instrument.color): a faint hue on the INS number, matching the slot's tint. */
+.tracker-cell__ins--tinted {
+  color: hsl(var(--ins-hue) 45% 68%);
 }
 
 /* A step that follows the track's Track LFO (Event.lfo; ui/grid/gridView.js#patchCell): a thin
@@ -725,8 +780,8 @@ input[type="range"]:disabled {
   padding: var(--space-sm);
   padding-left: calc(4ch + var(--lane-gap));
   background: var(--surface-2);
-  border: 1px solid var(--border);
-  overflow-x: auto; /* scroll rather than wrap/overflow on narrow viewports */
+  /* No overflow of its own: it lives in the grid's scroll container (.tracker-grid-host) and scrolls
+     with the columns, its strips aligned under them. */
 }
 
 .channel-strip {
@@ -929,10 +984,32 @@ input[type="range"].range-lg {
 /* --- lower panel: Mixer and FxPanel share this one slot (ui/chrome/MixerFxPanel.jsx) --- */
 
 .lower-panel {
+  /* Last child of .tracker-grid-content: in flow after the rows, so it scrolls sideways with them, and
+     sticky to the bottom of the grid host so it overlays the rows above everything else (z-index). */
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
+  background: var(--surface-2);
+  border-top: 1px solid var(--border-active);
+}
+
+/* Tabs and the FX/Track panels want the visible width, not the (possibly wider) column span. */
+.lower-panel__tabs,
+.lower-panel > .fx-panel {
+  position: sticky;
+  left: 0;
+  width: 100cqw;
+  max-height: 50vh;
+}
+
+.lower-panel__toggle {
+  min-width: 2.5ch;
+  padding-left: var(--space-sm);
+  padding-right: var(--space-sm);
 }
 
 /* Reuses .app__tabs/.app__tab's own look (the top-level Tracker/Patterns switch) so this reads
@@ -1219,10 +1296,65 @@ input[type="range"].range-lg {
 
 .instrument-slot {
   display: flex;
+  flex-wrap: wrap; /* the color palette drops onto its own line */
   align-items: center;
   gap: var(--space-md);
   padding: var(--space-xs) 0;
   border-bottom: 1px solid var(--border);
+}
+
+/* User tint (Instrument.color, a hue): low chroma/alpha so it blends into the dark surfaces. */
+.instrument-slot--tinted {
+  background: hsl(var(--slot-hue) 28% 50% / 0.14);
+  border-left: 2px solid hsl(var(--slot-hue) 32% 55% / 0.6);
+  padding-left: var(--space-xs);
+}
+
+.instrument-slot__color {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  padding: 0;
+  background: hsl(var(--slot-hue, 0) 30% 55% / 0.7);
+  border: 1px solid var(--border-active);
+  cursor: pointer;
+}
+
+.instrument-slot:not(.instrument-slot--tinted) .instrument-slot__color {
+  background: transparent;
+}
+
+.instrument-slot__rename {
+  flex: 1;
+  min-width: 0;
+  background: var(--surface-1);
+  color: var(--text);
+  border: 1px solid var(--cyan);
+  font-size: var(--text-label);
+}
+
+.instrument-slot__palette {
+  flex-basis: 100%;
+  display: flex;
+  gap: var(--space-sm);
+  padding: var(--space-xs) 0 var(--space-xs) 2.5ch;
+}
+
+.instrument-slot__swatch {
+  width: 14px;
+  height: 14px;
+  padding: 0;
+  background: hsl(var(--slot-hue) 30% 55% / 0.7);
+  border: 1px solid var(--border);
+  cursor: pointer;
+}
+
+.instrument-slot__swatch:hover {
+  border-color: var(--text);
+}
+
+.instrument-slot__swatch--none {
+  background: var(--surface-1);
 }
 
 .instrument-slot--selected {

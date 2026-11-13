@@ -2,6 +2,7 @@ import { MAX_NOTE, SAMPLE_MODES, normalizeChopStart, normalizeCues, sliceCount }
 import {
   selectPattern as selectPatternModel,
   setEventField,
+  setTrackChannelName as setTrackChannelNameModel,
   setTrackChannelMuted as setTrackChannelMutedModel,
   setTrackChannelSolo as setTrackChannelSoloModel,
   setTrackChannelVolume as setTrackChannelVolumeModel,
@@ -716,6 +717,26 @@ export function createStore({ song, instruments }) {
     emitter.emit(events.CURSOR_MOVED, state.cursor);
   }
 
+  function setTrackChannelName(trackIndex, name) {
+    setTrackChannelNameModel(state.song, trackIndex, name);
+    emitter.emit(events.TRACK_CHANNEL_CHANGED, { trackIndex });
+  }
+
+  // Instrument label/color (model/instrument.js): display-only, blank label / null color = unset.
+  function setInstrumentLabel(index, label) {
+    const instrument = state.instruments[index];
+    if (!instrument) return;
+    instrument.label = String(label ?? "").trim().slice(0, 32) || null;
+    emitter.emit(events.INSTRUMENTS_CHANGED, { index });
+  }
+
+  function setInstrumentColor(index, hue) {
+    const instrument = state.instruments[index];
+    if (!instrument) return;
+    instrument.color = Number.isFinite(hue) ? ((Math.round(hue) % 360) + 360) % 360 : null;
+    emitter.emit(events.INSTRUMENTS_CHANGED, { index });
+  }
+
   function setTrackChannelMuted(trackIndex, muted) {
     setTrackChannelMutedModel(state.song, trackIndex, muted);
     emitter.emit(events.TRACK_CHANNEL_CHANGED, { trackIndex });
@@ -1064,6 +1085,9 @@ export function createStore({ song, instruments }) {
     setTrackChannelChokeGroup,
     setTrackChannelMaxVoices,
     setInstrumentSample,
+    setInstrumentLabel,
+    setInstrumentColor,
+    setTrackChannelName,
     setInstrumentGain,
     setInstrumentEnvelope,
     setInstrumentSampleMode,

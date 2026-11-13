@@ -86,6 +86,14 @@ export function setSongName(song, name) {
   song.name = name;
 }
 
+// A blank name restores the default (TRK n) so a track is never left unlabeled.
+export function setTrackChannelName(song, trackIndex, name) {
+  const channel = getTrackChannel(song, trackIndex);
+  if (!channel) return;
+  const trimmed = String(name ?? "").trim().slice(0, 24);
+  channel.name = trimmed || `TRK ${trackIndex + 1}`;
+}
+
 export function setTrackChannelMuted(song, trackIndex, muted) {
   const channel = getTrackChannel(song, trackIndex);
   if (channel) channel.muted = muted;

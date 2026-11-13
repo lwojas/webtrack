@@ -67,6 +67,11 @@
 export function createInstrumentSlot({
   id,
   name = "Empty",
+  // label / color: the user's own display name and tint for the slot (Instrument Panel). `name` follows the loaded
+  // sample's file name, so a rename lives in its own field and survives loading another sample. null = unset.
+  // color is a hue 0-359 rendered as a low-chroma tint (ui/chrome/InstrumentPanel.jsx). Display only, never read by compile.
+  label = null,
+  color = null,
   sampleId = null,
   gain = 1.0,
   rootNote = 60,
@@ -109,6 +114,8 @@ export function createInstrumentSlot({
   return {
     id,
     name,
+    label,
+    color,
     sampleId,
     gain,
     rootNote,
@@ -127,4 +134,9 @@ export function createInstrumentSlot({
     engineInstrumentId,
     engineVoiceIds,
   };
+}
+
+// What the UI shows for a slot: the user's label when set, else the sample-derived name.
+export function instrumentDisplayName(instrument) {
+  return instrument?.label || instrument?.name || "";
 }

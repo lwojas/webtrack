@@ -96,6 +96,8 @@ function serializeInstrument(instrument, embedSampleBytes) {
   return {
     id: instrument.id,
     name: instrument.name,
+    label: instrument.label ?? undefined,
+    color: instrument.color ?? undefined,
     gain: instrument.gain,
     rootNote: instrument.rootNote,
     output: instrument.output,
@@ -390,6 +392,9 @@ export async function deserializeProject(parsed, { loadSampleBytes, loadLocalAss
       const base = {
         id: def.id,
         name: def.name,
+        // Additive: undefined in a project saved before instrument labels/colors -> null (unset).
+        label: typeof def.label === "string" && def.label ? def.label : undefined,
+        color: Number.isFinite(def.color) ? ((Math.round(def.color) % 360) + 360) % 360 : undefined,
         gain: def.gain,
         rootNote: def.rootNote,
         output: def.output,

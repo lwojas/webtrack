@@ -14,6 +14,7 @@ import { getModulationOptions } from "../../audio/instrument.js";
 import { electricPresets, subBassPresets } from "../../audio/presets.js";
 import { MAX_INSTRUMENT_LFOS } from "../../model/instrumentLfos.js";
 import { toHex } from "../../model/notes.js";
+import { instrumentDisplayName } from "../../model/instrument.js";
 import { ENVELOPE_PARAMS, formatEnvelopeValue } from "../../model/envelopeParams.js";
 import {
   MATRIX_PARAMS,
@@ -38,8 +39,14 @@ const GAIN_STEP_DB = 0.1;
 
 // Primitive selectors throughout — see ui/chrome/Mixer.jsx's doc comment for why
 // (useSyncExternalStore compares with Object.is; the instrument slot objects mutate in place).
+// Subtle hues for tinting a slot (stored as the hue; ui styles render it low-chroma — see .instrument-slot).
+const SLOT_HUES = [0, 30, 55, 140, 175, 210, 260, 310];
+
 function InstrumentSlotRow({ store, instrumentController, index }) {
-  const name = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.name ?? "");
+  const name = useStore(store, events.INSTRUMENTS_CHANGED, (s) => instrumentDisplayName(s.instruments[index]));
+  const hue = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.color ?? null);
+  const [renaming, setRenaming] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const hasSample = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.sampleId != null);
   const isResample = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.origin === "resample");
   const isMidiOutput = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.output?.type === "midi");
@@ -81,15 +88,74 @@ function InstrumentSlotRow({ store, instrumentController, index }) {
   }
 
   return (
-    <div className={`instrument-slot${selected ? " instrument-slot--selected" : ""}`}>
+    <div
+      className={`instrument-slot${selected ? " instrument-slot--selected" : ""}${hue != null ? " instrument-slot--tinted" : ""}`}
+      style={hue != null ? { "--slot-hue": hue } : undefined}
+    >
       <button className="instrument-slot__select" onClick={() => store.selectInstrument(index)} title="Select for note entry">
         {toHex(index)}
       </button>
-      <span className={`instrument-slot__name${isConfigured ? "" : " instrument-slot__name--empty"}`}>
-        {isConfigured
-          ? `${name}${isMidiOutput ? " · MIDI" : ""}${synthKind ? ` · ${(SYNTH_KINDS.find((k) => k.id === synthKind)?.name ?? synthKind).toUpperCase()}` : ""}${isResample ? " · R" : ""}`
-          : "(empty)"}
-      </span>
+      {renaming ? (
+        <input
+          className="instrument-slot__rename"
+          autoFocus
+          defaultValue={name}
+          maxLength={32}
+          aria-label="Instrument name"
+          onFocus={(e) => e.target.select()}
+          onBlur={(e) => {
+            store.setInstrumentLabel(index, e.target.value);
+            setRenaming(false);
+          }}
+          onKeyDown={(e) => {
+            e.stopPropagation(); // typing must not reach the tracker's note-entry keys
+            if (e.key === "Enter") e.target.blur();
+            else if (e.key === "Escape") {
+              e.target.value = name;
+              e.target.blur();
+            }
+          }}
+        />
+      ) : (
+        <span
+          className={`instrument-slot__name${isConfigured ? "" : " instrument-slot__name--empty"}`}
+          onDoubleClick={() => setRenaming(true)}
+          title="Double-click to rename"
+        >
+          {isConfigured
+            ? `${name}${isMidiOutput ? " · MIDI" : ""}${synthKind ? ` · ${(SYNTH_KINDS.find((k) => k.id === synthKind)?.name ?? synthKind).toUpperCase()}` : ""}${isResample ? " · R" : ""}`
+            : "(empty)"}
+        </span>
+      )}
+      <button
+        className="instrument-slot__color"
+        onClick={() => setPaletteOpen((open) => !open)}
+        title="Slot color"
+        aria-expanded={paletteOpen}
+      />
+      {paletteOpen && (
+        <div className="instrument-slot__palette">
+          <button
+            className="instrument-slot__swatch instrument-slot__swatch--none"
+            title="No color"
+            onClick={() => {
+              store.setInstrumentColor(index, null);
+              setPaletteOpen(false);
+            }}
+          />
+          {SLOT_HUES.map((h) => (
+            <button
+              key={h}
+              className="instrument-slot__swatch"
+              style={{ "--slot-hue": h }}
+              onClick={() => {
+                store.setInstrumentColor(index, h);
+                setPaletteOpen(false);
+              }}
+            />
+          ))}
+        </div>
+      )}
       {hasSample && (
         <button className="instrument-slot__download" onClick={handleDownload} title="Download this slot's sample as a file">
           ↓
@@ -261,7 +327,7 @@ export function InstrumentEditorPanel({ store, instrumentController }) {
 
 function InstrumentEditor({ store, instrumentController, view, onViewChange }) {
   const index = useStore(store, events.CURSOR_MOVED, (s) => s.selectedInstrumentIndex);
-  const name = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.name ?? "");
+  const name = useStore(store, events.INSTRUMENTS_CHANGED, (s) => instrumentDisplayName(s.instruments[index]));
   const exists = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index] != null);
   const hasSample = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.sampleId != null);
   const gain = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.gain ?? 1);
@@ -680,7 +746,7 @@ function InstrumentEditor({ store, instrumentController, view, onViewChange }) {
 function InstrumentArp({ store }) {
   const index = useStore(store, events.CURSOR_MOVED, (s) => s.selectedInstrumentIndex);
   const exists = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index] != null);
-  const name = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.name ?? "");
+  const name = useStore(store, events.INSTRUMENTS_CHANGED, (s) => instrumentDisplayName(s.instruments[index]));
   // A fingerprint, not the mutable object (ARCHITECTURE.md's in-place-mutation gotcha).
   const arpJson = useStore(store, events.INSTRUMENTS_CHANGED, (s) => JSON.stringify(arpOf(s.instruments[index])));
   if (!exists) return null;
