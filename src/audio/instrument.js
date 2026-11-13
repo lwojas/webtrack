@@ -120,24 +120,65 @@ async function resolveSynthBus(output) {
   return busIds[output.track];
 }
 
+// Every live engine instance of a slot: its own, then the extra ones that voice the higher tones of a chord.
+const engineIdsOf = (instrument) => (instrument.engineInstrumentId == null ? [] : [instrument.engineInstrumentId, ...(instrument.engineVoiceIds ?? [])]);
+
 // Creates this slot's live webdsp instrument — tearing down any previous one first (switching a
 // slot's output kind or track routing, or a project reload re-creating every "instrument"-output
 // slot fresh: see resyncSynthInstruments below) — and writes its id onto
 // `instrument.engineInstrumentId`, then pushes every one of the kind's own catalog values
 // (instrument.instrumentParams, defaulting whatever isn't set) so it sounds like its saved
 // parameters immediately rather than webdsp's own engine defaults. A no-op for an unknown kind.
-export async function createSynthInstrument(instrument, kind) {
+// `voices` is how many instances the slot needs (1 + extras for its largest chord, model/chord.js#voicesNeededForSlot).
+export async function createSynthInstrument(instrument, kind, voices = 1) {
   const engineKind = ENGINE_KIND_BY_NAME[kind];
   if (engineKind === undefined) return;
   const runtime = await initRuntime();
-  if (instrument.engineInstrumentId != null) {
-    runtime.removeInstrument(instrument.engineInstrumentId);
-    lfoSent.delete(instrument.engineInstrumentId);
+  for (const id of engineIdsOf(instrument)) {
+    runtime.removeInstrument(id);
+    lfoSent.delete(id);
   }
+  instrument.engineVoiceIds = [];
   const bus = await resolveSynthBus(instrument.output);
-  instrument.engineInstrumentId = runtime.createInstrument(engineKind, { bus });
-  pushParamValues(runtime, instrument.engineInstrumentId, kind, instrument.instrumentParams);
-  lfoSent.set(instrument.engineInstrumentId, []);
+  instrument.engineInstrumentId = createLiveInstance(runtime, engineKind, bus, instrument, kind);
+  fitVoices(runtime, instrument, kind, engineKind, bus, voices);
+  applyLfos(runtime, instrument, kind);
+}
+
+// One engine instance with the slot's saved controls pushed (LFOs are applied by applyLfos).
+function createLiveInstance(runtime, engineKind, bus, instrument, kind) {
+  const id = runtime.createInstrument(engineKind, { bus });
+  pushParamValues(runtime, id, kind, instrument.instrumentParams);
+  lfoSent.set(id, []);
+  return id;
+}
+
+// Grows or shrinks the slot's extra instances to `voices - 1`. A refused createInstrument (the engine's instrument cap) stops
+// growing: compile.js then plays the remaining tones on the last instance that exists.
+function fitVoices(runtime, instrument, kind, engineKind, bus, voices) {
+  const extra = instrument.engineVoiceIds ?? (instrument.engineVoiceIds = []);
+  const wanted = Math.max(0, voices - 1);
+  while (extra.length > wanted) {
+    const id = extra.pop();
+    runtime.removeInstrument(id);
+    lfoSent.delete(id);
+  }
+  while (extra.length < wanted) {
+    try {
+      extra.push(createLiveInstance(runtime, engineKind, bus, instrument, kind));
+    } catch {
+      break;
+    }
+  }
+}
+
+// appContext.js, after a chord is set/cleared/loaded: makes the slot's instance count match its largest chord.
+export async function syncSynthVoices(instrument, kind, voices) {
+  const engineKind = ENGINE_KIND_BY_NAME[kind];
+  if (engineKind === undefined || instrument.engineInstrumentId == null) return;
+  if ((instrument.engineVoiceIds?.length ?? 0) + 1 === Math.max(1, voices)) return;
+  const runtime = await initRuntime();
+  fitVoices(runtime, instrument, kind, engineKind, await resolveSynthBus(instrument.output), voices);
   applyLfos(runtime, instrument, kind);
 }
 
@@ -166,13 +207,15 @@ export async function getModulationOptions(kind) {
 
 function applyLfos(runtime, instrument, kind) {
   const options = modulationOptions(runtime, kind);
-  if (!options || instrument.engineInstrumentId == null) return;
-  let sent = lfoSent.get(instrument.engineInstrumentId);
-  if (!sent) lfoSent.set(instrument.engineInstrumentId, (sent = []));
-  const ops = planLfoUpdates(instrument.instrumentLfos, options, (name) => resolveInstrumentParam(kind, name), sent);
-  for (const op of ops) {
-    if (op.clear) runtime.clearInstrumentLfo(instrument.engineInstrumentId, op.slot);
-    else runtime.setInstrumentLfo(instrument.engineInstrumentId, op.slot, op.settings);
+  if (!options) return;
+  for (const id of engineIdsOf(instrument)) {
+    let sent = lfoSent.get(id);
+    if (!sent) lfoSent.set(id, (sent = []));
+    const ops = planLfoUpdates(instrument.instrumentLfos, options, (name) => resolveInstrumentParam(kind, name), sent);
+    for (const op of ops) {
+      if (op.clear) runtime.clearInstrumentLfo(id, op.slot);
+      else runtime.setInstrumentLfo(id, op.slot, op.settings);
+    }
   }
 }
 
@@ -188,9 +231,12 @@ export async function syncSynthInstrumentLfos(instrument, kind) {
 export async function removeSynthInstrument(instrument) {
   if (instrument.engineInstrumentId == null) return;
   const runtime = await initRuntime();
-  runtime.removeInstrument(instrument.engineInstrumentId);
-  lfoSent.delete(instrument.engineInstrumentId);
+  for (const id of engineIdsOf(instrument)) {
+    runtime.removeInstrument(id);
+    lfoSent.delete(id);
+  }
   instrument.engineInstrumentId = null;
+  instrument.engineVoiceIds = [];
 }
 
 // ui/chrome/InstrumentPanel.jsx's editor, one control at a time — mirrors audio/fx.js's
@@ -201,7 +247,7 @@ export async function setSynthInstrumentParam(instrument, kind, paramId, value) 
   const paramEnum = resolveInstrumentParam(kind, paramId);
   if (paramEnum === undefined || instrument.engineInstrumentId == null) return;
   const runtime = await initRuntime();
-  runtime.setInstrumentParameter(instrument.engineInstrumentId, paramEnum, value);
+  for (const id of engineIdsOf(instrument)) runtime.setInstrumentParameter(id, paramEnum, value);
 }
 
 // appContext.js's one entry point for recreating every "instrument"-output slot's live webdsp
@@ -210,10 +256,11 @@ export async function setSynthInstrumentParam(instrument, kind, paramId, value) 
 // bytes), a synth slot has no bytes to reload: it needs a fresh createInstrument() call plus
 // its saved instrumentParams pushed back, the same "every load path needs one explicit push"
 // reasoning appContext.js already applies to instrument gain/envelope.
-export async function resyncSynthInstruments(instruments) {
-  for (const instrument of instruments) {
+// `voicesFor(slotIndex)` says how many instances each slot needs for its chords (1 when omitted).
+export async function resyncSynthInstruments(instruments, voicesFor = () => 1) {
+  for (const [slot, instrument] of instruments.entries()) {
     if (instrument.output?.type === "instrument" && instrument.output.kind) {
-      await createSynthInstrument(instrument, instrument.output.kind);
+      await createSynthInstrument(instrument, instrument.output.kind, voicesFor(slot));
     }
   }
 }

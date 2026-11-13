@@ -42,6 +42,17 @@ export function toScheduledParam(item, time, ctx) {
   return null;
 }
 
+// The same write for a synth slot's extra chord instances (audio/instrument.js, Instrument.engineVoiceIds), so every tone of a
+// chord follows the automation; empty for anything but a synth slot with extra instances.
+export function toExtraVoiceParams(item, time, ctx) {
+  if (item.kind !== "inst") return [];
+  const extra = ctx.instruments[item.slot]?.engineVoiceIds;
+  if (!extra || extra.length === 0) return [];
+  const base = toScheduledParam(item, time, ctx);
+  if (!base?.target || base.target.instrument === undefined) return [];
+  return extra.map((id) => ({ ...base, target: { instrument: id } }));
+}
+
 // A parameter automation has touched this session, by the same key the descriptors address.
 const touchKey = (item) => (item.kind === "fx" ? `fx:${item.trackIndex}:${item.instanceId}:${item.paramId}` : `inst:${item.slot}:${item.paramId}`);
 
@@ -60,7 +71,7 @@ export function createAutomationScheduler(getRuntime, getContext, restore) {
       for (const item of items) {
         const event = toScheduledParam(item, time, ctx);
         if (!event) continue;
-        events.push(event);
+        events.push(event, ...toExtraVoiceParams(item, time, ctx));
         touched.set(touchKey(item), item);
       }
       if (events.length > 0) runtime.scheduleParams(events);

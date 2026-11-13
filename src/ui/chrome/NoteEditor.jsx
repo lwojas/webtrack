@@ -19,6 +19,7 @@ import { buildNoteGraph, fieldValue } from "../../model/noteGraph.js";
 import NoteGraph from "./NoteGraph.jsx";
 import { SectionHeader, useCollapsed } from "./collapse.jsx";
 import { rangeFillStyle } from "../rangeFill.js";
+import { chordLabel } from "../../model/chord.js";
 
 // A draft field's `parse` contract (see useDraftField above), applied to model/notes.js's
 // existing parseNoteName rather than a second note parser: "" / "---" explicitly clears the
@@ -74,6 +75,7 @@ export default function NoteEditor({ store }) {
       selected.ratchet,
       selected.tie,
       selected.chopTranspose,
+      JSON.stringify(selected.chord),
       JSON.stringify(selected.fx),
     ].join("|");
   });
@@ -84,6 +86,7 @@ export default function NoteEditor({ store }) {
   // ...and the project key, which decides which notes the NOTE bar offers.
   useStore(store, events.SCALE_CHANGED, (s) => `${s.song.scale?.root}|${s.song.scale?.scale}`);
   // ...and the instrument list (names, kinds, which slots make sound) feeds the instrument entries.
+  const chordEditorOpen = useStore(store, events.CHORD_EDITOR_CHANGED, (s) => s.chordEditorOpen);
   useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments.map((i) => `${i.name}|${i.output?.type}|${i.output?.kind}|${i.sampleId != null}|${i.sampleMode}|${i.rootNote}|${i.cues?.length}`).join(";"));
 
   const state = store.getState();
@@ -129,6 +132,7 @@ export default function NoteEditor({ store }) {
   const channel = state.song.trackChannels[cursor.trackIndex];
   const trackFxChain = channel?.fxChain ?? [];
   const instruments = state.instruments;
+  const cellInstrument = instruments[event.instrument ?? state.selectedInstrumentIndex];
   const cellEntries = listCellEntries(event)
     .map((entry) => ({ ...entry, param: getAutomationParam(entry.key, channel, instruments) }))
     .filter((entry) => entry.param);
@@ -202,6 +206,21 @@ export default function NoteEditor({ store }) {
       </label>
 
       <NoteGraph bars={bars} onSet={setBar} onDrag={(bar, on) => { noteWindowRef.current = on && bar.id === "note" ? (bar.window ?? null) : null; }} />
+
+      {/* A chord is a modifier on this note (model/chord.js): the note is its root. Hidden for chop slots, which play slices. */}
+      {!(cellInstrument?.output?.type === "sample" && cellInstrument.sampleMode === "chop") && (
+        <div className="note-editor__field">
+          CHORD
+          <button
+            type="button"
+            className={`fx-panel__target-btn${chordEditorOpen ? " fx-panel__target-btn--active" : ""}`}
+            onClick={() => store.setChordEditorOpen(!chordEditorOpen)}
+            title="Open the chord editor under the grid: type, inversion, spread and the tones on a keyboard"
+          >
+            {event.chord ? chordLabel(event.chord).toUpperCase() : "OFF"} …
+          </button>
+        </div>
+      )}
 
       <div className="note-editor__section">CELL AUTOMATION</div>
 

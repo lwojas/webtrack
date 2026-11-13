@@ -140,6 +140,8 @@ export function createEditController({ store, noteSources }) {
       pan: null,
       effectCommand: null,
       effectParam: null,
+      // Writing over a chord cell keeps its chord, so the audition plays the whole chord too.
+      chord: editMode && cursor.field === "note" ? (getSelectedPattern(song)?.tracks[cursor.trackIndex]?.events[cursor.rowIndex]?.chord ?? null) : null,
     };
     // Fire-and-forget: audition is a nice-to-have, not something a note entry should ever
     // block on or throw over. Pressing a note key before the engine has been started (no
@@ -147,7 +149,7 @@ export function createEditController({ store, noteSources }) {
     // is a legitimate no-op, not an error — getRuntime() rejects in that case, and this swallows
     // it rather than leaving an unhandled rejection.
     // `routed`: the host is already playing this note itself (a MIDI key, audio/midiRoute.js): entering it below still happens, hearing it twice must not.
-    if (trackChannel && !routed && !isFxSend(trackChannel)) triggerPreview(previewEvent, trackChannel, instruments).catch(() => {});
+    if (trackChannel && !routed && !isFxSend(trackChannel)) triggerPreview(previewEvent, trackChannel, instruments, scaleOf(song)).catch(() => {});
 
     if (!editMode || cursor.field !== "note") return;
 

@@ -39,7 +39,8 @@ import { setInstrumentGain } from "./audio/instrumentGain.js";
 import { setInstrumentEnvelope } from "./audio/instrumentEnvelope.js";
 import { auditionSlice } from "./audio/preview.js";
 import { setInstrumentRegions } from "./audio/instrumentRegions.js";
-import { createSynthInstrument, removeSynthInstrument, setSynthInstrumentParam, resyncSynthInstruments, syncSynthInstrumentLfos } from "./audio/instrument.js";
+import { createSynthInstrument, removeSynthInstrument, setSynthInstrumentParam, resyncSynthInstruments, syncSynthInstrumentLfos, syncSynthVoices } from "./audio/instrument.js";
+import { voicesNeededForSlot } from "./model/chord.js";
 import { createDemoSong, createDemoInstruments } from "./demo/demoSong.js";
 import { getSelectedPattern } from "./model/query.js";
 import { createKeyboardNoteSource } from "./input/keyboardNoteMap.js";
@@ -304,7 +305,8 @@ export function createAppContext() {
     store.setInstrumentOutput(index, output);
     const instrument = store.getState().instruments[index];
     if (output.type === "instrument" && output.kind) {
-      await createSynthInstrument(instrument, output.kind);
+      const { song, instruments } = store.getState();
+      await createSynthInstrument(instrument, output.kind, voicesNeededForSlot(song, instruments, index));
     } else {
       await removeSynthInstrument(instrument);
     }
@@ -415,6 +417,23 @@ export function createAppContext() {
   RECOVERY_TRACKED_EVENTS.forEach((event) => store.subscribe(event, nativeSequenceSync.schedule));
   // The Track LFO's note target follows the scale's Snap, so a scale edit changes the sequence.
   store.subscribe(events.SCALE_CHANGED, nativeSequenceSync.schedule);
+
+  // A synth plays each tone of a chord on its own engine instance (audio/instrument.js), so after any edit that can change the
+  // largest chord of a slot (a chord set or cleared, a paste, a pattern added or removed) the instance counts are brought back in
+  // line. Coalesced: a selection-wide clear fires one CELL_CHANGED per cell.
+  let chordVoiceTimer = null;
+  function syncChordVoices() {
+    chordVoiceTimer = null;
+    const { song, instruments } = store.getState();
+    instruments.forEach((instrument, slot) => {
+      if (instrument.output?.type !== "instrument" || !instrument.output.kind) return;
+      syncSynthVoices(instrument, instrument.output.kind, voicesNeededForSlot(song, instruments, slot)).catch(() => {});
+    });
+  }
+  const scheduleChordVoiceSync = () => {
+    if (chordVoiceTimer === null) chordVoiceTimer = setTimeout(syncChordVoices, 40);
+  };
+  [events.CELL_CHANGED, events.PATTERN_QUEUE_CHANGED, events.INSTRUMENTS_CHANGED].forEach((event) => store.subscribe(event, scheduleChordVoiceSync));
 
   // Selecting a pattern always repaints the grid (the edit view) immediately — see
   // state/store.js's selectPattern. Whether that's also what plays next depends on whether
@@ -684,7 +703,7 @@ export function createAppContext() {
         setInstrumentRegions(instrument.sampleId, instrument.cues, instrument.chopStart);
       }
     }
-    await resyncSynthInstruments(instruments);
+    await resyncSynthInstruments(instruments, (slot) => voicesNeededForSlot(song, instruments, slot));
     await resyncAllFxChains(song.trackChannels, song.masterFxChain, song.masterFx);
   }
 
@@ -756,7 +775,7 @@ export function createAppContext() {
         setInstrumentRegions(instrument.sampleId, instrument.cues, instrument.chopStart);
       }
     }
-    await resyncSynthInstruments(instruments);
+    await resyncSynthInstruments(instruments, (slot) => voicesNeededForSlot(song, instruments, slot));
     await resyncAllFxChains(song.trackChannels, song.masterFxChain, song.masterFx);
   }
 

@@ -3251,3 +3251,111 @@ input[type="range"].range-lg {
 .section-toggle__chevron {
   width: 1ch;
 }
+
+/* --- Chord editor (ui/chrome/ChordEditor.jsx): type/inversion/spread and a clickable keyboard, in the tracker
+   column under the grid like the chop editor. */
+.chord-editor {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+}
+
+.chord-editor__bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+}
+
+.chord-editor__title,
+.chord-editor__field,
+.chord-editor__readout,
+.chord-editor__hint,
+.chord-editor__empty {
+  color: var(--text-dim);
+  font-size: var(--text-micro);
+  letter-spacing: 0.08em;
+}
+
+.chord-editor__title {
+  margin-right: var(--space-md);
+}
+
+.chord-editor__readout {
+  color: var(--cyan);
+}
+
+.chord-editor__close {
+  margin-left: auto;
+}
+
+.chord-editor__field {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.chord-editor__field select {
+  background: var(--surface-1);
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-size: var(--text-label);
+}
+
+.chord-editor__keys {
+  display: flex;
+  height: 64px;
+  overflow-x: auto;
+  gap: 1px;
+  padding-bottom: var(--space-xs);
+}
+
+.chord-editor__key {
+  flex: 1 0 22px;
+  min-width: 22px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 0 0 var(--space-xs);
+  background: var(--surface-3);
+  color: var(--text-dim);
+  border: 1px solid var(--border-active);
+  font-size: var(--text-micro);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.chord-editor__key--black {
+  background: var(--surface);
+  height: 62%;
+  align-self: flex-start;
+}
+
+.chord-editor__key--scale:not(.chord-editor__key--on) {
+  border-bottom: 2px solid var(--text-dim);
+}
+
+.chord-editor__key--on {
+  background: var(--cyan);
+  color: var(--surface);
+  border-color: var(--cyan);
+}
+
+.chord-editor__key--root {
+  background: var(--amber);
+  border-color: var(--amber);
+}
+
+.chord-editor__key:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-glow);
+}
+
+.chord-editor__hint,
+.chord-editor__empty {
+  letter-spacing: 0.04em;
+}

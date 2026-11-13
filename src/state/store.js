@@ -111,6 +111,8 @@ export function createStore({ song, instruments }) {
     // Whether the chop editor panel (ui/chrome/ChopEditor.jsx) is open for the selected instrument.
     // Session-only like the cursor — never persisted.
     chopEditorOpen: false,
+    // Whether the chord editor panel (ui/chrome/ChordEditor.jsx) is open for the cell under the cursor. Session-only.
+    chordEditorOpen: false,
     // Whether the wide instrument editor panel (ui/chrome/InstrumentPanel.jsx#InstrumentEditorPanel) is open under the grid.
     instrumentEditorOpen: false,
     // The automation editor: `key` is the lane being edited (model/cellAutomation.js's key scheme),
@@ -842,6 +844,11 @@ export function createStore({ song, instruments }) {
     emitter.emit(events.INSTRUMENT_EDITOR_CHANGED);
   }
 
+  function setChordEditorOpen(open) {
+    state.chordEditorOpen = Boolean(open);
+    emitter.emit(events.CHORD_EDITOR_CHANGED);
+  }
+
   function setChopEditorOpen(open) {
     state.chopEditorOpen = Boolean(open);
     emitter.emit(events.CHOP_EDITOR_CHANGED);
@@ -1065,6 +1072,7 @@ export function createStore({ song, instruments }) {
     setInstrumentChopPitch,
     setInstrumentRootNote,
     setChopEditorOpen,
+    setChordEditorOpen,
     setInstrumentEditorOpen,
     setInstrumentOutput,
     setInstrumentParam,

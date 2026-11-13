@@ -6,7 +6,7 @@
 // player uses, at a fixed 120 bpm (so a second is exactly 2 quarter notes), and the result is converted to beats: the host plays what
 // the player would have scheduled. Only the source of tempo differs: the DAW's, applied per block by the host.
 import { compileRow, compileRowAutomation } from "./compile.js";
-import { toScheduledParam } from "./automation.js";
+import { toScheduledParam, toExtraVoiceParams } from "./automation.js";
 import { STEPS_PER_BEAT, swingDelaySeconds } from "../model/timing.js";
 
 const REFERENCE_BPM = 120;
@@ -65,14 +65,16 @@ export function compileNativeSequence({ entries, trackChannels, instruments, tra
       for (const item of compileRowAutomation(pattern, row, STEP_SECONDS)) {
         const p = toScheduledParam(item, time, paramContext);
         if (!p) continue;
-        events.push({
-          beat: p.time * QUARTERS_PER_SECOND,
-          kind: "param",
-          target: p.target,
-          param: p.param,
-          value: p.value,
-          ...(p.from !== undefined ? { from: p.from, rampBeats: p.ramp * QUARTERS_PER_SECOND } : {}),
-        });
+        for (const q of [p, ...toExtraVoiceParams(item, time, paramContext)]) {
+          events.push({
+            beat: q.time * QUARTERS_PER_SECOND,
+            kind: "param",
+            target: q.target,
+            param: q.param,
+            value: q.value,
+            ...(q.from !== undefined ? { from: q.from, rampBeats: q.ramp * QUARTERS_PER_SECOND } : {}),
+          });
+        }
       }
     }
     cycleSteps += pattern.rowCount;

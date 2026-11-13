@@ -1,5 +1,5 @@
 import { getRuntime } from "./runtime.js";
-import { compileEvent } from "./compile.js";
+import { compileEventTones } from "./compile.js";
 import { voiceTracker } from "./voiceTracker.js";
 import { midiOutput } from "./midiOutput.js";
 
@@ -36,31 +36,34 @@ export async function auditionSlice(sampleId, slice, pitch = 0) {
   return true;
 }
 
-export async function triggerPreview(event, trackChannel, instruments) {
-  const compiled = compileEvent(event, trackChannel, instruments);
-  if (!compiled) return null;
+// A chord event (model/chord.js) auditions every tone: one MIDI note / engine instance / sample voice each. Returns the
+// last sample voice handle (null for MIDI and synth tones).
+export async function triggerPreview(event, trackChannel, instruments, scale = null) {
+  const tones = compileEventTones(event, trackChannel, instruments, undefined, undefined, undefined, undefined, false, scale);
+  let handle = null;
+  for (const compiled of tones) {
+    if (compiled.kind === "midi") {
+      midiOutput.sendImmediateNoteOn(compiled.channel, compiled.note, compiled.velocity);
+      continue;
+    }
 
-  if (compiled.kind === "midi") {
-    midiOutput.sendImmediateNoteOn(compiled.channel, compiled.note, compiled.velocity);
-    return null;
-  }
+    // A webdsp synthesized instrument (audio/instrument.js) — same "no voice handle to release
+    // later" shape as the MIDI branch above, for a different reason: instrumentNoteOn() doesn't
+    // return one, and a fresh note on the same instance just restarts it (one instance is one
+    // monophonic machine). Unlike MIDI, this does need the runtime — but by the time a slot has
+    // a live engineInstrumentId at all, initRuntime() must already have resolved once (that's
+    // what created it), so getRuntime() here is safe.
+    if (compiled.kind === "instrument") {
+      const runtime = await getRuntime();
+      runtime.instrumentNoteOn(compiled.instrumentId, { velocity: compiled.velocity, pan: compiled.pan, pitch: compiled.pitch, duration: compiled.duration, chokeGroup: compiled.chokeGroup });
+      continue;
+    }
 
-  // A webdsp synthesized instrument (audio/instrument.js) — same "no voice handle to release
-  // later" shape as the MIDI branch above, for a different reason: instrumentNoteOn() doesn't
-  // return one, and a fresh note on the same instance just restarts it (one instance is one
-  // monophonic machine). Unlike MIDI, this does need the runtime — but by the time a slot has
-  // a live engineInstrumentId at all, initRuntime() must already have resolved once (that's
-  // what created it), so getRuntime() here is safe.
-  if (compiled.kind === "instrument") {
     const runtime = await getRuntime();
-    runtime.instrumentNoteOn(compiled.instrumentId, { velocity: compiled.velocity, pan: compiled.pan, pitch: compiled.pitch, duration: compiled.duration, chokeGroup: compiled.chokeGroup });
-    return null;
+    const toRelease = voiceTracker.reserveVoiceSlot(trackChannel.index, trackChannel);
+    toRelease.forEach((h) => runtime.release(h));
+    handle = runtime.trigger(compiled);
+    voiceTracker.registerVoice(trackChannel.index, handle);
   }
-
-  const runtime = await getRuntime();
-  const toRelease = voiceTracker.reserveVoiceSlot(trackChannel.index, trackChannel);
-  toRelease.forEach((handle) => runtime.release(handle));
-  const handle = runtime.trigger(compiled);
-  voiceTracker.registerVoice(trackChannel.index, handle);
   return handle;
 }

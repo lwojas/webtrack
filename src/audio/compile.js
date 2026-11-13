@@ -8,6 +8,8 @@ import { effectiveNote, effectiveVelocity } from "./trackLfo.js";
 import { effectiveChokeGroup, isFxSend } from "../model/trackChannel.js";
 import { ratchetOf } from "../model/event.js";
 import { arpEventsAtRow, arpOf, isArpActive } from "../model/arp.js";
+import { chordNotes, isChordEvent } from "../model/chord.js";
+import { normalizeScale } from "../model/scale.js";
 
 // How long an un-timed (preview/audition) note of a sustained synth kind is held.
 const SUSTAINED_PREVIEW_SECONDS = 0.5;
@@ -65,7 +67,7 @@ export function noteDurationSteps(track, rowIndex) {
 // event's own scheduled `time` (swing included) before any output branch below uses it, so a
 // sample, a synth and a MIDI event all just receive the resulting velocity. Omitted = no
 // modulation. The stored event is never changed.
-export function compileEvent(event, trackChannel, instruments, time, durationSeconds, bus, lfoClock, tieIn = false, scale = null) {
+export function compileEvent(event, trackChannel, instruments, time, durationSeconds, bus, lfoClock, tieIn = false, scale = null, voice = 0) {
   if (event.note === null || event.instrument === null) return null;
   if (trackChannel.muted) return null;
 
@@ -110,7 +112,7 @@ export function compileEvent(event, trackChannel, instruments, time, durationSec
     if (instrument.engineInstrumentId === null || instrument.engineInstrumentId === undefined) return null;
     const level = Math.max(0, Math.min(1, (velocity / 127) * trackChannel.volume));
     const pitch = note - instrument.rootNote;
-    const compiled = { kind: "instrument", instrumentId: instrument.engineInstrumentId, velocity: level, pitch };
+    const compiled = { kind: "instrument", instrumentId: voiceInstrumentId(instrument, voice), velocity: level, pitch };
     // Tied in (the previous note of this track ties into this one): glide into it, no re-attack.
     if (tieIn) compiled.tie = true;
     if (time !== undefined) compiled.time = time;
@@ -156,6 +158,29 @@ export function compileEvent(event, trackChannel, instruments, time, durationSec
   const chokeGroup = effectiveChokeGroup(trackChannel);
   if (chokeGroup !== null) compiled.chokeGroup = chokeGroup;
   return compiled;
+}
+
+// The engine instance that plays chord tone `voice` of a synth slot: the slot's own (voice 0) or one of its extra
+// instances (audio/instrument.js keeps them in engineVoiceIds); a tone past the instances that exist shares the last one.
+function voiceInstrumentId(instrument, voice) {
+  const extra = instrument.engineVoiceIds;
+  if (voice <= 0 || !extra || extra.length === 0) return instrument.engineInstrumentId;
+  return extra[Math.min(voice, extra.length) - 1];
+}
+
+// compileEvent for an event that may be a chord (model/chord.js): one compiled trigger per tone, each as an ordinary note
+// with the chord's root replaced by the tone (tone i of a synth chord sounds on engine instance i). A plain note, a chop
+// slot's note or a chord with no usable tones is exactly compileEvent's single event. Only the lowest tone glides into a tie:
+// the next note need not be a chord, so the other tones re-attack. Returns an array (empty when nothing plays).
+export function compileEventTones(event, trackChannel, instruments, time, durationSeconds, bus, lfoClock, tieIn = false, scale = null) {
+  const notes = isChordEvent(event, instruments[event.instrument]) ? chordNotes(event.chord, event.note, normalizeScale(scale)) : [];
+  if (notes.length === 0) {
+    const single = compileEvent(event, trackChannel, instruments, time, durationSeconds, bus, lfoClock, tieIn, scale);
+    return single ? [single] : [];
+  }
+  return notes
+    .map((note, i) => compileEvent({ ...event, note }, trackChannel, instruments, time, durationSeconds, bus, lfoClock, tieIn && i === 0, scale, i))
+    .filter(Boolean);
 }
 
 // Two notes closer than this start on the same engine frame (a frame is ~21 us at 48 kHz).
@@ -265,8 +290,9 @@ export function compileRow(pattern, trackChannels, instruments, transportStep, t
     for (let hit = 0; hit < hits; hit++) {
       // A note that ties into the next holds its gate to just past that note's start, on its last hit.
       const hold = hit === hits - 1 && holdSteps !== null ? Math.max(slotSeconds, (holdSteps + 0.5) * stepDurationSeconds - hit * slotSeconds) : slotSeconds;
-      const compiled = compileEvent(event, trackChannel, instruments, time + hit * slotSeconds, hold, busFor(event.instrument), lfoClock, tieIn && hit === 0, scale);
-      if (compiled) events.push({ ...compiled, trackIndex });
+      for (const compiled of compileEventTones(event, trackChannel, instruments, time + hit * slotSeconds, hold, busFor(event.instrument), lfoClock, tieIn && hit === 0, scale)) {
+        events.push({ ...compiled, trackIndex });
+      }
     }
   });
 

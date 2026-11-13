@@ -37,6 +37,9 @@ export function createEmptyEvent() {
     // Tie: this note is held through the next note on the track, which glides in with no re-attack (a
     // 303-style slide). true | null; only meaningful for a synth with a legato mode (supportsTieKind).
     tie: null,
+    // Chord: this note is the ROOT of a chord (model/chord.js: { type, inversion, spread, offsets? }), played as one trigger
+    // per tone. null = a plain note.
+    chord: null,
     // Sparse FX automation: { "bus.gain"?: value, instances?: { [instanceId]: { [fxParamId]:
     // value } } } | null — only the parameters actually set at this cell (model/fxParams.js is
     // the id catalog), mirroring trackChannel.fx's own shape (model/trackChannel.js's doc
@@ -100,6 +103,7 @@ export function fxOnlyEvent(event) {
 // this codebase). One level deeper than before fx.instances existed: each instance's own param
 // bag needs its own copy too, not just the outer fx object and the shared `instances` container.
 export function cloneEvent(event) {
+  if (event.chord) event = { ...event, chord: { ...event.chord, ...(event.chord.offsets ? { offsets: [...event.chord.offsets] } : {}) } };
   if (!event.fx) return { ...event, fx: null };
   const cloneBags = (bags) => Object.fromEntries(Object.entries(bags).map(([id, bag]) => [id, { ...bag }]));
   const extra = {};

@@ -102,6 +102,9 @@ export function createInstrumentSlot({
   // audio/instrument.js#createSynthInstrument the moment a live webdsp instrument exists for
   // this slot; audio/compile.js reads it the same inert way it already reads sampleId.
   engineInstrumentId = null,
+  // engineVoiceIds: the extra webdsp instances of a synth slot that plays chords (model/chord.js) — tone i > 0 of a chord sounds
+  // on engineVoiceIds[i - 1], tone 0 on engineInstrumentId. Session-scoped like it, never persisted; [] when the slot has none.
+  engineVoiceIds = [],
 } = {}) {
   return {
     id,
@@ -122,5 +125,6 @@ export function createInstrumentSlot({
     instrumentParams,
     instrumentLfos,
     engineInstrumentId,
+    engineVoiceIds,
   };
 }
