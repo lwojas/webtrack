@@ -1,20 +1,23 @@
 // webdsp's own starting sounds, expressed in this app's param ids so the UI can apply them with its ordinary
 // one-param-at-a-time setters (model/ stays webdsp-free, hence this lives next to the audio layer).
-import { ELECTRIC_PRESETS, ElectricParam, COMPRESSOR_PRESETS, presetSettings, DEFAULT_DRUM_PEAK_DB } from "webdsp";
-import { ELECTRIC_PARAMS } from "../model/instrumentParams.js";
+import { ELECTRIC_PRESETS, ElectricParam, SUB_BASS_PRESETS, SubBassParam, COMPRESSOR_PRESETS, presetSettings, DEFAULT_DRUM_PEAK_DB } from "webdsp";
+import { ELECTRIC_PARAMS, SUB_BASS_PARAMS } from "../model/instrumentParams.js";
 
-// Electric presets: { name: { body: 0.5, ... } }, keyed by ELECTRIC_PARAMS ids. A preset names only the macros it changes,
-// so applying one first resets every param to its catalog default (the preset's own contract: the rest stay at default).
-export function electricPresets() {
-  const idByEnum = new Map(ELECTRIC_PARAMS.map((p) => [ElectricParam[p.webdspParam], p.id]));
-  const defaults = Object.fromEntries(ELECTRIC_PARAMS.map((p) => [p.id, p.default]));
+// A synth preset: { name: { id: value } } keyed by the catalog's ids. A preset names only the controls it changes, so
+// applying one first resets every param to its catalog default (the preset's own contract: the rest stay at default).
+function synthPresets(params, enumByName, presets) {
+  const idByEnum = new Map(params.map((p) => [enumByName[p.webdspParam], p.id]));
+  const defaults = Object.fromEntries(params.map((p) => [p.id, p.default]));
   return Object.fromEntries(
-    Object.entries(ELECTRIC_PRESETS).map(([name, values]) => [
+    Object.entries(presets).map(([name, values]) => [
       name,
       { ...defaults, ...Object.fromEntries(Object.entries(values).map(([key, v]) => [idByEnum.get(Number(key)), v])) },
     ]),
   );
 }
+
+export const electricPresets = () => synthPresets(ELECTRIC_PARAMS, ElectricParam, ELECTRIC_PRESETS);
+export const subBassPresets = () => synthPresets(SUB_BASS_PARAMS, SubBassParam, SUB_BASS_PRESETS);
 
 // Compressor presets (drum-bus oriented): [{ name, purpose, values: { "comp.ratio": 4, ... } }]. The threshold is placed
 // below the loudest hits, assumed at webdsp's normal drum level.

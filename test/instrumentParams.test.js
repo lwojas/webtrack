@@ -21,6 +21,7 @@ import {
   NOISE_PARAMS,
   WOBBLE_PARAMS,
   ELECTRIC_PARAMS,
+  SUB_BASS_PARAMS,
   MATRIX_CELL_PARAMS,
   MATRIX_PARAMS,
   SYNTH_KINDS,
@@ -69,10 +70,10 @@ describe("model/instrumentParams.js", () => {
   });
 
   it("SYNTH_KINDS lists every webdsp instrument kind with a stable id, a display name, and a category", () => {
-    expect(SYNTH_KINDS.map((k) => k.id)).toEqual(["kick", "snare", "clap", "tom", "hihat", "bass", "pulse", "pad", "fm", "hypersaw", "pwmbeast", "dm_thump", "dm_metal", "dm_tone", "dm_crack", "dm_chaos", "percsynth", "edge", "matrix", "noise", "wobble", "electric"]);
-    expect(SYNTH_KINDS.map((k) => k.name)).toEqual(["Kick", "Snare", "Clap", "Tom", "Hi-Hat", "Bass", "Pulse", "Pad", "FM", "Hypersaw", "PWM Beast", "FM Thump", "FM Metal", "FM Tone", "FM Crack", "FM Chaos", "Perc Synth", "Edge", "Matrix", "Noise", "Wobble", "Electric"]);
+    expect(SYNTH_KINDS.map((k) => k.id)).toEqual(["kick", "snare", "clap", "tom", "hihat", "bass", "pulse", "pad", "fm", "hypersaw", "pwmbeast", "dm_thump", "dm_metal", "dm_tone", "dm_crack", "dm_chaos", "percsynth", "edge", "matrix", "noise", "wobble", "electric", "subbass"]);
+    expect(SYNTH_KINDS.map((k) => k.name)).toEqual(["Kick", "Snare", "Clap", "Tom", "Hi-Hat", "Bass", "Pulse", "Pad", "FM", "Hypersaw", "PWM Beast", "FM Thump", "FM Metal", "FM Tone", "FM Crack", "FM Chaos", "Perc Synth", "Edge", "Matrix", "Noise", "Wobble", "Electric", "Sub Bass"]);
     for (const kind of SYNTH_KINDS) {
-      expect(kind.category).toBe({ bass: "bass", pulse: "synth", pad: "synth", fm: "synth", hypersaw: "synth", pwmbeast: "synth", dm_thump: "digital", dm_metal: "digital", dm_tone: "digital", dm_crack: "digital", dm_chaos: "digital", percsynth: "synth", edge: "synth", matrix: "synth", noise: "synth", wobble: "bass", electric: "synth" }[kind.id] ?? "drum");
+      expect(kind.category).toBe({ bass: "bass", pulse: "synth", pad: "synth", fm: "synth", hypersaw: "synth", pwmbeast: "synth", dm_thump: "digital", dm_metal: "digital", dm_tone: "digital", dm_crack: "digital", dm_chaos: "digital", percsynth: "synth", edge: "synth", matrix: "synth", noise: "synth", wobble: "bass", electric: "synth", subbass: "bass" }[kind.id] ?? "drum");
       expect(getSynthParams(kind.id)).toBe(kind.params);
     }
   });
@@ -255,6 +256,22 @@ describe("model/instrumentParams.js", () => {
     }
   });
 
+  it("mirrors webdsp's subbass-instrument.md table — 23 controls by engine enum member name, Root as tune, sustained at A-1", () => {
+    expect(SUB_BASS_PARAMS.map((p) => p.webdspParam)).toEqual([
+      "Shape", "Profile", "Octave", "Tune", "Level", "Phase", "PhaseReset", "Drive", "FilterType", "Cutoff", "Resonance",
+      "FilterAttack", "FilterDecay", "FilterSustain", "FilterRelease", "FilterAmount", "PitchAmount", "PitchDecay",
+      "AmpAttack", "AmpDecay", "AmpSustain", "AmpRelease", "Root",
+    ]);
+    expect(SUB_BASS_PARAMS.find((p) => p.id === "tune").webdspParam).toBe("Root");
+    expect(SUB_BASS_PARAMS.find((p) => p.id === "profile").options).toHaveLength(5);
+    expect(isSustainedSynthKind("subbass")).toBe(true);
+    expect(synthKindRootNote("subbass")).toBe(33);
+    for (const param of SUB_BASS_PARAMS) {
+      expect(param.default).toBeGreaterThanOrEqual(param.min);
+      expect(param.default).toBeLessThanOrEqual(param.max);
+    }
+  });
+
   it("mirrors webdsp's matrix-instrument.md table — 21 module knobs, then 88 signed cables in engine order", () => {
     expect(MATRIX_PARAMS).toHaveLength(21 + 88);
     expect(MATRIX_PARAMS.slice(0, 21).map((p) => p.webdspParam)).toEqual([
@@ -289,7 +306,7 @@ describe("model/instrumentParams.js", () => {
   });
 
   it("only the Bass, Pulse, Pad and FM are sustained and bring their own root note (A-1 = 33, A-2 = 45)", () => {
-    expect(SYNTH_KINDS.filter((k) => isSustainedSynthKind(k.id)).map((k) => k.id)).toEqual(["bass", "pulse", "pad", "fm", "hypersaw", "pwmbeast", "dm_tone", "dm_chaos", "edge", "matrix", "noise", "wobble", "electric"]);
+    expect(SYNTH_KINDS.filter((k) => isSustainedSynthKind(k.id)).map((k) => k.id)).toEqual(["bass", "pulse", "pad", "fm", "hypersaw", "pwmbeast", "dm_tone", "dm_chaos", "edge", "matrix", "noise", "wobble", "electric", "subbass"]);
     expect(synthKindRootNote("pad")).toBe(45);
     expect(synthKindRootNote("fm")).toBe(45);
     expect(synthKindRootNote("hypersaw")).toBe(45);

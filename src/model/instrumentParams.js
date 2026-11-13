@@ -432,6 +432,39 @@ export const ELECTRIC_PARAMS = [
   { id: "width", webdspParam: "Width", label: "Width", min: 0, max: 1, default: 0.6, step: 0.01, unit: "" },
 ];
 
+// Sub Bass — mirrors webdsp's docs/subbass-instrument.md: a harmonic sine / sub-bass voice. `shape` runs from a pure
+// sine (0) to a saw-like wave (1) through `profile`; anti-aliased drive, a low-pass filter and filter / pitch / amp
+// envelopes follow. Sustained (hold a note with its `duration`). `tune` is webdsp's `root` (A-1 = 55 Hz = note 33, a
+// note's pitch is semitones on top); webdsp's own `tune` is a cents detune, so it is `fine` here.
+export const SUB_BASS_PROFILE_OPTIONS = ["Classic", "Warm", "Hollow", "Bright", "Saw"];
+export const SUB_BASS_FILTER_OPTIONS = ["LP 24", "LP 12"];
+export const SUB_BASS_PHASE_RESET_OPTIONS = ["Free", "Reset"];
+export const SUB_BASS_PARAMS = [
+  { id: "shape", webdspParam: "Shape", label: "Shape", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
+  { id: "profile", webdspParam: "Profile", label: "Profile", min: 0, max: 4, default: 0, step: 1, unit: "", options: SUB_BASS_PROFILE_OPTIONS },
+  { id: "octave", webdspParam: "Octave", label: "Octave", min: -2, max: 1, default: 0, step: 1, unit: "oct" },
+  { id: "fine", webdspParam: "Tune", label: "Fine Tune", min: -100, max: 100, default: 0, step: 1, unit: "ct" },
+  { id: "level", webdspParam: "Level", label: "Level", min: 0, max: 1, default: 0.85, step: 0.01, unit: "" },
+  { id: "phase", webdspParam: "Phase", label: "Phase", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
+  { id: "phaseReset", webdspParam: "PhaseReset", label: "Phase Reset", min: 0, max: 1, default: 1, step: 1, unit: "", options: SUB_BASS_PHASE_RESET_OPTIONS },
+  { id: "drive", webdspParam: "Drive", label: "Drive", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
+  { id: "filterType", webdspParam: "FilterType", label: "Filter", min: 0, max: 1, default: 0, step: 1, unit: "", options: SUB_BASS_FILTER_OPTIONS },
+  { id: "cutoff", webdspParam: "Cutoff", label: "Cutoff", min: 30, max: 16000, default: 12000, step: 1, unit: "Hz" },
+  { id: "resonance", webdspParam: "Resonance", label: "Resonance", min: 0, max: 1, default: 0, step: 0.01, unit: "" },
+  { id: "filterAttack", webdspParam: "FilterAttack", label: "Filter Attack", min: 0, max: 2, default: 0.002, step: 0.001, unit: "s" },
+  { id: "filterDecay", webdspParam: "FilterDecay", label: "Filter Decay", min: 0.001, max: 2, default: 0.3, step: 0.001, unit: "s" },
+  { id: "filterSustain", webdspParam: "FilterSustain", label: "Filter Sustain", min: 0, max: 1, default: 0.3, step: 0.01, unit: "" },
+  { id: "filterRelease", webdspParam: "FilterRelease", label: "Filter Release", min: 0.001, max: 4, default: 0.2, step: 0.001, unit: "s" },
+  { id: "filterAmount", webdspParam: "FilterAmount", label: "Filter Env", min: -5, max: 5, default: 0, step: 0.05, unit: "oct" },
+  { id: "pitchAmount", webdspParam: "PitchAmount", label: "Pitch Env", min: -24, max: 24, default: 0, step: 0.1, unit: "st" },
+  { id: "pitchDecay", webdspParam: "PitchDecay", label: "Pitch Time", min: 0.005, max: 0.5, default: 0.08, step: 0.001, unit: "s" },
+  { id: "attack", webdspParam: "AmpAttack", label: "Attack", min: 0.001, max: 2, default: 0.003, step: 0.001, unit: "s" },
+  { id: "decay", webdspParam: "AmpDecay", label: "Decay", min: 0.001, max: 2, default: 0.3, step: 0.001, unit: "s" },
+  { id: "sustain", webdspParam: "AmpSustain", label: "Sustain", min: 0, max: 1, default: 1, step: 0.01, unit: "" },
+  { id: "release", webdspParam: "AmpRelease", label: "Release", min: 0.001, max: 4, default: 0.25, step: 0.005, unit: "s" },
+  { id: "tune", webdspParam: "Root", label: "Root", min: 20, max: 880, default: 55, step: 0.5, unit: "Hz", scale: "note" },
+];
+
 // One entry per webdsp InstrumentKind, mirroring the `{ id, name, category, params }` shape
 // `runtime.getCapabilities().instruments` itself reports (node_modules/webdsp's
 // docs/instruments.md) — model/ stays webdsp-free (docs/EXTENDING.md's layer map) so this is a
@@ -504,6 +537,8 @@ const SYNTH_KIND_DEFS = [
   { id: "wobble", name: "Wobble", category: "bass", params: WOBBLE_PARAMS, sustained: true, rootNote: 33 },
   // Electric (webdsp's docs/electric-instrument.md): sustained, Tune C4 = note 60.
   { id: "electric", name: "Electric", category: "synth", params: ELECTRIC_PARAMS, sustained: true, rootNote: 60 },
+  // Sub Bass (webdsp's docs/subbass-instrument.md): sustained, Root 55 Hz = A-1 = note 33.
+  { id: "subbass", name: "Sub Bass", category: "bass", params: SUB_BASS_PARAMS, sustained: true, rootNote: 33 },
 ];
 
 // Registry of every synthesized-instrument kind's own param catalog, keyed by the same string

@@ -551,3 +551,18 @@ A digital electric-keyboard voice (`ELECTRIC_PARAMS`, 12 controls). webdsp's `do
 - **Macros** `body`, `strike` (soft to struck), `bell` (inharmonic upper partials), `warmth`, `age` (per-note imperfection; 0 repeats
   exactly), `crush` (in-voice sample-rate/bit reduction), `cutoff`, `resonance`, `decay`; long-form `tune`, `release`, `width`.
 - webdsp ships `ELECTRIC_PRESETS` (electric, bright, warm, digital, keys, glass); the Instrument Editor's Preset picker applies one (audio/presets.js), resetting the rest to their defaults.
+
+## Sub Bass (`subbass`)
+
+A harmonic sine / sub-bass voice (`SUB_BASS_PARAMS`, 23 controls). webdsp's `docs/subbass-instrument.md` is authoritative.
+
+- **Sustained, root A-1 (note 33 = 55 Hz).** Hold a note with its `duration`. `tune` is webdsp's `root` (the base frequency); webdsp's own
+  cents `Tune` is `fine` here, and a note's pitch is semitones on top.
+- **One Shape control** from a pure sine (0) to a saw-like wave (1), steered by `profile` (classic, warm, hollow, bright, saw); `drive` is an
+  anti-aliased saturation after the oscillator, then a LP 24 / LP 12 filter (`filterType`) with its own envelope (`filterAttack` ..
+  `filterRelease`, depth `filterAmount` in octaves), a pitch envelope (`pitchAmount`, `pitchDecay`) and the amp envelope (`attack` ..
+  `release`).
+- `profile`, `octave`, `phase` and `phaseReset` are stepped switches (not LFO targets). Several ids are shared with other kinds with their
+  own ranges (`shape`, `drive`, `filterType`, `cutoff`, `resonance`, `filterDecay`, `pitchDecay`, `tune`, `attack`, `decay`, `sustain`, `release`).
+- webdsp ships `SUB_BASS_PRESETS` (sub, warm, punchy, acid, aggressive); the Instrument Editor's Preset picker applies one (audio/presets.js),
+  resetting the rest to their defaults.

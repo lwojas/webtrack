@@ -11,7 +11,7 @@ import * as events from "../../state/events.js";
 import { loadSample } from "../../audio/instrumentLoader.js";
 import { initRuntime } from "../../audio/runtime.js";
 import { getModulationOptions } from "../../audio/instrument.js";
-import { electricPresets } from "../../audio/presets.js";
+import { electricPresets, subBassPresets } from "../../audio/presets.js";
 import { MAX_INSTRUMENT_LFOS } from "../../model/instrumentLfos.js";
 import { toHex } from "../../model/notes.js";
 import { ENVELOPE_PARAMS, formatEnvelopeValue } from "../../model/envelopeParams.js";
@@ -23,6 +23,7 @@ import {
   dbToGain,
   formatGainDb,
   gainToDb,
+  getSynthKind,
   getSynthParams,
   formatSynthParamValue,
   synthParamControl,
@@ -182,7 +183,7 @@ function InstrumentOutputPicker({ store, instrumentController }) {
   // Switching to "midi" needs a channel right away (compileEvent treats a missing channel as
   // "nothing to send" — see audio/compile.js) — default to the last one used, or channel 1.
   // Switching to "instrument" needs a kind, one of model/instrumentParams.js#SYNTH_KINDS
-  // (kick/snare/clap/tom/hihat/bass/pulse/pad/fm/hypersaw/pwmbeast/dm_thump/dm_metal/dm_tone/dm_crack/dm_chaos/percsynth/edge/matrix/noise/wobble/electric); state/store.js#setInstrumentOutput (re)seeds instrumentParams
+  // (kick/snare/clap/tom/hihat/bass/pulse/pad/fm/hypersaw/pwmbeast/dm_thump/dm_metal/dm_tone/dm_crack/dm_chaos/percsynth/edge/matrix/noise/wobble/electric/subbass); state/store.js#setInstrumentOutput (re)seeds instrumentParams
   // with that kind's own catalog defaults, both the first time a slot becomes "instrument" and
   // whenever the kind itself changes. `track` carries over across a kind switch (KICK -> SNARE
   // keeps whatever bus routing was already chosen) but resets to null (MASTER_BUS) switching to
@@ -401,6 +402,19 @@ function InstrumentEditor({ store, instrumentController, view, onViewChange }) {
   const warmth = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.warmth ?? 0.4);
   const age = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.age ?? 0.25);
   const crush = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.crush ?? 0.1);
+  // Sub Bass ids not used by any kind above (shape, drive, filterType, cutoff, resonance, filterDecay, pitchDecay, tune and
+  // the amp envelope are shared by id; their ranges differ per kind).
+  const profile = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.profile ?? 0);
+  const octave = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.octave ?? 0);
+  const fine = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.fine ?? 0);
+  const level = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.level ?? 0.85);
+  const phase = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.phase ?? 0);
+  const phaseReset = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.phaseReset ?? 1);
+  const filterAttack = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.filterAttack ?? 0.002);
+  const filterSustain = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.filterSustain ?? 0.3);
+  const filterRelease = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.filterRelease ?? 0.2);
+  const filterAmount = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.filterAmount ?? 0);
+  const pitchAmount = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.instrumentParams?.pitchAmount ?? 0);
   // Matrix has 64 controls (its voice plus the 42 patch cells): one selector of the joined values rather
   // than a hook each, for the same primitive-selector reason. A value the slot has not stored yet is the
   // catalog default. Only read when the output kind is "matrix" (below).
@@ -421,8 +435,13 @@ function InstrumentEditor({ store, instrumentController, view, onViewChange }) {
     bright, brightEnv, routing, filterA, filterB, toneDecay, lfoRate, lfoPitch, lfoFilter,
     source, color, texture, mix,
     wobble, growl, weight, freerate, glide, strike, bell, warmth, age, crush,
+    profile, octave, fine, level, phase, phaseReset, filterAttack, filterSustain, filterRelease, filterAmount, pitchAmount,
     ...(outputKind === "matrix" ? matrixValues : {}),
   };
+
+  // Kinds with webdsp starting sounds get a Preset picker (audio/presets.js).
+  const presetsOf = { electric: electricPresets, subbass: subBassPresets }[outputKind];
+  const kindName = getSynthKind(outputKind)?.name;
 
   if (!exists) return null;
   const hasMatrix = getSynthParams(outputKind).some((p) => p.cell);
@@ -504,20 +523,20 @@ function InstrumentEditor({ store, instrumentController, view, onViewChange }) {
               ))}
             </div>
           )}
-          {outputKind === "electric" && (
+          {presetsOf && (
             <label className="fx-module__field">
-              <span className="fx-module__field-label" title="webdsp's starting sounds: sets every Electric control (a preset leaves the rest at their defaults)">
+              <span className="fx-module__field-label" title={`webdsp's starting sounds: sets every ${kindName} control (a preset leaves the rest at their defaults)`}>
                 Preset
               </span>
               <select
                 value=""
                 onChange={(e) => {
-                  const values = electricPresets()[e.target.value];
+                  const values = presetsOf()[e.target.value];
                   if (values) for (const [id, value] of Object.entries(values)) instrumentController.setInstrumentParam(index, id, value);
                 }}
               >
                 <option value="">(select)</option>
-                {Object.keys(electricPresets()).map((name) => (
+                {Object.keys(presetsOf()).map((name) => (
                   <option key={name} value={name}>
                     {name}
                   </option>
