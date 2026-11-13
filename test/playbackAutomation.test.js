@@ -16,6 +16,7 @@ const runtime = {
   scheduleParams: vi.fn(),
 };
 const fx = {
+  getLiveGatedTracks: vi.fn(() => null),
   setTrackFxParam: vi.fn(),
   setTrackFxInstanceParam: vi.fn(),
   getTrackEffectId: vi.fn((trackIndex, instanceId) => 1000 + instanceId),

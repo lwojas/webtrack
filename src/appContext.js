@@ -475,6 +475,7 @@ export function createAppContext() {
     });
     setTrackMainGains(
       channels.map((channel, i) => (carriesOthers.has(i) || (!channel.muted && (!soloActive || channel.solo)) ? 1 : 0)),
+      new Set(channels.flatMap((_, i) => (carriesOthers.has(i) ? [] : [i]))),
     );
   }
   store.subscribe(events.TRACK_CHANNEL_CHANGED, syncTrackAudibility);

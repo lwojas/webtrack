@@ -214,14 +214,14 @@ export function dropSimultaneousChokeLosers(events) {
 // trackLocalStep (model/pattern.js) to get the row it's actually on right now — this is what
 // makes tracks polymetric without a second clock anywhere. Tracks with no instrument assigned,
 // a muted channel, or (while any channel is soloed) no solo flag are skipped entirely —
-// mixer-level gating happens here, at compile time, not via a webdsp bus.
+// mixer-level gating happens here at compile time, except for `liveGated` tracks (mute/solo cut on their bus).
 // trackBusIds: BusId[] | undefined, indexed by trackIndex (audio/runtime.js#ensureTrackBuses)
 // — omitted entirely by test callers/audio/preview.js that don't need bus routing; every
 // voice then just falls back to compileEvent's own "no bus means MASTER_BUS" default.
 // Each returned event carries compileEvent's own `kind` tag unchanged — this function doesn't
 // filter or partition by it; whichever caller eventually routes "midi"-kind events to a real
 // MIDI output (rather than runtime.schedule(), as today) does that downstream, not here.
-export function compileRow(pattern, trackChannels, instruments, transportStep, time, stepDurationSeconds, trackBusIds, lfoClock, scale = null) {
+export function compileRow(pattern, trackChannels, instruments, transportStep, time, stepDurationSeconds, trackBusIds, lfoClock, scale = null, liveGated = null) {
   const soloActive = trackChannels.some((channel) => channel.solo);
   const events = [];
   const arpInstruments = [];
@@ -230,9 +230,18 @@ export function compileRow(pattern, trackChannels, instruments, transportStep, t
   });
 
   pattern.tracks.forEach((track, trackIndex) => {
-    const trackChannel = trackChannels[trackIndex];
-    if (!trackChannel) return;
-    if (soloActive && !trackChannel.solo) return;
+    const channel = trackChannels[trackIndex];
+    if (!channel) return;
+    // A track in `liveGated` (audio/fx.js#getLiveGatedTracks) has mute/solo applied on its bus by the engine
+    // at once, so its audio notes are still scheduled: unmuting then never misses notes already compiled.
+    // MIDI output has no bus, so its events are still dropped below.
+    const gatedOut = channel.muted || (soloActive && !channel.solo);
+    if (gatedOut && !liveGated?.has(trackIndex)) return;
+    const trackChannel = gatedOut ? { ...channel, muted: false } : channel;
+    const push = (compiled) => {
+      if (gatedOut && compiled.kind === "midi") return;
+      events.push({ ...compiled, trackIndex });
+    };
     // Notes switched off for this track in this pattern (model/mutations.js#setTrackNotesEnabled): no
     // triggers, but the track's FX, bus and automation keep running (unlike mute).
     if (track.notesOff) return;
@@ -266,7 +275,7 @@ export function compileRow(pattern, trackChannels, instruments, transportStep, t
           false,
           scale,
         );
-        if (compiled) events.push({ ...compiled, trackIndex });
+        if (compiled) push(compiled);
       }
     }
 
@@ -294,7 +303,7 @@ export function compileRow(pattern, trackChannels, instruments, transportStep, t
         // Pitch ratchet: shift this hit (sample and synth triggers carry a `pitch`; MIDI notes are left as written).
         const offset = ratchetPitchOffset(event, hit);
         if (offset !== 0 && compiled.kind !== "midi") compiled.pitch = (compiled.pitch ?? 0) + offset;
-        events.push({ ...compiled, trackIndex });
+        push(compiled);
       }
     }
   });

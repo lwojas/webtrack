@@ -446,6 +446,27 @@ describe("compileRow", () => {
     expect(events).toHaveLength(0);
   });
 
+  it("keeps scheduling audio notes of a live-gated muted/soloed-out track (the bus cuts them), but never MIDI", () => {
+    const song = createSong();
+    const patternId = song.patterns[0].id;
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "note", 60);
+    setEventField(song, { patternId, trackIndex: 0, rowIndex: 0 }, "instrument", 0);
+    song.trackChannels[0].muted = true;
+    const instruments = [createInstrumentSlot({ id: 0, sampleId: 1 })];
+    const pattern = getSelectedPattern(song);
+    const compile = (gated) => compileRow(pattern, song.trackChannels, instruments, 0, 0, 0.25, undefined, undefined, null, gated);
+
+    expect(compile(null)).toHaveLength(0);
+    expect(compile(new Set([1]))).toHaveLength(0); // track 0 not live-gated
+    expect(compile(new Set([0]))).toHaveLength(1);
+    song.trackChannels[0].muted = false;
+    song.trackChannels[2].solo = true;
+    expect(compile(new Set([0]))).toHaveLength(1);
+
+    instruments[0] = createInstrumentSlot({ id: 0, sampleId: 1, output: { type: "midi", channel: 1, kind: null, track: null } });
+    expect(compile(new Set([0]))).toHaveLength(0);
+  });
+
   it("routes a sample slot with output.track into that track's bus, else the triggering track's", () => {
     const song = createSong();
     const patternId = song.patterns[0].id;

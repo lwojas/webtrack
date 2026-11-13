@@ -2,7 +2,7 @@ import { initRuntime, ensureTrackBuses, getRuntime, peekRuntime } from "./runtim
 import { createLookaheadPlayer } from "./lookaheadPlayer.js";
 import { createResampleController } from "./resampleController.js";
 import { compileRow, compileRowFx, compileRowAutomation } from "./compile.js";
-import { setTrackFxParam, setTrackFxInstanceParam, getTrackEffectId, resolveNodeParam } from "./fx.js";
+import { getLiveGatedTracks, setTrackFxParam, setTrackFxInstanceParam, getTrackEffectId, resolveNodeParam } from "./fx.js";
 import { resolveInstrumentParam, setSynthInstrumentParam } from "./instrument.js";
 import { resolveEnvelopeParam, setInstrumentEnvelope } from "./instrumentEnvelope.js";
 import { createAutomationScheduler } from "./automation.js";
@@ -179,6 +179,7 @@ export function createPlaybackController({
         getStepDurationSeconds,
         getSwing,
         getScale: () => getSong().scale,
+        getLiveGatedTracks,
         onPatternSwitched: () => onPatternSwitchPending?.(false),
         getNextQueueEntry: (currentIndex) => resolveQueueEntry(currentIndex + 1),
         // bus.gain is the one cell FX entry with no scheduled form (webdsp's scheduleParams does

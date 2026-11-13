@@ -335,7 +335,7 @@ separate rather than collapsed into one "volume" concept:
   (`appContext.js` pushes it on every `TRACK_CHANNEL_CHANGED`; `syncTrackBusGains` replays it on
   load and before play). It is deliberately *not* folded into compiled events: that would only
   reach notes scheduled after the edit (up to the ~150ms lookahead later) and never voices
-  already sounding, so faders lagged. `audio/compile.js` now scales by velocity only.
+  already sounding, so faders lagged. Mute/solo likewise cut the bus (`BusMainGain`, `appContext.js#syncTrackAudibility`) and `compileRow` keeps scheduling audio notes for those tracks (`liveGated`), so unmuting misses nothing; MIDI output and tracks other audio is routed through keep the compile-time gate. `audio/compile.js` now scales by velocity only.
 
 Not part of this: **per-cell volume** (a future per-event level, mapping naturally to MIDI
 velocity later) stays entirely a tracker/event-level concern — `webdsp`'s `TriggerParams.gain`/

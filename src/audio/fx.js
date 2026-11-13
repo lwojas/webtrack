@@ -195,7 +195,12 @@ export function setTrackVolume(trackIndex, volume) {
 // Live mute/solo cut: BusMainGain silences a bus's main output at once (notes already scheduled,
 // synth instruments, tails) while leaving its sends running. levels[i] is 0 or 1.
 const trackMainGain = [];
-export async function setTrackMainGains(levels) {
+let liveGatedTracks = new Set();
+// Tracks whose mute/solo is applied on the bus (not carrying other tracks' audio); compileRow keeps
+// scheduling their audio notes. Read synchronously by the player every tick.
+export const getLiveGatedTracks = () => liveGatedTracks;
+export async function setTrackMainGains(levels, gated = new Set()) {
+  liveGatedTracks = gated;
   const runtime = await initRuntime();
   const busIds = await ensureTrackBuses(levels.length);
   levels.forEach((level, i) => {
