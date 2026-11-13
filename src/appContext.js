@@ -44,6 +44,7 @@ import { voicesNeededForSlot } from "./model/chord.js";
 import { createDemoSong, createDemoInstruments } from "./demo/demoSong.js";
 import { getSelectedPattern } from "./model/query.js";
 import { createKeyboardNoteSource } from "./input/keyboardNoteMap.js";
+import { createCcController } from "./midi/cc/ccController.js";
 import { createMidiNoteSource } from "./input/midiInputSource.js";
 import { createEditController } from "./input/editController.js";
 import { createPushDevice } from "./midi/push/pushDevice.js";
@@ -601,6 +602,9 @@ export function createAppContext() {
     refreshPush: refreshPushState,
   };
 
+  // MIDI CC -> mixer strips and transport (midi/cc, docs/MIDI.md); the map is edited in the MIDI MAP tab.
+  const ccController = createCcController({ store, fxController, playbackController, togglePlayback });
+
   const noteSources = [keyboardNoteSource, midiNoteSource, pushNoteEntryMode];
   const editController = createEditController({ store, noteSources });
 
@@ -854,6 +858,7 @@ export function createAppContext() {
     fxController,
     instrumentController,
     midiController,
+    ccController,
     saveProject,
     loadProjectFromFile,
     resample: handleResample,

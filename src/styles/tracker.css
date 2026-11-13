@@ -3359,3 +3359,99 @@ input[type="range"].range-lg {
 .chord-editor__empty {
   letter-spacing: 0.04em;
 }
+
+/* --- MIDI MAP view --- */
+
+.midi-map {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  padding: var(--space-lg);
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  font-size: var(--text-body);
+}
+
+.midi-map__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-lg);
+  margin-bottom: var(--space-lg);
+}
+
+.midi-map__title,
+.midi-map__group-title {
+  color: var(--cyan);
+  font-size: var(--text-micro);
+  letter-spacing: 0.08em;
+  margin: 0;
+}
+
+.midi-map__monitor {
+  flex: 1;
+  color: var(--text-dim);
+  font-size: var(--text-label);
+}
+
+.midi-map__group {
+  margin-bottom: var(--space-lg);
+}
+
+.midi-map__table {
+  border-collapse: collapse;
+  margin-top: var(--space-xs);
+}
+
+.midi-map__row td {
+  padding: var(--space-xs) var(--space-lg) var(--space-xs) 0;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+.midi-map__row--learning {
+  background: var(--surface-3);
+}
+
+.midi-map__label {
+  min-width: 9rem;
+}
+
+.midi-map__hint,
+.midi-map__channel-note,
+.midi-map__note {
+  color: var(--text-dim);
+  font-size: var(--text-label);
+}
+
+.midi-map__hint {
+  margin-left: var(--space-sm);
+}
+
+.midi-map__cc,
+.midi-map__select {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border-active);
+  font: inherit;
+  padding: 1px var(--space-xs);
+}
+
+.midi-map__cc {
+  width: 4rem;
+}
+
+.midi-map__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.midi-map__learn--active {
+  color: var(--crimson);
+  border-color: var(--crimson);
+}
+
+.midi-map__clash {
+  color: var(--amber);
+  font-size: var(--text-label);
+}

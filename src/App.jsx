@@ -11,6 +11,7 @@ import NoteEditor from "./ui/chrome/NoteEditor.jsx";
 import { InstrumentEditorPanel } from "./ui/chrome/InstrumentPanel.jsx";
 import SelectionToolbar from "./ui/chrome/SelectionToolbar.jsx";
 import PatternManager from "./ui/chrome/PatternManager.jsx";
+import MidiMapView from "./ui/chrome/MidiMapView.jsx";
 import SettingsModal from "./ui/chrome/SettingsModal.jsx";
 import NoteSpacingControl from "./ui/chrome/NoteSpacingControl.jsx";
 import PerfPanel from "./ui/debug/PerfPanel.jsx";
@@ -20,6 +21,7 @@ import { attachTransportKeys } from "./input/transportKeys.js";
 const TABS = [
   { id: "tracker", label: "TRACKER" },
   { id: "patterns", label: "PATTERNS" },
+  { id: "midimap", label: "MIDI MAP" },
 ];
 
 // Formats a recovery record's savedAt (an ISO string, see persistence/recovery.js) as "a
@@ -56,6 +58,7 @@ export default function App() {
     fxController,
     instrumentController,
     midiController,
+    ccController,
     saveProject,
     loadProjectFromFile,
     resample,
@@ -107,6 +110,7 @@ export default function App() {
     const detachNoteSources = noteSources.map((noteSource) => noteSource.attach());
     const detachEditController = editController.attach();
     const detachPush = attachPush();
+    const detachCc = ccController.attach();
     // togglePlayback (appContext.js) is the one play/stop entry point every transport control
     // calls — this keyboard shortcut and midi/push/transportController.js's Play button both
     // route through it, rather than each awaiting ensureDemoInstrumentsLoaded() separately.
@@ -129,10 +133,11 @@ export default function App() {
       detachNoteSources.forEach((detach) => detach());
       detachEditController();
       detachPush();
+      detachCc();
       detachTransportKeys();
       window.removeEventListener("keydown", handleFirstGesture);
     };
-  }, [store, playbackController, noteSources, editController, attachPush, startAudio, togglePlayback]);
+  }, [store, playbackController, noteSources, editController, attachPush, ccController, startAudio, togglePlayback]);
 
   return (
     <div className="app">
@@ -193,6 +198,10 @@ export default function App() {
             <InstrumentPanel store={store} instrumentController={instrumentController} />
             <NoteEditor store={store} />
           </div>
+        </div>
+      ) : activeTab === "midimap" ? (
+        <div className="app__body">
+          <MidiMapView ccController={ccController} />
         </div>
       ) : (
         <div className="app__body">

@@ -785,3 +785,28 @@ The note is still delivered to the page for note entry; `input/midiInputSource.j
 
 The note source's `attach()` used to share one `detached` flag across calls, so after any detach every later attach was ignored; under React
 StrictMode (dev server) the MIDI input never worked. The flag now belongs to each attach call.
+
+## MIDI CC control (`midi/cc/`)
+
+Hardware faders, knobs and buttons drive the mixer and transport through Control Change messages. The **MIDI MAP** tab edits the map.
+
+| File | Role |
+| --- | --- |
+| `ccCatalog.js` | Every controllable function, as data: `{ id, label, group, scope, kind, default, apply }`. **The only file to touch to add a control**; the map, router and view all read it. |
+| `ccMap.js` | Pure: defaults, user overrides, the `(channel, cc)` lookup, conflict detection, `localStorage` load/save. |
+| `ccController.js` | Wires every MIDI input (Push ports excluded: their buttons are CCs handled by `midi/push`), routes messages, holds the editable state (rebind, learn, reset, monitor) for `ui/chrome/MidiMapView.jsx`. |
+
+Defaults:
+
+| Control | Binding |
+| --- | --- |
+| Strip volume / pan / solo / mute (strips 1-16) | MIDI channel n = strip n; CC 7 / 10 / 21 / 20 |
+| Play / Record / Stop | channel 1; CC 45 / 44 / 46 |
+
+How it stays cheap and maintainable:
+
+* Routing is one `Map.get` on a lookup rebuilt only when a binding changes; strip controls are expanded once, one entry per channel.
+* A continuous control (volume, pan) keeps only its latest value and applies it once per animation frame, so a fast sweep is one store update per frame. Toggles and triggers act on a press (value >= 64) and ignore the release, so momentary and latching buttons behave alike.
+* Only the user's **changes** are saved (key `webtrack.midiCcMap`, per browser, not per project). A control added to the catalog later gets its default for everyone, and RESET returns to it.
+* Volume maps 0..127 to the fader's 0..1.5; pan maps 64 to centre. Play never stops, Stop never starts, Record is the transport bar's REC arm.
+* The view's LEARN takes the next CC from any device (and its channel, for a transport control). Two controls on one CC both respond; the view marks them. The activity monitor only runs while the view is open.
