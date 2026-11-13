@@ -15,6 +15,30 @@ export function normalizeRatchet(value) {
   return RATCHET_VALUES.includes(r) && r > 1 ? r : null;
 }
 
+// Pitch ratchet: each retrigger of a ratcheted note can sound at its own pitch (OctaMED-style rolls).
+// Event.ratchetPitch is a linear step in semitones per hit (hit i plays i * step above the note);
+// Event.ratchetPattern names a preset whose offsets cycle across the hits and win over the step.
+export const RATCHET_PITCH_MAX = 12;
+export const RATCHET_PATTERNS = [
+  { id: "oct", label: "0 +12", offsets: [0, 12] },
+  { id: "fifth", label: "0 +7", offsets: [0, 7] },
+  { id: "major", label: "0 +4 +7", offsets: [0, 4, 7] },
+  { id: "minor", label: "0 +3 +7", offsets: [0, 3, 7] },
+  { id: "arp", label: "0 +4 +7 +12", offsets: [0, 4, 7, 12] },
+  { id: "updown", label: "0 +5 +7 +5", offsets: [0, 5, 7, 5] },
+  { id: "drop", label: "0 -12", offsets: [0, -12] },
+  { id: "fall", label: "0 -3 -5 -7", offsets: [0, -3, -5, -7] },
+];
+
+// Semitones added to hit `hit` (0-based) of a ratcheted note. 0 for a plain note, so untouched notes compile as before.
+export function ratchetPitchOffset(event, hit) {
+  if (ratchetOf(event) === 1) return 0;
+  const pattern = RATCHET_PATTERNS.find((p) => p.id === event?.ratchetPattern);
+  if (pattern) return pattern.offsets[hit % pattern.offsets.length];
+  const step = Number(event?.ratchetPitch);
+  return Number.isFinite(step) ? Math.round(step) * hit : 0;
+}
+
 export function createEmptyEvent() {
   return {
     note: null,
@@ -32,6 +56,9 @@ export function createEmptyEvent() {
     // Ratchet: how many evenly spaced retriggers this note plays across its own length (see
     // RATCHET_VALUES). null = 1, a normal single trigger. A property of the note, not extra rows.
     ratchet: null,
+    // Pitch ratchet (only with a ratchet > 1): semitones added per hit, and/or a preset pattern id (RATCHET_PATTERNS). null = none.
+    ratchetPitch: null,
+    ratchetPattern: null,
     // Chop transpose: semitones added to the instrument's chopPitch for this note (chop slots only), null = 0.
     chopTranspose: null,
     // Tie: this note is held through the next note on the track, which glides in with no re-attack (a

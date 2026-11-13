@@ -10,7 +10,7 @@
 //   toField   maps a chosen value to what is stored (e.g. ratchet 1 and chop pitch 0 are stored as null)
 //   clearable the field can be empty (null); the bar then has an "unset" slot below its first value
 import { EFFECT_COMMANDS } from "./effects.js";
-import { RATCHET_VALUES, normalizeRatchet, ratchetOf } from "./event.js";
+import { RATCHET_VALUES, RATCHET_PATTERNS, RATCHET_PITCH_MAX, normalizeRatchet, ratchetOf } from "./event.js";
 import { normalizeParticipation } from "./eventLfo.js";
 import { MAX_NOTE, noteForSlice, sliceCount } from "./chop.js";
 import { isChromatic, isNoteInScale } from "./scale.js";
@@ -80,6 +80,12 @@ export function buildNoteGraph(event, ctx) {
   bars.push({ id: "length", row: 0, label: "LEN", field: "length", values: range(1, Math.max(1, rowCount)), value: event.length, clearable: true, format: (v) => String(v), emptyLabel: "auto", hint: "steps" });
 
   bars.push({ id: "ratchet", row: 0, label: "RATCH", field: "ratchet", values: [...RATCHET_VALUES], value: ratchetOf(event), clearable: false, toField: normalizeRatchet, format: (v) => (v === 1 ? "off" : `×${v}`), hint: "retriggers" });
+
+  // Pitch ratchet: only meaningful once the note retriggers. The pattern wins over the linear step.
+  if (ratchetOf(event) > 1) {
+    bars.push({ id: "ratchetPitch", row: 0, label: "R-PITCH", field: "ratchetPitch", values: range(-RATCHET_PITCH_MAX, RATCHET_PITCH_MAX), value: event.ratchetPitch ?? 0, clearable: false, toField: (v) => (v === 0 ? null : v), format: (v) => `${v > 0 ? "+" : ""}${v}st`, hint: "semitones per hit" });
+    bars.push({ id: "ratchetPattern", row: 0, label: "R-PAT", field: "ratchetPattern", values: RATCHET_PATTERNS.map((p) => p.id), value: event.ratchetPattern ?? null, clearable: true, format: (id) => RATCHET_PATTERNS.find((p) => p.id === id)?.label ?? "?", emptyLabel: "step", hint: "overrides the step" });
+  }
 
   if (event.note !== null && instrument?.output?.type === "instrument" && supportsTieKind(instrument.output.kind)) {
     bars.push({ id: "tie", row: 0, label: "TIE", field: "tie", values: [0, 1], value: event.tie ? 1 : 0, clearable: false, toField: (v) => (v ? true : null), format: (v) => (v ? "on" : "off"), hint: "slide into next" });

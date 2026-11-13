@@ -73,6 +73,8 @@ export default function NoteEditor({ store }) {
       selected.length,
       selected.lfo,
       selected.ratchet,
+      selected.ratchetPitch,
+      selected.ratchetPattern,
       selected.tie,
       selected.chopTranspose,
       JSON.stringify(selected.chord),

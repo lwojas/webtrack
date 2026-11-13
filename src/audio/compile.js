@@ -6,7 +6,7 @@ import { listCellEntries, nextPoint } from "../model/cellAutomation.js";
 import { isSustainedSynthKind, supportsTieKind } from "../model/instrumentParams.js";
 import { effectiveNote, effectiveVelocity } from "./trackLfo.js";
 import { effectiveChokeGroup, isFxSend } from "../model/trackChannel.js";
-import { ratchetOf } from "../model/event.js";
+import { ratchetOf, ratchetPitchOffset } from "../model/event.js";
 import { arpEventsAtRow, arpOf, isArpActive } from "../model/arp.js";
 import { chordNotes, isChordEvent } from "../model/chord.js";
 import { normalizeScale } from "../model/scale.js";
@@ -291,6 +291,9 @@ export function compileRow(pattern, trackChannels, instruments, transportStep, t
       // A note that ties into the next holds its gate to just past that note's start, on its last hit.
       const hold = hit === hits - 1 && holdSteps !== null ? Math.max(slotSeconds, (holdSteps + 0.5) * stepDurationSeconds - hit * slotSeconds) : slotSeconds;
       for (const compiled of compileEventTones(event, trackChannel, instruments, time + hit * slotSeconds, hold, busFor(event.instrument), lfoClock, tieIn && hit === 0, scale)) {
+        // Pitch ratchet: shift this hit (sample and synth triggers carry a `pitch`; MIDI notes are left as written).
+        const offset = ratchetPitchOffset(event, hit);
+        if (offset !== 0 && compiled.kind !== "midi") compiled.pitch = (compiled.pitch ?? 0) + offset;
         events.push({ ...compiled, trackIndex });
       }
     }

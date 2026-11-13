@@ -96,3 +96,42 @@ describe("ratchet", () => {
     expect(again.song.patterns[0].tracks[0].events[0].ratchet ?? null).toBe(null);
   });
 });
+
+describe("pitch ratchet", () => {
+  const pitches = (s) => row(s).map((e) => e.pitch ?? 0);
+  const withEvent = (s, fields) => {
+    const ref = { patternId: s.song.patterns[0].id, trackIndex: 0, rowIndex: 0 };
+    for (const [k, v] of Object.entries(fields)) setEventField(s.song, ref, k, v);
+    return s;
+  };
+
+  it("is off by default and ignored without a ratchet", () => {
+    expect(pitches(setup(4))).toEqual([0, 0, 0, 0]);
+    expect(pitches(withEvent(setup(undefined), { ratchetPitch: 3, ratchetPattern: "oct" }))).toEqual([0]);
+  });
+
+  it("a linear step raises (or lowers) each hit", () => {
+    expect(pitches(withEvent(setup(4), { ratchetPitch: 2 }))).toEqual([0, 2, 4, 6]);
+    expect(pitches(withEvent(setup(3), { ratchetPitch: -1 }))).toEqual([0, -1, -2]);
+  });
+
+  it("a pattern cycles across the hits and wins over the step", () => {
+    expect(pitches(withEvent(setup(6), { ratchetPattern: "major", ratchetPitch: 5 }))).toEqual([0, 4, 7, 0, 4, 7]);
+  });
+
+  it("adds to a chop slot's own pitch without moving the slice", () => {
+    const s = withEvent(setup(2), { ratchetPitch: 12, chopTranspose: 2 });
+    s.instruments = [createInstrumentSlot({ id: 0, sampleId: 1, rootNote: 60, sampleMode: "chop", chopPitch: 1 })];
+    const events = row(s);
+    expect(events.map((e) => e.pitch)).toEqual([3, 15]);
+    expect(events.map((e) => e.region)).toEqual([0, 0]);
+  });
+
+  it("applies to every tone of a synth ratchet and survives save/load", async () => {
+    const s = withEvent(setup(2), { ratchetPattern: "fifth" });
+    s.instruments = [createInstrumentSlot({ id: 0, output: { type: "instrument", channel: null, kind: "bass" }, engineInstrumentId: 7, rootNote: 60 })];
+    expect(row(s).map((e) => e.pitch)).toEqual([0, 7]);
+    const restored = await deserializeProject(serializeProject({ song: s.song, instruments: s.instruments, ui: {} }), { loadSampleBytes: async () => null });
+    expect(restored.song.patterns[0].tracks[0].events[0].ratchetPattern).toBe("fifth");
+  });
+});

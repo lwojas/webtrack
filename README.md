@@ -109,7 +109,7 @@ The **selection**, **instruments** and **note editor** sections of the right col
 The selected cell's fields as **two rows of draggable bars** (`ui/chrome/NoteGraph.jsx`,
 `model/noteGraph.js`). Press and drag vertically on a bar to set it; the grid follows the drag.
 An **instrument** dropdown (slot id + name) sits above the graph. Top row: **note** (or **slice** on a chop slot), **velocity**, per-note **pitch** (chop slots),
-**length**, **ratchet**, **tie** (synths with a legato mode). Bottom row: **pan**, **track LFO**
+**length**, **ratchet** (with **R-PITCH**, semitones per hit, and **R-PAT**, a preset pitch pattern, once ratchet > 1), **tie** (synths with a legato mode). Bottom row: **pan**, **track LFO**
 amount, **fx** command and **param**.
 
 The bars are contextual: a chop slot's slice bar has exactly one step per slice; with a key set in the
