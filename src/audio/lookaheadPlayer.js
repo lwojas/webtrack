@@ -108,7 +108,10 @@ export function createLookaheadPlayer({
       // individual track's polymetric wrap, and still what drives queue advance/pattern
       // switching below; the pattern queue's own semantics (ECS-156 plan §6/§7) are untouched
       // by per-track lengths.
-      const rowIndex = stepCounter % pattern.rowCount;
+      // Relative to where this pattern instance started, not the absolute transport: after a
+      // different-length pattern in the queue, stepCounter % rowCount no longer lands on 0 at the
+      // next boundary and the pattern would be cut short (8 bars -> 1 bar -> only 7 bars).
+      const rowIndex = (stepCounter - patternStartStep) % pattern.rowCount;
 
       // A transition only takes effect at a loop boundary (row 0) after at least one full
       // pass, never mid-pattern (see ECS-156 plan §6/§7). A manually requested switch
@@ -288,7 +291,7 @@ export function createLookaheadPlayer({
   function getPlayheadRow() {
     if (!pattern) return -1;
     const step = getTransportStep();
-    return step < 0 ? -1 : step % pattern.rowCount;
+    return step < 0 ? -1 : (step - patternStartStep) % pattern.rowCount;
   }
 
   // One track's own local playhead row — the same trackLocalStep(track, patternPosition) fold

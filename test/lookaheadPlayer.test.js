@@ -194,6 +194,36 @@ describe("createLookaheadPlayer — one shared transport, independent per-track 
     player.stop();
   });
 
+  it("plays a long pattern in full after a shorter one in the queue (8 -> 4 -> 8 rows, not cut short)", () => {
+    vi.useFakeTimers();
+    const runtime = createFakeRuntime();
+    const long = makePattern({ rowCount: 8, trackLengths: [8] });
+    const short = makePattern({ rowCount: 4, trackLengths: [4] });
+    const entries = [long, short];
+    const switches = [];
+    const player = createLookaheadPlayer({
+      runtime,
+      compileRow: (pattern, _tc, _ins, relStep) => {
+        if (relStep === 0) switches.push(0);
+        switches[switches.length - 1] += 1; // rows actually played by this pattern instance
+        return [];
+      },
+      getStepDurationSeconds: () => 1,
+      getNextQueueEntry: (i) => ({ pattern: entries[(i + 1) % 2], queueIndex: (i + 1) % 2 }),
+    });
+
+    player.start({ initialPattern: long, initialTrackChannels: [], initialInstruments: [], startAt: 0 });
+    runtime.advance(8 + 4 + 8 + 4 + 8);
+    vi.advanceTimersByTime(25);
+
+    // Every instance plays its full length — the second long pass starts at step 12 and must
+    // run all 8 rows, not be cut at 16 because 16 % 8 === 0 on the absolute transport.
+    expect(switches.slice(0, 5)).toEqual([8, 4, 8, 4, 8]);
+    expect(player.getTrackPlayheadRow(0)).toBe(0);
+
+    player.stop();
+  });
+
   it("calls onTrackFxChange for every cell-fx entry compileRowFx reports at the row being scheduled", () => {
     const runtime = createFakeRuntime();
     const pattern = makePattern({ rowCount: 16, trackLengths: [4, 4] });
