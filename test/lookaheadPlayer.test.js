@@ -224,6 +224,36 @@ describe("createLookaheadPlayer — one shared transport, independent per-track 
     player.stop();
   });
 
+  it("keeps the playhead and queue index on the outgoing pattern until the next one is audible (lookahead already scheduled it)", () => {
+    vi.useFakeTimers();
+    const runtime = createFakeRuntime();
+    const long = makePattern({ rowCount: 8, trackLengths: [8] });
+    const short = makePattern({ rowCount: 4, trackLengths: [4] });
+    const entries = [long, short];
+    const player = createLookaheadPlayer({
+      runtime,
+      compileRow: () => [],
+      getStepDurationSeconds: () => 1,
+      getNextQueueEntry: (i) => ({ pattern: entries[(i + 1) % 2], queueIndex: (i + 1) % 2 }),
+    });
+
+    player.start({ initialPattern: long, initialTrackChannels: [], initialInstruments: [], startAt: 0 });
+    runtime.advance(8);
+    vi.advanceTimersByTime(25);
+    runtime.advance(3.9); // t = 11.9: the long pattern's restart (step 12) is within the lookahead, so already scheduled...
+    vi.advanceTimersByTime(25);
+    // ...but not audible: still the short pattern's last row, never the long pattern's wrapped rows 6/7.
+    expect(player.getTrackPlayheadRow(0)).toBe(3);
+    expect(player.getPlayheadRow()).toBe(3);
+    expect(player.getQueueIndex()).toBe(1);
+
+    runtime.advance(0.1); // t = 12: the long pattern starts sounding
+    expect(player.getTrackPlayheadRow(0)).toBe(0);
+    expect(player.getQueueIndex()).toBe(0);
+
+    player.stop();
+  });
+
   it("calls onTrackFxChange for every cell-fx entry compileRowFx reports at the row being scheduled", () => {
     const runtime = createFakeRuntime();
     const pattern = makePattern({ rowCount: 16, trackLengths: [4, 4] });

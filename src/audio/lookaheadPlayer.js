@@ -82,6 +82,12 @@ export function createLookaheadPlayer({
   let timerId = null;
   let stepCounter = 0;
   let patternStartStep = 0;
+  // Every pattern instance from the one sounding now to the newest scheduled, oldest first. tick() runs
+  // up to LOOKAHEAD_SECONDS ahead of the audible step, so `pattern`/`patternStartStep` already describe
+  // the *next* instance for a moment; the playhead and queue highlight read the instance whose start
+  // the transport has actually reached (audibleSegment), or they would briefly show the new pattern
+  // at a negative offset — wrapped to its last rows — just before it starts.
+  let segments = [];
   let startTime = 0;
   // The first step that sounds (initialRow of start()); before it the transport is still in its lead-in.
   let firstStep = 0;
@@ -136,6 +142,7 @@ export function createLookaheadPlayer({
             queueIndex = next.queueIndex;
           }
         }
+        segments.push({ startStep: stepCounter, pattern, queueIndex });
       }
 
       // The logical step time — purely stepCounter * duration, never touched by swing. Swing
@@ -234,6 +241,7 @@ export function createLookaheadPlayer({
     stepCounter = initialRow;
     firstStep = initialRow;
     patternStartStep = 0;
+    segments = [{ startStep: 0, pattern: initialPattern, queueIndex: initialQueueIndex }];
     startTime = (startAt ?? runtime.getCurrentTime() + 0.05) - initialRow * getStepDurationSeconds();
     playing = true;
     announcedStepDuration = null;
@@ -285,13 +293,21 @@ export function createLookaheadPlayer({
     return step < firstStep ? -1 : step;
   }
 
+  // The pattern instance sounding at `step`: the newest segment that has started by then. Older ones
+  // are dropped as they pass (the transport only moves forward within a session).
+  function audibleSegment(step) {
+    if (step < 0 || segments.length === 0) return null;
+    while (segments.length > 1 && segments[1].startStep <= step) segments.shift();
+    return segments[0];
+  }
+
   // The pattern-grid-relative row — kept for existing single-row consumers (the MVP control
   // contract's "transport.playheadRow", src/ui/debug/PerfPanel.jsx). The per-track visual
   // playhead (ui/grid/playheadLayer.js) uses getTrackPlayheadRow below instead.
   function getPlayheadRow() {
-    if (!pattern) return -1;
     const step = getTransportStep();
-    return step < 0 ? -1 : (step - patternStartStep) % pattern.rowCount;
+    const segment = audibleSegment(step);
+    return segment ? (step - segment.startStep) % segment.pattern.rowCount : -1;
   }
 
   // One track's own local playhead row — the same trackLocalStep(track, patternPosition) fold
@@ -300,17 +316,18 @@ export function createLookaheadPlayer({
   // transport; patternStartStep (set at the last pattern boundary — see tick()) converts it to
   // the pattern-relative position every track's phase is actually anchored to.
   function getTrackPlayheadRow(trackIndex) {
-    const track = pattern?.tracks[trackIndex];
-    if (!track) return -1;
     const step = getTransportStep();
-    return step < 0 ? -1 : trackLocalStep(track, step - patternStartStep);
+    const segment = audibleSegment(step);
+    const track = segment?.pattern.tracks[trackIndex];
+    return track ? trackLocalStep(track, step - segment.startStep) : -1;
   }
 
   // The queue slot currently sounding — distinct from song.selectedPatternId (ui/chrome/
   // PatternManager.jsx's playing-entry highlight needs to track this, not the Tracker's edit
   // target). -1 while stopped, matching getPlayheadRow()'s convention.
   function getQueueIndex() {
-    return playing ? queueIndex : -1;
+    const segment = audibleSegment(getTransportStep());
+    return segment ? segment.queueIndex : -1;
   }
 
   return { start, stop, isPlaying, requestPatternSwitch, getPlayheadRow, getTrackPlayheadRow, getQueueIndex };
