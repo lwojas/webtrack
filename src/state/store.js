@@ -1,3 +1,4 @@
+import { normalizeInstrumentUi } from "../model/instrumentUi.js";
 import { MAX_NOTE, SAMPLE_MODES, normalizeChopStart, normalizeCues, sliceCount } from "../model/chop.js";
 import {
   selectPattern as selectPatternModel,
@@ -737,6 +738,14 @@ export function createStore({ song, instruments }) {
     emitter.emit(events.INSTRUMENTS_CHANGED, { index });
   }
 
+  // Editor layout (model/instrumentUi.js): `update` maps the current ui to the next one, e.g. (ui) => addGroup(ui).
+  function updateInstrumentUi(index, update) {
+    const instrument = state.instruments[index];
+    if (!instrument) return;
+    instrument.ui = normalizeInstrumentUi(update(instrument.ui ?? null));
+    emitter.emit(events.INSTRUMENTS_CHANGED, { index });
+  }
+
   function setTrackChannelMuted(trackIndex, muted) {
     setTrackChannelMutedModel(state.song, trackIndex, muted);
     emitter.emit(events.TRACK_CHANNEL_CHANGED, { trackIndex });
@@ -1087,6 +1096,7 @@ export function createStore({ song, instruments }) {
     setInstrumentSample,
     setInstrumentLabel,
     setInstrumentColor,
+    updateInstrumentUi,
     setTrackChannelName,
     setInstrumentGain,
     setInstrumentEnvelope,

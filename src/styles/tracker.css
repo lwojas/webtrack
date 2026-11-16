@@ -3587,3 +3587,237 @@ input[type="range"].range-lg {
   color: var(--amber);
   font-size: var(--text-label);
 }
+
+/* --- instrument editor: knobs, control groups (ui/Knob.jsx, ui/chrome/ControlLayout.jsx) --- */
+.control-tabs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-right: auto;
+  margin-left: var(--space-lg);
+}
+
+.control-tabs__group {
+  display: flex;
+}
+
+.control-tabs__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-xs) var(--space-md);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font-size: var(--text-label);
+}
+
+.control-tabs__btn:hover {
+  color: var(--text);
+}
+
+.control-tabs__btn--active {
+  color: var(--cyan);
+  border-color: var(--cyan);
+}
+
+.knob-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md) var(--space-lg);
+}
+
+.knob-field {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: 82px;
+  font-size: var(--text-label);
+}
+
+.knob-row--s .knob-field {
+  width: 56px;
+}
+
+.knob-row--l .knob-field {
+  width: 92px;
+}
+
+.knob-field__label {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-dim);
+}
+
+.knob-field__value {
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.knob {
+  --knob-accent: var(--cyan);
+  width: 40px;
+  height: 40px;
+  cursor: ns-resize;
+  touch-action: none;
+  user-select: none;
+  border-radius: 50%;
+}
+
+.knob--s {
+  width: 28px;
+  height: 28px;
+}
+
+.knob--l {
+  width: 58px;
+  height: 58px;
+}
+
+.knob:focus-visible {
+  outline: 1px solid var(--knob-accent);
+  outline-offset: 2px;
+}
+
+.knob--disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.knob__svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.knob__track,
+.knob__fill {
+  fill: none;
+  stroke-width: 3.5;
+  stroke-linecap: round;
+}
+
+.knob__track {
+  stroke: var(--border-active);
+}
+
+.knob__fill {
+  stroke: var(--knob-accent);
+}
+
+.knob__pointer {
+  stroke: var(--text);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.control-assign {
+  max-width: 100%;
+  font-size: var(--text-micro);
+}
+
+/* A named group: a card whose accent hue tints its border, title and knobs. */
+.control-group {
+  --group-accent: var(--border-active);
+  padding: var(--space-sm) var(--space-md);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--group-accent);
+}
+
+.control-group--tinted {
+  --group-accent: hsl(var(--group-hue) 70% 58%);
+  background: color-mix(in srgb, hsl(var(--group-hue) 70% 58%) 6%, var(--surface-2));
+}
+
+.control-group__title {
+  display: block;
+  width: 100%;
+  margin-bottom: var(--space-xs);
+  padding: 0;
+  background: none;
+  border: 0;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-size: var(--text-micro);
+  letter-spacing: 0.08em;
+  text-align: left;
+}
+
+.control-group--tinted .control-group__title {
+  color: var(--group-accent);
+}
+
+.control-group--l .control-group__title {
+  font-size: var(--text-label);
+}
+
+.control-group__body {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  column-gap: var(--space-xl);
+  row-gap: var(--space-sm);
+}
+
+.control-group__body > .knob-row {
+  grid-column: 1 / -1;
+}
+
+.control-group__empty {
+  color: var(--text-dim);
+  font-size: var(--text-micro);
+}
+
+.control-group__edit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xs);
+}
+
+.control-group__name {
+  width: 12ch;
+}
+
+.control-group__hue {
+  width: 90px;
+}
+
+.control-group__btn {
+  padding: 1px var(--space-sm);
+  background: var(--surface-1);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  font-size: var(--text-micro);
+}
+
+.control-group__btn--active {
+  color: var(--cyan);
+  border-color: var(--cyan);
+}
+
+.control-group__sizes {
+  display: inline-flex;
+}
+
+.control-group__add {
+  justify-self: start;
+}
+
+.control-group__hue {
+  --range-track-h: 6px;
+}
+
+.control-group .control-group__edit input.control-group__hue::-webkit-slider-runnable-track {
+  background: linear-gradient(to right, hsl(0 70% 58%), hsl(60 70% 58%), hsl(120 70% 58%), hsl(180 70% 58%), hsl(240 70% 58%), hsl(300 70% 58%), hsl(359 70% 58%));
+}
+
+.control-group .control-group__edit input.control-group__hue::-moz-range-track {
+  background: linear-gradient(to right, hsl(0 70% 58%), hsl(60 70% 58%), hsl(120 70% 58%), hsl(180 70% 58%), hsl(240 70% 58%), hsl(300 70% 58%), hsl(359 70% 58%));
+}

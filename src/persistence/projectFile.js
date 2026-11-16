@@ -5,6 +5,7 @@
 // see below), and the small bit of editor/UI session state worth restoring. Pure/DOM-free so
 // it's unit-testable with plain vitest assertions; the browser file-picker/download glue
 // lives in projectIO.js instead.
+import { normalizeInstrumentUi } from "../model/instrumentUi.js";
 import { createInstrumentSlot } from "../model/instrument.js";
 import { normalizeCues } from "../model/chop.js";
 import { arrayBufferToBase64, base64ToArrayBuffer } from "./base64.js";
@@ -98,6 +99,7 @@ function serializeInstrument(instrument, embedSampleBytes) {
     name: instrument.name,
     label: instrument.label ?? undefined,
     color: instrument.color ?? undefined,
+    ui: normalizeInstrumentUi(instrument.ui) ?? undefined,
     gain: instrument.gain,
     rootNote: instrument.rootNote,
     output: instrument.output,
@@ -395,6 +397,8 @@ export async function deserializeProject(parsed, { loadSampleBytes, loadLocalAss
         // Additive: undefined in a project saved before instrument labels/colors -> null (unset).
         label: typeof def.label === "string" && def.label ? def.label : undefined,
         color: Number.isFinite(def.color) ? ((Math.round(def.color) % 360) + 360) % 360 : undefined,
+        // Additive: undefined in a project saved before editor groups -> null (no groups).
+        ui: normalizeInstrumentUi(def.ui) ?? undefined,
         gain: def.gain,
         rootNote: def.rootNote,
         output: def.output,

@@ -2,6 +2,7 @@ import LfoEditor from "./LfoEditor.jsx";
 import { SectionHeader, useCollapsed } from "./collapse.jsx";
 import PatchMatrixEditor from "./PatchMatrixEditor.jsx";
 import ModBadge from "./ModBadge.jsx";
+import ControlGroups, { ControlStyleTabs, useControlStyle } from "./ControlLayout.jsx";
 import ArpModule from "./ArpControls.jsx";
 import { arpOf } from "../../model/arp.js";
 import { automatedKeys, instKey } from "../../model/cellAutomation.js";
@@ -30,7 +31,6 @@ import {
   synthParamControl,
 } from "../../model/instrumentParams.js";
 import { downloadBytes } from "../../persistence/projectIO.js";
-import { rangeFillStyle } from "../rangeFill.js";
 
 // A sample instrument's gain (webdsp's per-sample SampleParam.Gain, see audio/instrumentGain.js) is
 // stored linear — unchanged, so saved projects load as before — but edited and shown in dB, over the
@@ -308,6 +308,8 @@ export function InstrumentEditorPanel({ store, instrumentController }) {
   // A synth with a patch matrix (Matrix) offers its controls and its matrix as two views; the panel is
   // taller for the matrix, so the view lives here and is passed down.
   const [view, setView] = useState("controls");
+  const [controlStyle, setControlStyle] = useControlStyle();
+  const [editingLayout, setEditingLayout] = useState(false);
   const index = useStore(store, events.CURSOR_MOVED, (s) => s.selectedInstrumentIndex);
   const kind = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.output?.kind ?? null);
   if (!open) return null;
@@ -316,22 +318,27 @@ export function InstrumentEditorPanel({ store, instrumentController }) {
     <div className={`instrument-editor-panel${matrixView ? " instrument-editor-panel--matrix" : ""}`}>
       <div className="chop-editor__bar">
         <span className="chop-editor__title">INSTRUMENT EDITOR</span>
+        <ControlStyleTabs style={controlStyle} onStyleChange={setControlStyle} editing={editingLayout} onEditingChange={setEditingLayout} />
         <button type="button" className="fx-panel__target-btn chop-editor__close" onClick={() => store.setInstrumentEditorOpen(false)}>
           CLOSE
         </button>
       </div>
-      <InstrumentEditor store={store} instrumentController={instrumentController} view={view} onViewChange={setView} />
+      <InstrumentEditor store={store} instrumentController={instrumentController} view={view} onViewChange={setView} controlStyle={controlStyle} editingLayout={editingLayout} />
     </div>
   );
 }
 
-function InstrumentEditor({ store, instrumentController, view, onViewChange }) {
+function InstrumentEditor({ store, instrumentController, view, onViewChange, controlStyle, editingLayout }) {
   const index = useStore(store, events.CURSOR_MOVED, (s) => s.selectedInstrumentIndex);
   const name = useStore(store, events.INSTRUMENTS_CHANGED, (s) => instrumentDisplayName(s.instruments[index]));
   const exists = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index] != null);
   const hasSample = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.sampleId != null);
   const gain = useStore(store, events.INSTRUMENTS_CHANGED, (s) => s.instruments[index]?.gain ?? 1);
   const gainDb = gainToDb(gain);
+  // The slot's control groups (model/instrumentUi.js). A fingerprint, not the mutable object.
+  const uiJson = useStore(store, events.INSTRUMENTS_CHANGED, (s) => JSON.stringify(s.instruments[index]?.ui ?? null));
+  const layoutUi = JSON.parse(uiJson);
+  const onUiChange = (update) => store.updateInstrumentUi(index, update);
   // Which of this slot's parameters are moved by cells (anywhere in the song) or by LFOs, for the
   // markers beside their names. Primitive selectors (sorted, joined), per the in-place gotcha.
   const automatedParams = useStore(store, events.CELL_CHANGED, (s) =>
@@ -619,30 +626,28 @@ function InstrumentEditor({ store, instrumentController, view, onViewChange }) {
               lfoCountFor={lfoCountFor}
             />
           ) : (
-            (hasMatrix ? getSynthParams(outputKind).filter((p) => !p.cell) : getSynthParams(outputKind)).map((param) => {
-              const control = synthParamControl(param);
-              const sliderValue = control.toSlider(synthParamValues[param.id]);
-              return (
-                <label className="fx-module__field" key={param.id}>
-                  <span className="fx-module__field-label" title={param.label}>
-                    {param.label}
-                    <ModBadge automated={automatedParams.includes(param.id)} lfos={lfoCountFor(param.id)} />
-                  </span>
-                  <input
-                    type="range"
-                    min={control.min}
-                    max={control.max}
-                    step={control.step}
-                    value={sliderValue}
-                    onChange={(e) =>
-                      instrumentController.setInstrumentParam(index, param.id, control.fromSlider(Number(e.target.value)))
-                    }
-                    style={rangeFillStyle(sliderValue, control.min, control.max)}
-                  />
-                  <span className="fx-module__value">{formatSynthParamValue(synthParamValues[param.id], param)}</span>
-                </label>
-              );
-            })
+            <ControlGroups
+              style={controlStyle}
+              editing={editingLayout}
+              ui={layoutUi}
+              onUiChange={onUiChange}
+              controls={(hasMatrix ? getSynthParams(outputKind).filter((p) => !p.cell) : getSynthParams(outputKind)).map((param) => {
+                const control = synthParamControl(param);
+                return {
+                  id: param.id,
+                  label: param.label,
+                  min: control.min,
+                  max: control.max,
+                  step: control.step,
+                  value: control.toSlider(synthParamValues[param.id]),
+                  text: formatSynthParamValue(synthParamValues[param.id], param),
+                  onChange: (v) => instrumentController.setInstrumentParam(index, param.id, control.fromSlider(v)),
+                  onReset: () => instrumentController.setInstrumentParam(index, param.id, param.default),
+                  automated: automatedParams.includes(param.id),
+                  lfos: lfoCountFor(param.id),
+                };
+              })}
+            />
           )}
           <ModulationSection store={store} instrumentController={instrumentController} index={index} kind={outputKind} />
         </>
@@ -662,23 +667,6 @@ function InstrumentEditor({ store, instrumentController, view, onViewChange }) {
                 ))}
               </select>
               <span className="fx-module__value" />
-            </label>
-
-            <label className="fx-module__field">
-              <span className="fx-module__field-label" title="Gain">
-                Gain
-              </span>
-              <input
-                type="range"
-                min={SOURCE_GAIN_MIN_DB}
-                max={SOURCE_GAIN_MAX_DB}
-                step={GAIN_STEP_DB}
-                value={gainDb}
-                onChange={(e) => instrumentController.setGain(index, dbToGain(Number(e.target.value)))}
-                onDoubleClick={() => instrumentController.setGain(index, 1)}
-                style={rangeFillStyle(gainDb, SOURCE_GAIN_MIN_DB, SOURCE_GAIN_MAX_DB)}
-              />
-              <span className="fx-module__value">{formatGainDb(gainDb)}</span>
             </label>
 
             {/* ADSR amplitude envelope (model/instrument.js#envelope, webdsp's
@@ -715,25 +703,38 @@ function InstrumentEditor({ store, instrumentController, view, onViewChange }) {
               </button>
             )}
 
-            <div className="note-editor__section">ENVELOPE</div>
-            {ENVELOPE_PARAMS.map((param) => (
-              <label className="fx-module__field" key={param.id}>
-                <span className="fx-module__field-label" title={param.label}>
-                  {param.label}
-                  <ModBadge automated={automatedParams.includes(param.id)} lfos={0} />
-                </span>
-                <input
-                  type="range"
-                  min={param.min}
-                  max={param.max}
-                  step={param.step}
-                  value={envelopeValues[param.id]}
-                  onChange={(e) => instrumentController.setEnvelope(index, { [param.id]: Number(e.target.value) })}
-                  style={rangeFillStyle(envelopeValues[param.id], param.min, param.max)}
-                />
-                <span className="fx-module__value">{formatEnvelopeValue(envelopeValues[param.id], param)}</span>
-              </label>
-            ))}
+            <div className="note-editor__section">GAIN / ENVELOPE</div>
+            <ControlGroups
+              style={controlStyle}
+              editing={editingLayout}
+              ui={layoutUi}
+              onUiChange={onUiChange}
+              controls={[
+                {
+                  id: "gain",
+                  label: "Gain",
+                  min: SOURCE_GAIN_MIN_DB,
+                  max: SOURCE_GAIN_MAX_DB,
+                  step: GAIN_STEP_DB,
+                  value: gainDb,
+                  text: formatGainDb(gainDb),
+                  onChange: (v) => instrumentController.setGain(index, dbToGain(v)),
+                  onReset: () => instrumentController.setGain(index, 1),
+                },
+                ...ENVELOPE_PARAMS.map((param) => ({
+                  id: param.id,
+                  label: param.label,
+                  min: param.min,
+                  max: param.max,
+                  step: param.step,
+                  value: envelopeValues[param.id],
+                  text: formatEnvelopeValue(envelopeValues[param.id], param),
+                  onChange: (v) => instrumentController.setEnvelope(index, { [param.id]: v }),
+                  onReset: () => instrumentController.setEnvelope(index, { [param.id]: param.default }),
+                  automated: automatedParams.includes(param.id),
+                })),
+              ]}
+            />
           </>
         )
       )}

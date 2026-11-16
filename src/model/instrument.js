@@ -72,6 +72,8 @@ export function createInstrumentSlot({
   // color is a hue 0-359 rendered as a low-chroma tint (ui/chrome/InstrumentPanel.jsx). Display only, never read by compile.
   label = null,
   color = null,
+  // ui: this slot's editor layout, named control groups with a hue and size (model/instrumentUi.js). Display only.
+  ui = null,
   sampleId = null,
   gain = 1.0,
   rootNote = 60,
@@ -116,6 +118,7 @@ export function createInstrumentSlot({
     name,
     label,
     color,
+    ui,
     sampleId,
     gain,
     rootNote,
